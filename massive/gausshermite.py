@@ -1,4 +1,4 @@
-""" 
+"""
 Functions to compute Hermite polynomials and Gauss-Hermite distributions
 """
 
@@ -6,7 +6,7 @@ Functions to compute Hermite polynomials and Gauss-Hermite distributions
 import numpy as np
 from scipy.integrate import quad
 
-from mathutils import gaussian
+import utilities as utl
 
 
 def hermite_polynomials(sample_pts, num_polynomials):
@@ -86,11 +86,11 @@ def unnormalized_gausshermite_pdf(x, params):
     x = np.asarray(x)
     params = np.asarray(params)
     central, sigma = params[:2]
-    gaussian_factor = gaussian(x, central, sigma)  # Gaussian is normalized
+    utl.gaussian_factor = utl.gaussian(x, central, sigma)  # utl.gaussian is normalized
     full_h_series = np.concatenate(([1.0, 0.0, 0.0], params[2:]))
     scaled_input = (x - central)/sigma
     poly_factor = hermite_series(scaled_input, full_h_series)
-    return gaussian_factor*poly_factor # full product is unnormalized
+    return utl.gaussian_factor*poly_factor # full product is unnormalized
 
 
 def gausshermite_pdf(x, params):
@@ -102,7 +102,7 @@ def gausshermite_pdf(x, params):
     $ GH(x; mu, sigma, {h_i}) =
         N G(x; mu, sigma) (1 + \sum_{i=3} h_i H_i[(x - mu)/sigma]) $
     where the GH parameters are v, sigma, and $h_i$ for $i > 2$. G is
-    the Gaussian pdf with mean mu and standard deviation sigma,
+    the utl.gaussian pdf with mean mu and standard deviation sigma,
     normalized to integrate to 1 as usual. The $H_i$ are the Hermite
     polynomials as defined in hermite_polynomials. N is an overall
     normalization constant which forces the GH distribution to
@@ -140,11 +140,11 @@ def fixparam_gausshermite_pdf(params, normalize=True):
     Returns a callable Gauss-Hermite probability density function
     with the Gauss-Hermite parameters fixed to those passed here.
 
-    This function is equivalent to a lambda call that freezes the 
+    This function is equivalent to a lambda call that freezes the
     values of the Gauss-Hermite parameters in gausshermite_pdf. I.e.,
     >>> f1 = fixparam_gausshermite_pdf(params)
     >>> f2 = lambda x: gausshermite_pdf(x, params)
-    then f1(x) == f2(x) is True for any x.  
+    then f1(x) == f2(x) is True for any x.
 
     This function optimizes run-time in the case that one must make
     multiple calls to a GH pdf. If lambda is used as above, then the
@@ -157,7 +157,7 @@ def fixparam_gausshermite_pdf(params, normalize=True):
     one integration, the total time needed for the two calls
     >>> f1 = fixparam_gausshermite_pdf(p)
     >>> values = f1(x)
-    will be roughly the same as the time needed for the one call 
+    will be roughly the same as the time needed for the one call
     >>> values = gausshermite_pdf(x, p)
     for any x and p. The speed increase is useful only if f1 is to be
     called multiple times.

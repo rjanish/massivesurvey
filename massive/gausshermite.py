@@ -4,7 +4,7 @@ Functions to compute Hermite polynomials and Gauss-Hermite distributions
 
 
 import numpy as np
-from scipy.integrate import quad
+import scipy.integrate as integrate
 
 import utilities as utl
 
@@ -131,7 +131,7 @@ def gausshermite_pdf(x, params):
         element-wise on x. Has the same shape as x.
     """
     func = lambda y: unnormalized_gausshermite_pdf(y, params)
-    norm, error = quad(func, -np.inf, np.inf)
+    norm, error = integrate.quad(func, -np.inf, np.inf)
     return func(x)/norm
 
 
@@ -189,7 +189,7 @@ def fixparam_gausshermite_pdf(params, normalize=True):
     zerostxt = "h_i:     0.0, for i > {}".format(params.size)
     full_docstring = doctxt + gausstxt + hermitetxt + zerostxt
     if normalize:
-        norm, error = quad(unnormed_pdf, -np.inf, np.inf)
+        norm, error = integrate.quad(unnormed_pdf, -np.inf, np.inf)
         normed_pdf = lambda x: unnormed_pdf(x)/norm
         normed_pdf.func_doc = full_docstring
         return normed_pdf

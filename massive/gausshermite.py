@@ -147,14 +147,15 @@ def fixparam_gausshermite_pdf(params, normalize=True):
     then f1(x) == f2(x) is True for any x.
 
     This function optimizes run-time in the case that one must make
-    multiple calls to a GH pdf. If lambda is used as above, then the
-    GH distribution is fully integrated with each call to f2 in order
-    to set the normalization. In contrast, the current function sets
-    the normalization only once while constructing the output function,
-    so f1 does not need to do an integration. f1 is therefore faster
-    than f2, by about the time needed for one full integration of the
-    GH pdf.  Note, however, that since the current function must do
-    one integration, the total time needed for the two calls
+    multiple calls to a GH pdf, such as when computing the moments.
+    If lambda is used as above, then the GH distribution is fully
+    integrated with each call to f2 in order to set the normalization.
+    In contrast, the current function sets the normalization only once
+    while constructing the output function, so f1 does not need to do
+    an integration. f1 is therefore faster than f2, by about the time
+    needed for one full integration of the GH pdf. Note, however, that
+    since the current function must do one integration, the total time
+    needed for the two calls
     >>> f1 = fixparam_gausshermite_pdf(p)
     >>> values = f1(x)
     will be roughly the same as the time needed for the one call

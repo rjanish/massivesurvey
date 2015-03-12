@@ -3,6 +3,9 @@ Module for fitting data a model which is a sum of identical sub-models.
 """
 
 
+import numpy as np
+
+
 class SeriesFit(object):
     """
     This class simplifies fitting data to models which consist of a
@@ -62,28 +65,28 @@ class SeriesFit(object):
         self.num_features = self.initial_guess.shape[0]
         self.current_params = self.initial_guess.copy()
 
-    def partition():
+    def partition(self):
         """
         Divide the model domain into the maximum possible number of
         independent sub-regions. In each such region, only a subset of
         the sub-models contributes noticeably to the full model.
         """
-        centers = np.array(self.get_center(p) for p in self.current_params)
-        widths =  np.array(self.get_width(p) for p in self.current_params)
+        centers = np.array([self.get_center(p) for p in self.current_params])
+        widths =  np.array([self.get_width(p) for p in self.current_params])
         lowers = centers - 0.5*widths
         uppers = centers + 0.5*widths
         sequential = np.argsort(centers)
         first_feature = sequential[0]
-        regions = [[lower[first_feature], upper[first_feature]]]
+        regions = [[lowers[first_feature], uppers[first_feature]]]
         features = [[first_feature]]
         for current in sequential[1:]:
             previous = current - 1
-            overlap = (lower[current] < upper[previous])
+            overlap = (lowers[current] < uppers[previous])
             if overlap:
-                regions[-1] = [lower[previous], upper[current]]
+                regions[-1] = [lowers[previous], uppers[current]]
                 features[-1].append(current)
             else:
-                regions.append([lower[current], upper[current]])
+                regions.append([lowers[current], uppers[current]])
                 features.append([current])
         return features, regions
 

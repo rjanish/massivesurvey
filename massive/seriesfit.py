@@ -2,6 +2,7 @@
 Module for fitting data a model which is a sum of identical sub-models.
 """
 
+
 class SeriesFit(object):
     """
     This class simplifies fitting data to models which consist of a
@@ -85,14 +86,6 @@ class SeriesFit(object):
                 regions.append([lower[current], upper[current]])
                 features.append([current])
         return features, regions
-
-
-
-    def residuals(self, parameters):
-        pass
-
-    def run_fit():
-        for region in regions:
 
 
 

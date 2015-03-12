@@ -27,7 +27,7 @@ class SeriesFit(object):
     If two or more features are overlapping, they will be included
     in one sub-region and fit to a sum of multiple sub-models.
     """
-    def __init__(self, x, y, submodel, width, center,
+    def __init__(self, x, y, submodel, get_width, get_center,
                  initial_guess, minimizer, width_criteria=5.0):
         """
         Args:
@@ -39,14 +39,14 @@ class SeriesFit(object):
             The localized sub-model. The calling syntax must be
             submodel(arg, params), where arg is a dependent variable
             array and params is an array of parameters.
-        center - func
+        get_center - func
             A function to determine the central value, in units of the
             dependent variable, of a single instance of a submodel.
             The calling syntax must be center(params), with params
             being the parameters of the submodel in question.
-        width - func
-            Similar to 'center' above, but returning the width in
-            units of the dependent variable of the submodel.
+        get_width - func
+            Similar to 'get_center' above, but returning the width
+            in units of the dependent variable of the submodel.
         initial_guess - arraylike
             An array of initial guesses for the parameters of each
             submodel, i.e. initial_guess[n] is an array of initial
@@ -59,7 +59,15 @@ class SeriesFit(object):
         minimizer - func
             This is the routine used to minimize chi^2 of the model.
         """
-        pass
+        self.x = np.asarray(x)
+        self.y = np.asarray(y)
+        self.submodel = submodel
+        self.get_width = get_width
+        self.get_center = get_center
+        self.initial_guess = np.asarray(initial_guess)
+        self.minimizer = minimizer
+        self.width_criteria = float(width_criteria)
+        self.current_params = self.initial_guess.copy()
 
     def full_model(x, params):
         split_params = [params[index:(index + self.num_subparams)]

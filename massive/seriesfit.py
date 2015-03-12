@@ -27,8 +27,7 @@ class SeriesFit(object):
     If two or more features are overlapping, they will be included
     in one sub-region and fit to a sum of multiple sub-models.
     """
-    def __init__(self, x, y, submodel, get_width, get_center,
-                 initial_guess, minimizer, width_criteria=5.0):
+    def __init__(self, x, y, submodel, get_width, get_center, initial_guess):
         """
         Args:
         x - arraylike
@@ -52,12 +51,6 @@ class SeriesFit(object):
             submodel, i.e. initial_guess[n] is an array of initial
             parameter guesses for submodel n. The length of the first
             axis determines the number of submodels to be used.
-        width_criteria - float, default=5.0
-            This determines the size of the fitting region used for
-            each submodel. Each region has size width_criteria*width,
-            where width is the width of the submodel in that region.
-        minimizer - func
-            This is the routine used to minimize chi^2 of the model.
         """
         self.x = np.asarray(x)
         self.y = np.asarray(y)
@@ -65,14 +58,44 @@ class SeriesFit(object):
         self.get_width = get_width
         self.get_center = get_center
         self.initial_guess = np.asarray(initial_guess)
-        self.minimizer = minimizer
-        self.width_criteria = float(width_criteria)
+        self.num_features = self.initial_guess.shape[0]
         self.current_params = self.initial_guess.copy()
 
-    def full_model(x, params):
-        split_params = [params[index:(index + self.num_subparams)]
-                        for index in xrange(self.num_submodels)]
-        return sum(submodel(x, subparams) for subparams in split_params)
+    def partition():
+        """
+        Divide the model domain into the maximum possible number of
+        independent sub-regions. In each such region, only a subset of
+        the sub-models contributes noticeably to the full model.
+        """
+        centers = np.array(self.get_center(p) for p in self.current_params)
+        widths =  np.array(self.get_width(p) for p in self.current_params)
+        lowers = centers - 0.5*widths
+        uppers = centers + 0.5*widths
+        sequential = np.argsort(centers)
+        first_feature = sequential[0]
+        regions = [[lower[first_feature], upper[first_feature]]]
+        features = [[first_feature]]
+        for current in sequential[1:]:
+            previous = current - 1
+            overlap = (lower[current] < upper[previous])
+            if overlap:
+                regions[-1] = [lower[previous], upper[current]]
+                features[-1].append(current)
+            else:
+                regions.append([lower[current], upper[current]])
+                features.append([current])
+        return features, regions
+
+
+
+    def residuals(self, parameters):
+        pass
+
+    def run_fit():
+        for region in regions:
+
+
+
 
 
 

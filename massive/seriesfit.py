@@ -4,6 +4,7 @@ Module for fitting data a model which is a sum of identical sub-models.
 
 
 import numpy as np
+import scipy.optimize as opt
 
 
 class SeriesFit(object):
@@ -63,6 +64,7 @@ class SeriesFit(object):
         self.get_center = get_center
         self.initial_guess = np.asarray(initial_guess)
         self.num_features = self.initial_guess.shape[0]
+        self.num_subparams = self.initial_guess.shape[1]
         self.current_params = self.initial_guess.copy()
 
     def partition(self):
@@ -90,7 +92,27 @@ class SeriesFit(object):
                 features.append([current])
         return features, regions
 
+    def get_residual_func(self, x, y, num_models):
+        def resid(params):
+            restricted_model = sum(
+                self.submodel(x, params[n*self.num_subparams:(n+1)*self.num_subparams])
+                for n in xrange(num_models))
+            return y - restricted_model
+        return resid
 
+    def run_fit(self):
+        self.features, self.regions = self.partition()
+        for (xmin, xmax), models in zip(self.regions, self.features):
+            in_fit = ((xmin < self.x) & (self.x < xmax))
+            target_x, target_y = self.x[in_fit], self.y[in_fit]
+            num_models = len(models)
+            resid = self.get_residual_func(target_x, target_y, num_models)
+            starting_params = self.current_params[models, :].flatten()
+            fit_results = opt.leastsq(resid, starting_params)
+            bestfit_params = fit_results[0]
+            for submodel_index, model in enumerate(models):
+                self.current_params[model, :] = (
+                    bestfit_params[submodel_index*self.num_subparams:(submodel_index + 1)*self.num_subparams])
 
 
 

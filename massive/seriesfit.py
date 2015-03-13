@@ -7,6 +7,48 @@ import numpy as np
 import scipy.optimize as opt
 
 
+def leastsq_fitter(model, x, y, initial_guess, sigma=None):
+    """
+    Do a least-squares fit of model to some data (x, y), using a
+    Levenberg–Marquardt minimization.
+
+    This function finds the parameters that minimize:
+      $  \chi^2 = \sum_i (model(x_i, params) - y_i)^2/\sigma_i^2
+    The optimization is done with scipy's optimize.leastsq routine,
+    which is a wrapper around the LMA routines in MINPACK.
+
+    Args:
+    model - func
+        The model function, which has a call syntax model(x, params),
+        with x the independent variable and params an array of
+        parameters. The function returns the dependent variable y.
+    x - arraylike
+        The independent variable sample points.
+    y - arraylike
+        The observed dependent variable.
+    initial_guess - arraylike
+        A set of initial parameter guesses to start the optimization.
+    sigma - arraylike or None, default = None
+        Optional estimate of the error in y. If not specified, then
+        all points are given equal weight, i.e. $\sigma_i = 1$.
+
+    Returns: bestfit
+    bestfit - arraylike
+        The set of best-fitting parameters
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    initial_guess = np.asarray(initial_guess, dtype=float)
+    if sigma is None:
+        sigma = np.ones(y.shape, dtype=float)
+    else:
+        sigma = np.asarray(sigma, dytpe=float)
+    residuals = lambda p: (model(x, p) - y)/sigma
+    fit_results = opt.leastsq(residuals, initial_guess)
+    bestfit_params = fit_results[0]
+    return bestfit_params
+
+
 class SeriesFit(object):
     """
     This class simplifies fitting data to models which consist of a
@@ -31,8 +73,10 @@ class SeriesFit(object):
     set iteratively to be greater than the widths of the best-fitting
     sub-models. If two or more features are overlapping, they will be
     included in one sub-region and fit to a sum of multiple sub-models.
+    The actual fitting can be done with any supplied fit routine.
     """
-    def __init__(self, x, y, submodel, get_width, get_center, initial_guess):
+    def __init__(self, x, y, submodel, get_width, get_center,
+                 initial_guess, fitting_routine):
         """
         Args:
         x - arraylike
@@ -58,13 +102,23 @@ class SeriesFit(object):
             submodel, i.e. initial_guess[n] is an array of initial
             parameter guesses for submodel n. The length of the first
             axis determines the number of submodels to be used.
+        fitting_routine - func
+            A general curve-fitting routine to do the fits. The syntax
+            should be fitting_routine(model, x, y, initial), where
+            model is the model function, x the independent variable, y
+            the observed dependent variable, and initial an array of
+            initial parameter guesses. The model function should have
+            a syntax: y = model(x, params), like submodel above. The
+            function fitting_routine should return the best fitting
+            parameter array.
         """
         self.x = np.asarray(x)
         self.y = np.asarray(y)
+        self.initial_guess = np.asarray(initial_guess)
         self.submodel = submodel
         self.get_width = get_width
         self.get_center = get_center
-        self.initial_guess = np.asarray(initial_guess)
+        self.fitter = fitting_routine
         self.num_features = self.initial_guess.shape[0]
         self.num_subparams = self.initial_guess.shape[1]
         self.current_params = self.initial_guess.copy()
@@ -75,7 +129,6 @@ class SeriesFit(object):
         """
         contained = (i1[0] >= i2[0]) and (i1[1] <= i2[1])
         return contained
-
 
     def partition(self):
         """

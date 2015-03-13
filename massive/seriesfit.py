@@ -67,6 +67,14 @@ class SeriesFit(object):
         self.num_subparams = self.initial_guess.shape[1]
         self.current_params = self.initial_guess.copy()
 
+    def contained(self, i1, i2):
+        """
+        Is i1 contained in i2?
+        """
+        contained = (i1[0] >= i2[0]) and (i1[1] <= i2[1])
+        return contained
+
+
     def partition(self):
         """
         Divide the model domain into the maximum possible number of
@@ -90,7 +98,7 @@ class SeriesFit(object):
             else:
                 regions.append([lowers[current], uppers[current]])
                 features.append([current])
-        return features, regions
+        return features, np.asarray(regions)
 
     def get_residual_func(self, x, y, num_models):
         def resid(params):
@@ -101,21 +109,25 @@ class SeriesFit(object):
         return resid
 
     def run_fit(self):
-        self.features, self.regions = self.partition()
-        for (xmin, xmax), models in zip(self.regions, self.features):
-            in_fit = ((xmin < self.x) & (self.x < xmax))
-            target_x, target_y = self.x[in_fit], self.y[in_fit]
-            num_models = len(models)
-            resid = self.get_residual_func(target_x, target_y, num_models)
-            starting_params = self.current_params[models, :].flatten()
-            fit_results = opt.leastsq(resid, starting_params)
-            bestfit_params = fit_results[0]
-            for submodel_index, model in enumerate(models):
-                self.current_params[model, :] = (
-                    bestfit_params[submodel_index*self.num_subparams:(submodel_index + 1)*self.num_subparams])
-
-
-
-
-
-
+        while changed:
+            self.features, self.regions = self.partition()
+            for (xmin, xmax), models in zip(self.regions, self.features):
+                in_fit = ((xmin < self.x) & (self.x < xmax))
+                target_x, target_y = self.x[in_fit], self.y[in_fit]
+                num_models = len(models)
+                resid = self.get_residual_func(target_x, target_y, num_models)
+                starting_params = self.current_params[models, :].flatten()
+                fit_results = opt.leastsq(resid, starting_params)
+                bestfit_params = fit_results[0]
+                for submodel_index, model in enumerate(models):
+                    self.current_params[model, :] = (
+                        bestfit_params[submodel_index*self.num_subparams:(submodel_index + 1)*self.num_subparams])
+            new_features, new_regions = self.partition()
+            changed = new_regions.shape != self.regions.shape
+            if not changed:
+                changed = np.any([~self.contained(rnew, rold) for rold, rnew
+                                  in zip(self.regions, new_regions)])
+                delta = np.array([
+                    [rnew[0] - rold[0], rold[1] - rnew[1]] for rold, rnew
+                                  in zip(self.regions, new_regions)])
+                

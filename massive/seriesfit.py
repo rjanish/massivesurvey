@@ -28,9 +28,9 @@ class SeriesFit(object):
     is avoided as much as possible to improve performance. This is
     done by partitioning the data into sub-regions and fitting one $f$
     per region independent of all other regions. The region sizes are
-    set iteratively using the widths of the best-fitting sub-models.
-    If two or more features are overlapping, they will be included
-    in one sub-region and fit to a sum of multiple sub-models.
+    set iteratively to be greater than the widths of the best-fitting
+    sub-models. If two or more features are overlapping, they will be
+    included in one sub-region and fit to a sum of multiple sub-models.
     """
     def __init__(self, x, y, submodel, get_width, get_center, initial_guess):
         """
@@ -50,7 +50,9 @@ class SeriesFit(object):
             being the parameters of the submodel in question.
         get_width - func
             Similar to 'get_center' above, but returning the width
-            in units of the dependent variable of the submodel.
+            in units of the dependent variable of the submodel. The
+            width returned by get_width is the minimum region size
+            used to fit a single sub-feature.
         initial_guess - arraylike
             An array of initial guesses for the parameters of each
             submodel, i.e. initial_guess[n] is an array of initial

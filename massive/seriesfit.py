@@ -7,11 +7,11 @@ import numpy as np
 import scipy.optimize as opt
 
 
-def leastsq_fitter(model, x, y, initial_guess, sigma=None):
+def leastsq_lma(model, x, y, initial_guess, sigma=None):
     """
     Do a least-squares fit of model to some data (x, y), using a
-    Levenberg–Marquardt minimization.
-
+    Levenberg-Marquardt minimization.
+    
     This function finds the parameters that minimize:
       $  \chi^2 = \sum_i (model(x_i, params) - y_i)^2/\sigma_i^2
     The optimization is done with scipy's optimize.leastsq routine,
@@ -155,15 +155,15 @@ class SeriesFit(object):
                 features.append([current])
         return features, np.asarray(regions)
 
-    def get_residual_func(self, x, y, num_models):
-        def resid(params):
+    def get_submodel_sum(self, num_models):
+        def submodel_sum(x, params):
             bkg = params[0]
             subparams = params[1:]
-            restricted_model = bkg + sum(
+            restricted_model = sum(
                 self.submodel(x, subparams[n*self.num_subparams:(n+1)*self.num_subparams])
                 for n in xrange(num_models))
-            return y - restricted_model
-        return resid
+            return restricted_model
+        return submodel_sum
 
     def run_fit(self):
         self.features, self.regions = self.partition()
@@ -175,16 +175,17 @@ class SeriesFit(object):
                 in_fit = ((xmin < self.x) & (self.x < xmax))
                 target_x, target_y = self.x[in_fit], self.y[in_fit]
                 num_models = len(models)
-                resid = self.get_residual_func(target_x, target_y, num_models)
+                submodel_sum = self.get_submodel_sum(num_models)
                 starting_params = np.concatenate(([self.bkg[region_index]],
                     self.current_params[models, :].flatten()))
-                fit_results = opt.leastsq(resid, starting_params)
-                bestfit_bkg = fit_results[0][0]
-                bestfit_params = fit_results[0][1:]
+                bestfit_params = self.fitter(submodel_sum, target_x,
+                                           target_y, starting_params)
+                bestfit_bkg = bestfit_params[0]
+                bestfit_subparams = bestfit_params[1:]
                 self.bkg[region_index] = bestfit_bkg
                 for submodel_index, model in enumerate(models):
                     self.current_params[model, :] = (
-                        bestfit_params[submodel_index*self.num_subparams:(submodel_index + 1)*self.num_subparams])
+                        bestfit_subparams[submodel_index*self.num_subparams:(submodel_index + 1)*self.num_subparams])
             new_features, new_regions = self.partition()
             changed = new_regions.shape != self.regions.shape
             if not changed:

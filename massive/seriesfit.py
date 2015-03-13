@@ -42,7 +42,7 @@ def leastsq_lma(model, x, y, initial_guess, sigma=None):
     if sigma is None:
         sigma = np.ones(y.shape, dtype=float)
     else:
-        sigma = np.asarray(sigma, dytpe=float)
+        sigma = np.asarray(sigma, dtype=float)
     residuals = lambda p: (model(x, p) - y)/sigma
     fit_results = opt.leastsq(residuals, initial_guess)
     bestfit_params = fit_results[0]
@@ -76,7 +76,7 @@ class SeriesFit(object):
     The actual fitting can be done with any supplied fit routine.
     """
     def __init__(self, x, y, submodel, get_width, get_center,
-                 initial_guess, fitting_routine):
+                 initial_guess, fitting_routine, sigma=None):
         """
         Args:
         x - arraylike
@@ -104,17 +104,24 @@ class SeriesFit(object):
             axis determines the number of submodels to be used.
         fitting_routine - func
             A general curve-fitting routine to do the fits. The syntax
-            should be fitting_routine(model, x, y, initial), where
-            model is the model function, x the independent variable, y
-            the observed dependent variable, and initial an array of
-            initial parameter guesses. The model function should have
-            a syntax: y = model(x, params), like submodel above. The
-            function fitting_routine should return the best fitting
-            parameter array.
+            is fitting_routine(model, x, y, initial, sigma), where
+            model is the model function, x is the independent variable,
+            y is the observed dependent variable, initial is an array
+            of initial parameter guesses, and sigma is an estimate of
+            the error in y. The model function should have the syntax
+            y = model(x, params), like submodel above. fitting_routine
+            should return the best fitting parameter array.
+        sigma - arraylike or None, default=None
+            Optional estimate of the error in y. If not specified,
+            then None is passed to the given fitting_routine.
         """
         self.x = np.asarray(x)
         self.y = np.asarray(y)
         self.initial_guess = np.asarray(initial_guess)
+        if sigma is None:
+            self.sigma = None
+        else:
+            self.sigma = np.array(sigma)
         self.submodel = submodel
         self.get_width = get_width
         self.get_center = get_center
@@ -174,12 +181,17 @@ class SeriesFit(object):
             for region_index, ((xmin, xmax), models) in enumerate(zip(self.regions, self.features)):
                 in_fit = ((xmin < self.x) & (self.x < xmax))
                 target_x, target_y = self.x[in_fit], self.y[in_fit]
+                if self.sigma is None:
+                    target_sigma = None
+                else:
+                    target_sigma = self.sigma[in_fit]
                 num_models = len(models)
                 submodel_sum = self.get_submodel_sum(num_models)
                 starting_params = np.concatenate(([self.bkg[region_index]],
                     self.current_params[models, :].flatten()))
                 bestfit_params = self.fitter(submodel_sum, target_x,
-                                           target_y, starting_params)
+                                           target_y, starting_params,
+                                           target_sigma)
                 bestfit_bkg = bestfit_params[0]
                 bestfit_subparams = bestfit_params[1:]
                 self.bkg[region_index] = bestfit_bkg

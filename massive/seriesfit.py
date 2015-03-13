@@ -102,23 +102,31 @@ class SeriesFit(object):
 
     def get_residual_func(self, x, y, num_models):
         def resid(params):
-            restricted_model = sum(
-                self.submodel(x, params[n*self.num_subparams:(n+1)*self.num_subparams])
+            bkg = params[0]
+            subparams = params[1:]
+            restricted_model = bkg + sum(
+                self.submodel(x, subparams[n*self.num_subparams:(n+1)*self.num_subparams])
                 for n in xrange(num_models))
             return y - restricted_model
         return resid
 
     def run_fit(self):
+        self.features, self.regions = self.partition()
+        self.bkg = np.zeros(self.regions.shape[0])
+        changed = True
         while changed:
             self.features, self.regions = self.partition()
-            for (xmin, xmax), models in zip(self.regions, self.features):
+            for region_index, ((xmin, xmax), models) in enumerate(zip(self.regions, self.features)):
                 in_fit = ((xmin < self.x) & (self.x < xmax))
                 target_x, target_y = self.x[in_fit], self.y[in_fit]
                 num_models = len(models)
                 resid = self.get_residual_func(target_x, target_y, num_models)
-                starting_params = self.current_params[models, :].flatten()
+                starting_params = np.concatenate(([self.bkg[region_index]],
+                    self.current_params[models, :].flatten()))
                 fit_results = opt.leastsq(resid, starting_params)
-                bestfit_params = fit_results[0]
+                bestfit_bkg = fit_results[0][0]
+                bestfit_params = fit_results[0][1:]
+                self.bkg[region_index] = bestfit_bkg
                 for submodel_index, model in enumerate(models):
                     self.current_params[model, :] = (
                         bestfit_params[submodel_index*self.num_subparams:(submodel_index + 1)*self.num_subparams])
@@ -127,7 +135,3 @@ class SeriesFit(object):
             if not changed:
                 changed = np.any([~self.contained(rnew, rold) for rold, rnew
                                   in zip(self.regions, new_regions)])
-                delta = np.array([
-                    [rnew[0] - rold[0], rold[1] - rnew[1]] for rold, rnew
-                                  in zip(self.regions, new_regions)])
-                

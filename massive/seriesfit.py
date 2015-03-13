@@ -115,9 +115,9 @@ class SeriesFit(object):
             Optional estimate of the error in y. If not specified,
             then None is passed to the given fitting_routine.
         """
-        self.x = np.asarray(x)
-        self.y = np.asarray(y)
-        self.initial_guess = np.asarray(initial_guess)
+        self.x = np.asarray(x, dtype=float)
+        self.y = np.asarray(y, dtype=float)
+        self.initial_guess = np.asarray(initial_guess, dtype=float)
         if sigma is None:
             self.sigma = None
         else:
@@ -160,7 +160,7 @@ class SeriesFit(object):
             else:
                 regions.append([lowers[current], uppers[current]])
                 features.append([current])
-        return features, np.asarray(regions)
+        return features, np.asarray(regions, dtype=float)
 
     def get_submodel_sum(self, num_models):
         def submodel_sum(x, params):
@@ -174,7 +174,7 @@ class SeriesFit(object):
 
     def run_fit(self):
         self.features, self.regions = self.partition()
-        self.bkg = np.zeros(self.regions.shape[0])
+        self.bkg = np.zeros(self.regions.shape[0], dtype=float)
         changed = True
         while changed:
             self.features, self.regions = self.partition()

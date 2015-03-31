@@ -14,7 +14,7 @@ class SpectrumSet(object):
     methods for I/O and manipulation of spectra are meant to enforce
     the preservation and automatic updating of the metadata as needed.
     """
-    def __init__(self, data, wavelengths):
+    def __init__(self, data, wavelengths, comments={}):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -28,6 +28,11 @@ class SpectrumSet(object):
             set containing a single spectrum and is converted as such.
         wavelengths - 1d arraylike
             Wavelength sample values, the same for each spectrum.
+        comments - dict, default is empty
+            This is a dictionary to store comments about the spectra.
+            The keys are treated as strings, otherwise there are no
+            formatting restrictions. These comments will be shuffled
+            along with I/O operations in file headers.
         """
         # check spectra
         self.spectra = np.asarray(spectra)
@@ -44,3 +49,5 @@ class SpectrumSet(object):
             raise ValueError("Invalid wavelength array shape: {}\n"
                              "Must be 1D and match the size of spectra: {}"
                              "".format(self.waves.shape, self.num_samples))
+        # remaining arg checks
+        self.comments = {str(k):v for k, v in comments.iteritems()}

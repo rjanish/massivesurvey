@@ -5,6 +5,7 @@ and collections of spectra.
 
 
 import numpy as np
+import astropy.units as units
 
 
 class SpectrumSet(object):
@@ -17,8 +18,8 @@ class SpectrumSet(object):
     methods for I/O and manipulation of spectra are meant to enforce
     the preservation and automatic updating of the metadata as needed.
     """
-    def __init__(self, spectra, wavelengths, noise, ir,
-                 comments={}, float_tol = 10**(-10)):
+    def __init__(self, spectra, wavelengths, noise, ir, spectra_unit,
+                 wavelength_unit, comments={}, float_tol=10**(-10)):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -40,6 +41,11 @@ class SpectrumSet(object):
             The spectral resolution of the instrument that recorded
             the spectra. This is assumed to be given as a Gaussian
             FWHM, with the units matching wavelengths.
+        spectra_unit - astropy unit-like
+            The unit in which the values of spectra are given.
+        wavelength_unit - astropy unit-like
+            The unit in which the values of wavelengths are given.
+            This is assumed to be some unit of length.
         comments - dict, default is empty
             This is a dictionary to store comments about the spectra.
             The keys are treated as strings, otherwise there are no
@@ -68,17 +74,21 @@ class SpectrumSet(object):
         metaspectra_data = map(np.asarray, [noise, ir])
         metaspectra_names = ["noise", "ir"]
         self.metaspectra = dict(zip(metaspectra_names, metaspectra_data))
-        for name, data in self.metaspectra.iteritems():
-            if data.ndim == 1:
-                self.metaspectra[name] = np.expand_dims(data, 0)
-            if data.shape != self.spectra.shape:
+        for name in self.metaspectra:
+            if self.metaspectra[name].ndim == 1:
+                self.metaspectra[name] = np.expand_dims(self.metaspectra[name], 0)
+            if self.metaspectra[name].shape != self.spectra.shape:
                 error_msg = ("Invalid {} shape: {}. "
                              "Must match the shape of spectra: {}."
-                             "".format(name, data.shape, self.spectra.shape))
+                             "".format(name, self.metaspectra[name].shape,
+                                       self.spectra.shape))
                 raise ValueError(error_msg)
         # remaining arg checks
         self.comments = {str(k):v for k, v in comments.iteritems()}
         self.tol = float(float_tol)
+        self.spec_unit = units.Unit(spectra_unit)
+        wavelength_unit.to(units.cm)  # check if wavelength_unit is a length
+        self.wave_unit = units.Unit(wavelength_unit)
 
     def is_linearly_sampled(self):
         """ Check if wavelengths are linear spaced. Boolean output. """

@@ -6,6 +6,7 @@ and collections of spectra.
 
 import numpy as np
 import astropy.units as units
+import scipy.integrate as integrate
 
 
 class SpectrumSet(object):
@@ -68,6 +69,7 @@ class SpectrumSet(object):
             raise ValueError("Invalid wavelength shape: {}. Must be "
                              "1D and match the size of spectra: {}."
                              "".format(self.waves.shape, self.num_samples))
+        self.spec_region = np.array([self.waves.min(), self.waves.max()])
         # check metaspectra format
         # 'metaspectra' are those metadata that have a spectra-like form
         metaspectra_inputs = [noise, ir]
@@ -101,3 +103,18 @@ class SpectrumSet(object):
         delta = log_waves[1:] - log_waves[:-1]
         residual = np.absolute(delta - delta[0]).max()
         return residual < self.tol
+
+    def compute_flux(self, region=None):
+        """ Compute the flux of spectrum over the given region. """
+        if region is None:
+            start, end = self.spec_region
+        else:
+            start, end = region
+            if (start < self.spec_region[0]) or (end > self.spec_region[1]):
+                raise ValueError("Invalid region: {}. Region must be "
+                                 "contained in spectral range: [{}, {}]."
+                                 "".format(region, *self.spec_region))
+        valid = (start < self.waves) & (self.waves < end)
+        flux = integrate.simps(self.spectra[valid], self.waves[valid])
+        flux_unit = self.spec_unit*self.wave_unit
+        return flux, flux_unit

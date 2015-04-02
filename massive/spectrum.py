@@ -17,7 +17,8 @@ class SpectrumSet(object):
     methods for I/O and manipulation of spectra are meant to enforce
     the preservation and automatic updating of the metadata as needed.
     """
-    def __init__(self, spectra, wavelengths, noise, ir, comments={}):
+    def __init__(self, spectra, wavelengths, noise, ir,
+                 comments={}, float_tol = 10**(-10)):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -44,6 +45,8 @@ class SpectrumSet(object):
             The keys are treated as strings, otherwise there are no
             formatting restrictions. These comments will be shuffled
             along with I/O operations in file headers.
+        float_tol - float, default = 10^(-10)
+            The relative tolerance used for floating-point comparison.
         """
         # check spectra format
         self.spectra = np.asarray(spectra)
@@ -75,3 +78,17 @@ class SpectrumSet(object):
                 raise ValueError(error_msg)
         # remaining arg checks
         self.comments = {str(k):v for k, v in comments.iteritems()}
+        self.tol = float(float_tol)
+
+    def is_linearly_sampled(self):
+        """ Check if wavelengths are linear spaced. Boolean output. """
+        delta = self.waves[1:] - self.waves[:-1]
+        residual = np.absolute(delta - delta[0]).max()
+        return residual < self.tol
+
+    def is_log_sampled(self):
+        """ Check if wavelengths are log spaced. Boolean output. """
+        log_waves = np.log(self.wavelengths)
+        delta = log_waves[1:] - log_waves[:-1]
+        residual = np.absolute(delta - delta[0]).max()
+        return residual < self.tol

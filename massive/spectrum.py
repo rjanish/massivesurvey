@@ -55,15 +55,14 @@ class SpectrumSet(object):
             The relative tolerance used for floating-point comparison.
         """
         # check spectra format
-        self.spectra = np.asarray(spectra)
-        if self.spectra.ndim == 1:
-            self.spectra = np.expand_dims(spectra, 0)
-        elif self.spectra.ndim != 2:
+        self.spectra = np.asarray(spectra, dtype=float)
+        if self.spectra.ndim not in [1, 2]:
             raise ValueError("Invalid spectra shape: {}. Must have 1 or 2 "
                              "dimensions.".format(self.spectra.shape))
+        self.spectra = np.atleast_2d(self.spectra)  # spectrum shape now 2D
         self.num_spectra, self.num_samples = self.spectra.shape
         # check waves format
-        self.waves = np.asarray(wavelengths)
+        self.waves = np.asarray(wavelengths, dtype=float)
         if ((self.waves.ndim != 1) or
             (self.waves.size != self.num_samples)):
             raise ValueError("Invalid wavelength shape: {}. Must be "
@@ -71,17 +70,17 @@ class SpectrumSet(object):
                              "".format(self.waves.shape, self.num_samples))
         # check metaspectra format
         # 'metaspectra' are those metadata that have a spectra-like form
-        metaspectra_data = map(np.asarray, [noise, ir])
+        metaspectra_inputs = [noise, ir]
         metaspectra_names = ["noise", "ir"]
+        conversion = lambda a: np.atleast_2d(np.asarray(a, dtype=float))
+        metaspectra_data = map(conversion, metaspectra_inputs)
+            # metaspectra are now float-valued and have dimension >= 2
         self.metaspectra = dict(zip(metaspectra_names, metaspectra_data))
-        for name in self.metaspectra:
-            if self.metaspectra[name].ndim == 1:
-                self.metaspectra[name] = np.expand_dims(self.metaspectra[name], 0)
-            if self.metaspectra[name].shape != self.spectra.shape:
+        for name, data in self.metaspectra.iteritems():
+            if data.shape != self.spectra.shape:
                 error_msg = ("Invalid {} shape: {}. "
                              "Must match the shape of spectra: {}."
-                             "".format(name, self.metaspectra[name].shape,
-                                       self.spectra.shape))
+                             "".format(name, data.shape, self.spectra.shape))
                 raise ValueError(error_msg)
         # remaining arg checks
         self.comments = {str(k):v for k, v in comments.iteritems()}

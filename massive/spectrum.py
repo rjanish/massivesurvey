@@ -115,7 +115,7 @@ class SpectrumSet(object):
         is done using Simpson's quadrature.
 
         Args:
-        region - 1D, 2-element arraylike
+        region - 1D, 2-element arraylike; default = full data range
             The wavelength interval over which to compute the flux,
             expressed as an array [lamba_start, lamba_end]. This
             interval must be contained in the data's spectral range.

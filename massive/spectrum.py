@@ -105,7 +105,28 @@ class SpectrumSet(object):
         return residual < self.tol
 
     def compute_flux(self, region=None):
-        """ Compute the flux of spectrum over the given region. """
+        """
+        Compute the flux of spectrum over the given region.
+
+        The flux is computed as the integral of the spectrum over
+        wavelength. This is done using whatever units are given at
+        the time of class construction, so the output of this routine
+        is not necessarily expressed in units of flux. The integration
+        is done using Simpson's quadrature.
+
+        Args:
+        region - 1D, 2-element arraylike
+            The wavelength interval over which to compute the flux,
+            expressed as an array [lamba_start, lamba_end]. This
+            interval must be contained in the data's spectral range.
+
+        Return:
+        flux - float
+            The wavelength-integrated flux of spectrum.
+        flux_unit - astropy unit
+            The unit in which flux is given; this will be
+            spectrum_unit*wavelength_unit.
+        """
         if region is None:
             start, end = self.spec_region
         else:

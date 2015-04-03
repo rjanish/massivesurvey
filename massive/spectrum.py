@@ -8,6 +8,8 @@ import numpy as np
 import astropy.units as units
 import scipy.integrate as integrate
 
+import utilities as utl
+
 
 class SpectrumSet(object):
     """
@@ -128,14 +130,12 @@ class SpectrumSet(object):
             spectrum_unit*wavelength_unit.
         """
         if region is None:
-            start, end = self.spec_region
-        else:
-            start, end = region
-            if (start < self.spec_region[0]) or (end > self.spec_region[1]):
-                raise ValueError("Invalid region: {}. Region must be "
-                                 "contained in spectral range: [{}, {}]."
-                                 "".format(region, *self.spec_region))
-        valid = (start < self.waves) & (self.waves < end)
+            region = self.spec_region
+        elif not utl.interval_contains_interval(self.spec_region, region):
+            raise ValueError("Invalid region: {}. Region must be "
+                             "contained in data spectral range: {}."
+                             "".format(region, self.spec_region))
+        valid = utl.in_interval(self.waves, region)
         flux = integrate.simps(self.spectra[valid], self.waves[valid])
         flux_unit = self.spec_unit*self.wave_unit
         return flux, flux_unit

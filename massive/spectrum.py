@@ -123,8 +123,8 @@ class SpectrumSet(object):
             interval must be contained in the data's spectral range.
 
         Return:
-        flux - float
-            The wavelength-integrated flux of spectrum.
+        fluxes - arraylike
+            The wavelength-integrated flux of each spectrum.
         flux_unit - astropy unit
             The unit in which flux is given; this will be
             spectrum_unit*wavelength_unit.
@@ -136,6 +136,9 @@ class SpectrumSet(object):
                              "contained in data spectral range: {}."
                              "".format(region, self.spec_region))
         valid = utl.in_interval(self.waves, region)
-        flux = integrate.simps(self.spectra[valid], self.waves[valid])
+        fluxes = np.zeros(self.num_spectra)
+        for index in xrange(self.num_spectra):
+            fluxes[index] = integrate.simps(self.spectra[index, valid],
+                                            self.waves[valid])
         flux_unit = self.spec_unit*self.wave_unit
-        return flux, flux_unit
+        return fluxes, flux_unit

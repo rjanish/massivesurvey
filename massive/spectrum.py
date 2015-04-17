@@ -6,9 +6,14 @@ and collections of spectra.
 
 import numpy as np
 import astropy.units as units
-import scipy.integrate as integrate
+import scipy.integrate as integ
+import scipy.interpolate as inter
 
 import utilities as utl
+
+
+flux_cgs = units.erg/(units.second*(units.cm**2))
+fluxdens = flux_cgs/units.angstrom
 
 
 class SpectrumSet(object):
@@ -71,7 +76,7 @@ class SpectrumSet(object):
             raise ValueError("Invalid wavelength shape: {}. Must be "
                              "1D and match the size of spectra: {}."
                              "".format(self.waves.shape, self.num_samples))
-        self.spec_region = np.array([self.waves.min(), self.waves.max()])
+        self.spec_region = utl.min_max(self.waves)
         # check metaspectra format
         # 'metaspectra' are those metadata that have a spectra-like form
         metaspectra_inputs = [noise, ir]
@@ -93,7 +98,7 @@ class SpectrumSet(object):
         wavelength_unit.to(units.cm)  # check if wavelength_unit is a length
         self.wave_unit = units.Unit(wavelength_unit)
 
-    def is_linearly_sampled(self):
+    def is_linear_sampled(self):
         """ Check if wavelengths are linear spaced. Boolean output. """
         delta = self.waves[1:] - self.waves[:-1]
         residual = np.absolute(delta - delta[0]).max()
@@ -101,10 +106,52 @@ class SpectrumSet(object):
 
     def is_log_sampled(self):
         """ Check if wavelengths are log spaced. Boolean output. """
-        log_waves = np.log(self.wavelengths)
+        log_waves = np.log(self.waves)
         delta = log_waves[1:] - log_waves[:-1]
         residual = np.absolute(delta - delta[0]).max()
         return residual < self.tol
+
+    def log_resample(self, logscale=None):
+        """
+        Re-sample spectra to have logarithmic spacing.
+
+        The re-sampling can be done either with a given logscale, or
+        by preserving the number of sample points. The spectral region
+        will be preserved in either case (save for a small inward
+        shift due to roundoff). Metaspectra will also be re-sampled.
+
+        The logscale used here is defined to be:
+        $ \log(\lambda_{n + 1}) - \log(\lambda{n}) = logscale $
+
+        Args:
+        logscale - float, default=None
+            If given, spectra will be re-sampled using the passed
+            logscale. If not specified, re-sampling will instead
+            preserve the number of data points.
+
+        Return: logscale
+        logscale - float
+            The logscale of the now re-sampled spectrum
+        """
+        new_spec_region = self.spec_region*(1 + np.array([1, -1])*self.tol)
+            # prevents unintended extrapolation due to roundoff
+        log_ends = np.log(new_spec_region)
+        if logscale is None:  # preserve sample number
+            log_w = np.linspace(log_ends[0], log_ends[1], self.num_samples)
+            logscale = log_w[1] - log_w[0]
+        else:  # fix log-spacing
+            log_w = np.arange(log_ends[0], log_ends[1], logscale)
+        new_waves = np.exp(log_w)
+        for spec_index in xrange(self.num_spectra):
+            spec_func = inter.interp1d(self.waves, self.spectra[spec_index])
+            self.spectra[spec_index] = spec_func(new_waves)
+            for name, mspec in self.metaspectra.iteritems():
+                mspec_func = inter.interp1d(self.waves, mspec[spec_index])
+                self.metaspectra[name][spec_index] = mspec_func(new_waves)
+        self.waves = new_waves
+        self.num_samples = new_waves.shape[0]
+        self.spec_region = new_spec_region
+        return logscale
 
     def compute_flux(self, region=None):
         """
@@ -138,7 +185,7 @@ class SpectrumSet(object):
         valid = utl.in_interval(self.waves, region)
         fluxes = np.zeros(self.num_spectra)
         for index in xrange(self.num_spectra):
-            fluxes[index] = integrate.simps(self.spectra[index, valid],
-                                            self.waves[valid])
+            fluxes[index] = integ.simps(self.spectra[index, valid],
+                                        self.waves[valid])
         flux_unit = self.spec_unit*self.wave_unit
         return fluxes, flux_unit

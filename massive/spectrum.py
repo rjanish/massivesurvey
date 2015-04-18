@@ -134,6 +134,8 @@ class SpectrumSet(object):
         logscale - float
             The logscale of the now re-sampled spectrum
         """
+        if self.is_log_sampled():
+            raise ValueError("Spectrum is already log-sampled.")
         new_spec_region = self.spec_region*(1 + np.array([1, -1])*self.tol)
             # prevents unintended extrapolation due to roundoff
         log_ends = np.log(new_spec_region)

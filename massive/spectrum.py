@@ -31,7 +31,8 @@ class SpectrumSet(object):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
-        spectra metadata relevant for kinematic modeling.
+        spectra metadata relevant for kinematic modeling. Input array
+        data is copied.
 
         Args:
         spectra - 1d or 2d arraylike
@@ -63,14 +64,14 @@ class SpectrumSet(object):
             The relative tolerance used for floating-point comparison.
         """
         # check spectra format
-        self.spectra = np.asarray(spectra, dtype=float)
+        self.spectra = np.array(spectra, dtype=float)
         if self.spectra.ndim not in [1, 2]:
             raise ValueError("Invalid spectra shape: {}. Must have 1 or 2 "
                              "dimensions.".format(self.spectra.shape))
         self.spectra = np.atleast_2d(self.spectra)  # spectrum shape now 2D
         self.num_spectra, self.num_samples = self.spectra.shape
         # check waves format
-        self.waves = np.asarray(wavelengths, dtype=float)
+        self.waves = np.array(wavelengths, dtype=float)
         if ((self.waves.ndim != 1) or
             (self.waves.size != self.num_samples)):
             raise ValueError("Invalid wavelength shape: {}. Must be "
@@ -81,7 +82,7 @@ class SpectrumSet(object):
         # 'metaspectra' are those metadata that have a spectra-like form
         metaspectra_inputs = [noise, ir]
         metaspectra_names = ["noise", "ir"]
-        conversion = lambda a: np.atleast_2d(np.asarray(a, dtype=float))
+        conversion = lambda a: np.atleast_2d(np.array(a, dtype=float))
         metaspectra_data = map(conversion, metaspectra_inputs)
             # metaspectra are now float-valued and have dimension >= 2
         self.metaspectra = dict(zip(metaspectra_names, metaspectra_data))

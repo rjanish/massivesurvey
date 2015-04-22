@@ -156,6 +156,49 @@ class SpectrumSet(object):
         self.spec_region = new_spec_region
         return logscale
 
+    def linear_resample(self, step=None):
+        """
+        Re-sample spectra to have linear spacing.
+
+        The re-sampling can be done either with a given step size, or
+        by preserving the number of sample points. The spectral region
+        will be preserved in either case (save for a small inward
+        shift due to roundoff). Metaspectra will also be re-sampled.
+
+        The step used here is defined to be:
+        $ \lambda_{n + 1} - \lambda{n} = step $
+
+        Args:
+        step - float, default=None
+            If given, spectra will be re-sampled using the passed
+            step. If not specified, re-sampling will instead
+            preserve the number of data points.
+
+        Return: step
+        step - float
+            The step of the now re-sampled spectrum
+        """
+        if self.is_linear_sampled():
+            raise ValueError("Spectrum is already linear-sampled.")
+        new_ends = self.spec_region*(1 + np.array([1, -1])*self.tol)
+            # prevents unintended extrapolation due to roundoff
+        if step is None:  # preserve sample number
+            new_waves = np.linspace(new_ends[0], new_ends[1],
+                                    self.num_samples)
+            step = new_waves[1] - new_waves[0]
+        else:  # fix step size
+            new_waves = np.arange(new_ends[0], new_ends[1], step)
+        for spec_index in xrange(self.num_spectra):
+            spec_func = inter.interp1d(self.waves, self.spectra[spec_index])
+            self.spectra[spec_index] = spec_func(new_waves)
+            for name, mspec in self.metaspectra.iteritems():
+                mspec_func = inter.interp1d(self.waves, mspec[spec_index])
+                self.metaspectra[name][spec_index] = mspec_func(new_waves)
+        self.waves = new_waves
+        self.num_samples = new_waves.shape[0]
+        self.spec_region = new_ends
+        return step
+
     def compute_flux(self, region=None):
         """
         Compute the flux of spectrum over the given region.

@@ -1,5 +1,4 @@
-This package contains software used in the MASSIVE project.  Binaries
-that use this package to execute particular calculations are not
-included here, but rather are stored with the MASSIVE data, notes, and
-results.
+This package contains software used in the MASSIVE survey.
 
+Scripts that execute particular calculations are found in bin/.
+General, non-executable MASSIVE code is found in lib/.

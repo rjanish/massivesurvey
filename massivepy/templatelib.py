@@ -14,16 +14,28 @@
 # miles_index = "/stg/current/stellar-templates/miles-massive/miles-index.txt"
 
 
-def miles_filename_conversion(num):
+def miles_number_to_filename(num):
     """
-    Converts an id number from the MILES stellar template library into
-    matching default filename (tail only) that holds the spectrum.
+    Convert an id number from the MILES stellar template library into
+    the matching default filename (tail only) that holds the spectrum.
 
     Example:
     > miles_filename_conversion(42)
     'm0042V'
     """
     return "m{:04d}V".format(int(num))
+
+
+def miles_filename_to_number(filename):
+    """
+    Convert a default spectra filename (tail only) from the MILES
+    stellar template library into the matching MILES id number.
+
+    Example:
+    > miles_filename_conversion('m0042V')
+    42
+    """
+    return int(filename[1:-1])
 
 
 # def read_miles_index(index_path):

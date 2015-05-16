@@ -117,6 +117,36 @@ class SpectrumSet(object):
         residual = np.absolute(delta - delta[0]).max()
         return residual < self.tol
 
+    def resample(self, new_waves):
+        """
+        Re-sample spectra to have a new wavelength sampling.
+
+        The only restriction on the new sampling is that all points
+        must lie within the previous spectral range. New spectral
+        values are determined by linear interpolation. Spectra and
+        metadata will be updated in-place.
+
+        Args:
+        new_waves - 1d arraylike
+            The new wavelength values on which to sample the spectra.
+            Units are assumed to match the previous wavelength units.
+        """
+        for spec_index in xrange(self.num_spectra):
+            spec_func = inter.interp1d(self.waves, self.spectra[spec_index])
+            self.spectra[spec_index] = spec_func(new_waves)
+            for name, mspec in self.metaspectra.iteritems():
+                mspec_func = inter.interp1d(self.waves, mspec[spec_index])
+                new_mspec_values = mspec_func(new_waves)
+                if name == 'bad_data':
+                    new_mspec_values = new_mspec_values.astype(bool)
+                        # re-sampled data is valid only if the nearest
+                        # bracketing old-sampling values are both valid
+                self.metaspectra[name][spec_index] = new_mspec_values
+        self.waves = new_waves
+        self.num_samples = new_waves.shape[0]
+        self.spec_region = new_spec_region
+        return
+
     def log_resample(self, logscale=None):
         """
         Re-sample spectra to have logarithmic spacing.
@@ -124,10 +154,12 @@ class SpectrumSet(object):
         The re-sampling can be done either with a given logscale, or
         by preserving the number of sample points. The spectral region
         will be preserved in either case (save for a small inward
-        shift due to roundoff). Metaspectra will also be re-sampled.
+        shift due to roundoff).
 
         The logscale used here is defined to be:
         $ \log(\lambda_{n + 1}) - \log(\lambda{n}) = logscale $
+
+        New spectra and metadata values are computed by resample.
 
         Args:
         logscale - float, default=None
@@ -150,20 +182,7 @@ class SpectrumSet(object):
         else:  # fix log-spacing
             log_w = np.arange(log_ends[0], log_ends[1], logscale)
         new_waves = np.exp(log_w)
-        for spec_index in xrange(self.num_spectra):
-            spec_func = inter.interp1d(self.waves, self.spectra[spec_index])
-            self.spectra[spec_index] = spec_func(new_waves)
-            for name, mspec in self.metaspectra.iteritems():
-                mspec_func = inter.interp1d(self.waves, mspec[spec_index])
-                new_mspec_values = mspec_func(new_waves)
-                if name == 'bad_data':
-                    new_mspec_values = new_mspec_values.astype(bool)
-                        # re-sampled data is valid only if the nearest
-                        # bracketing old-sampling values are both valid
-                self.metaspectra[name][spec_index] = new_mspec_values
-        self.waves = new_waves
-        self.num_samples = new_waves.shape[0]
-        self.spec_region = new_spec_region
+        resample(self, new_waves)
         return logscale
 
     def linear_resample(self, step=None):
@@ -173,11 +192,13 @@ class SpectrumSet(object):
         The re-sampling can be done either with a given step size, or
         by preserving the number of sample points. The spectral region
         will be preserved in either case (save for a small inward
-        shift due to roundoff). Metaspectra will also be re-sampled.
+        shift due to roundoff).
 
         The step used here is defined to be:
         $ \lambda_{n + 1} - \lambda{n} = step $
 
+        New spectra and metadata values are computed by resample.
+        
         Args:
         step - float, default=None
             If given, spectra will be re-sampled using the passed
@@ -198,20 +219,7 @@ class SpectrumSet(object):
             step = new_waves[1] - new_waves[0]
         else:  # fix step size
             new_waves = np.arange(new_ends[0], new_ends[1], step)
-        for spec_index in xrange(self.num_spectra):
-            spec_func = inter.interp1d(self.waves, self.spectra[spec_index])
-            self.spectra[spec_index] = spec_func(new_waves)
-            for name, mspec in self.metaspectra.iteritems():
-                mspec_func = inter.interp1d(self.waves, mspec[spec_index])
-                new_mspec_values = mspec_func(new_waves)
-                if name == 'bad_data':
-                    new_mspec_values = new_mspec_values.astype(bool)
-                        # re-sampled data is valid only if the nearest
-                        # bracketing old-sampling values are both valid
-                self.metaspectra[name][spec_index] = new_mspec_values
-        self.waves = new_waves
-        self.num_samples = new_waves.shape[0]
-        self.spec_region = new_ends
+        resample(self, new_waves)
         return step
 
     def compute_flux(self, interval=None):

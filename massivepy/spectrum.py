@@ -26,8 +26,9 @@ class SpectrumSet(object):
     methods for I/O and manipulation of spectra are meant to enforce
     the preservation and automatic updating of the metadata as needed.
     """
-    def __init__(self, spectra, wavelengths, noise, ir, spectra_unit,
-                 wavelength_unit, comments={}, float_tol=10**(-10)):
+    def __init__(self, spectra, bad_data, noise, ir, wavelengths,
+                 spectra_unit, wavelength_unit, comments={},
+                 float_tol=10**(-10)):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -40,8 +41,10 @@ class SpectrumSet(object):
             and are assumed to be identical in sampling and units. A
             single 1d array may be passed, which is interpreted as a
             set containing a single spectrum and is converted as such.
-        wavelengths - 1d arraylike
-            Wavelength sample values, the same for each spectrum.
+        bad_data - boolean arraylike, matches the shape of spectrum
+            Indicates the location of junk data that is to be ignored
+            in computations. True: junk, False: valid data.
+            assumed to match those of spectrum.
         noise - arraylike, matches the shape of spectrum
             Estimate of noise level in spectrum, assumed to be the
             half-width of a 1-sigma confidence interval. The units are
@@ -50,6 +53,8 @@ class SpectrumSet(object):
             The spectral resolution of the instrument that recorded
             the spectra. This is assumed to be given as a Gaussian
             FWHM, with the units matching wavelengths.
+        wavelengths - 1d arraylike
+            Wavelength sample values, the same for each spectrum.
         spectra_unit - astropy unit-like
             The unit in which the values of spectra are given.
         wavelength_unit - astropy unit-like
@@ -80,8 +85,8 @@ class SpectrumSet(object):
         self.spec_region = utl.min_max(self.waves)
         # check metaspectra format
         # 'metaspectra' are those metadata that have a spectra-like form
-        metaspectra_inputs = [noise, ir]
-        metaspectra_names = ["noise", "ir"]
+        metaspectra_inputs = [noise, ir, bad_data]
+        metaspectra_names = ["noise", "ir", "bad_data"]
         conversion = lambda a: np.atleast_2d(np.array(a, dtype=float))
         metaspectra_data = map(conversion, metaspectra_inputs)
             # metaspectra are now float-valued and have dimension >= 2
@@ -150,7 +155,12 @@ class SpectrumSet(object):
             self.spectra[spec_index] = spec_func(new_waves)
             for name, mspec in self.metaspectra.iteritems():
                 mspec_func = inter.interp1d(self.waves, mspec[spec_index])
-                self.metaspectra[name][spec_index] = mspec_func(new_waves)
+                new_mspec_values = mspec_func(new_waves)
+                if name == 'bad_data':
+                    new_mspec_values = new_mspec_values.astype(bool)
+                        # re-sampled data is valid only if the nearest
+                        # bracketing old-sampling values are both valid
+                self.metaspectra[name][spec_index] = new_mspec_values
         self.waves = new_waves
         self.num_samples = new_waves.shape[0]
         self.spec_region = new_spec_region
@@ -193,15 +203,20 @@ class SpectrumSet(object):
             self.spectra[spec_index] = spec_func(new_waves)
             for name, mspec in self.metaspectra.iteritems():
                 mspec_func = inter.interp1d(self.waves, mspec[spec_index])
-                self.metaspectra[name][spec_index] = mspec_func(new_waves)
+                new_mspec_values = mspec_func(new_waves)
+                if name == 'bad_data':
+                    new_mspec_values = new_mspec_values.astype(bool)
+                        # re-sampled data is valid only if the nearest
+                        # bracketing old-sampling values are both valid
+                self.metaspectra[name][spec_index] = new_mspec_values
         self.waves = new_waves
         self.num_samples = new_waves.shape[0]
         self.spec_region = new_ends
         return step
 
-    def compute_flux(self, region=None):
+    def compute_flux(self, interval=None):
         """
-        Compute the flux of spectrum over the given region.
+        Compute the flux of spectrum over the given interval.
 
         The flux is computed as the integral of the spectrum over
         wavelength. This is done using whatever units are given at
@@ -210,7 +225,7 @@ class SpectrumSet(object):
         is done using Simpson's quadrature.
 
         Args:
-        region - 1D, 2-element arraylike; default = full data range
+        interval - 1D, 2-element arraylike; default = full data range
             The wavelength interval over which to compute the flux,
             expressed as an array [lamba_start, lamba_end]. This
             interval must be contained in the data's spectral range.
@@ -222,16 +237,18 @@ class SpectrumSet(object):
             The unit in which flux is given; this will be
             spectrum_unit*wavelength_unit.
         """
-        if region is None:
-            region = self.spec_region
-        elif not utl.interval_contains_interval(self.spec_region, region):
-            raise ValueError("Invalid region: {}. Region must be "
+        if interval is None:
+            interval = self.spec_region
+        elif not utl.interval_contains_interval(self.spec_region, interval):
+            raise ValueError("Invalid interval: {}. Region must be "
                              "contained in data spectral range: {}."
                              "".format(region, self.spec_region))
-        valid = utl.in_interval(self.waves, region)
+        flux_region = utl.in_interval(self.waves, interval)
         fluxes = np.zeros(self.num_spectra)
         for index in xrange(self.num_spectra):
-            fluxes[index] = integ.simps(self.spectra[index, valid],
-                                        self.waves[valid])
+            valid_data = ~self.metaspectra["bad_data"][index]
+            to_integrate = flux_region & valid_data
+            fluxes[index] = integ.simps(self.spectra[index, to_integrate],
+                                        self.waves[to_integrate])
         flux_unit = self.spec_unit*self.wave_unit
         return fluxes, flux_unit

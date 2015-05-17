@@ -34,7 +34,7 @@ class IFUspectrum(spec.spectrum):
             This is function specifies the footprint of the spectra.
             It should accept a pair of central Cartesian coordinates
             as a 1d arraylike, and return a footprint shape as a
-            matplotlib Patch centered on the passed coordinates.
+            shapely polygon object centered on the passed coordinates.
         """
         self.spectrumset = spectrumset
         self.coords = np.asarray(coords)

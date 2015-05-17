@@ -251,7 +251,7 @@ class SpectrumSet(object):
             raise ValueError("Invalid interval: {}. Region must be "
                              "contained in data spectral range: {}."
                              "".format(region, self.spec_region))
-        flux_region = utl.in_interval(self.waves, interval)
+        flux_region = utl.in_linear_interval(self.waves, interval)
         fluxes = np.zeros(self.num_spectra)
         for index in xrange(self.num_spectra):
             valid_data = ~self.metaspectra["bad_data"][index]

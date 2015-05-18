@@ -126,7 +126,7 @@ class SpectrumSet(object):
         """
         Extract subset of spectral data with the passed spectrum ids.
         Ordering of spectra is NOT preserved.
-        
+
         Returns a new spectrumset object containing a subset of the
         spectra and associated metadata from the original spectrumset.
         Metadata that is by-assumption uniform over all spectra, such
@@ -335,6 +335,9 @@ class SpectrumSet(object):
         for result_index, id in enumerate(ids):
             spec_index = (self.ids == id)
             valid_data = ~self.metaspectra["bad_data"][spec_index]
+            valid_data = valid_data.reshape(valid_data.size)
+                # indexing by 1d bool array defaults to output shape (1, N),
+                # convert to 1d output shape (N,) needed for indexing below
             to_integrate = flux_region & valid_data
             flux = integ.simps(self.spectra[spec_index, to_integrate],
                                self.waves[to_integrate])

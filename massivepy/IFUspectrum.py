@@ -9,10 +9,8 @@ import re
 import astropy.units as units
 import numpy as np
 
-import massivepy.spectrum as spec
 
-
-class IFUspectrum(spec.SpectrumSet):
+class IFUspectrum(object):
     """
     This class holds a set of spectra and associated spacial regions.
 

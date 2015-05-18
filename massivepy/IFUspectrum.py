@@ -55,6 +55,5 @@ class IFUspectrum(spec.SpectrumSet):
 
         For details, see SpectrumSet.get_subset.
         """
-        new_spectrumset = self.spectrumset.get_subset(ids)
+        new_set, index = self.spectrumset.get_subset(ids, get_selector=True)
         new_ids = new_spectrumset.ids
-        

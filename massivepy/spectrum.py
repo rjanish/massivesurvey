@@ -123,7 +123,7 @@ class SpectrumSet(object):
         wavelength_unit.to(units.cm)  # check if wavelength_unit is a length
         self.wave_unit = units.Unit(wavelength_unit)
 
-    def get_subset(self, ids, return_selector=False):
+    def get_subset(self, ids, get_selector=False):
         """
         Extract subset of spectral data with the passed spectrum ids.
         Ordering of spectra is NOT preserved.
@@ -152,7 +152,7 @@ class SpectrumSet(object):
         accidental missing and mixed-up spectra - if such uncommon
         combinations are needed they must be build explicitly.
 
-        If return_selector is True, also returns boolean index array.
+        If get_selector is True, also returns boolean index array.
         """
         # check for passed duplicate
         ids_wanted = np.asarray(ids, dtype=int).flatten()
@@ -178,7 +178,7 @@ class SpectrumSet(object):
                              self.metaspectra["ir"][index, :],self.ids[index],
                              self.waves, self.spec_unit, self.wave_unit,
                              comments=self.comments, float_tol=self.tol)
-        if return_selector:
+        if get_selector:
             return subset, index
         else:
             return subset

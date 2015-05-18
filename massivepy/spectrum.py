@@ -13,8 +13,9 @@ import scipy.interpolate as inter
 import utilities as utl
 
 
-flux_cgs = units.erg/(units.second*(units.cm**2))
-fluxdens = flux_cgs/units.angstrom
+cgs_flux = units.erg/(units.second*(units.cm**2))
+angstrom = units.angstrom
+flux_per_angstrom = cgs_flux/units.angstrom
 
 
 class SpectrumSet(object):

@@ -3,6 +3,7 @@ This module handles the storage and common manipulations of spectra
 and collections of spectra.
 """
 
+import collections as collect
 
 import numpy as np
 import astropy.units as units
@@ -81,10 +82,16 @@ class SpectrumSet(object):
         # check ids format
         self.ids = np.asarray(spectra_ids, dtype=int)
         if ((self.ids.ndim != 1) or
-            (self.ids.size != self.num_samples)):
+            (self.ids.size != self.num_spectra)):
             raise ValueError("Invalid spectra ids shape: {}. Must be "
                              "1D and match the number of spectra: {}."
                              "".format(self.ids.shape, self.num_spectra))
+        count_ids = collect.Counter(self.ids) # dict: id:num_of_appearences
+        duplicates = [id for id, count in count_ids.iteritems() if count > 1]
+        num_duplicates = len(duplicates)
+        if num_duplicates != 0:
+            raise ValueError("Invalid spectra ids - ids are not unique: {} "
+                             "each appear more than once".format(duplicates))
         # check waves format
         self.waves = np.array(wavelengths, dtype=float)
         if ((self.waves.ndim != 1) or
@@ -115,36 +122,53 @@ class SpectrumSet(object):
         wavelength_unit.to(units.cm)  # check if wavelength_unit is a length
         self.wave_unit = units.Unit(wavelength_unit)
 
-    def __getitem__(self, index):
+    def get_subset(self, ids):
         """
-        Extract a subset of spectral data.
-
+        Extract subset of spectral data with the passed spectrum ids.
+        Ordering of spectra is NOT preserved.
+        
         Returns a new spectrumset object containing a subset of the
         spectra and associated metadata from the original spectrumset.
         Metadata that is by-assumption uniform over all spectra, such
         as the wavelengths, spectral unit, etc., is also preserved.
 
-        Selecting a subset is done by numpy-style indexing into the
-        various data arrays, e.g.
-        > specset = spectrumset(...)
-        > specset[0]
-            - returns the first spectrum in specset.spectra
-        > specset[1:-1]
-            - returns all but the first and last spectra
-        > specset[(specset.ids % 2) == 0]
-            - returns all spectra with even-number ids
-
-        It is particularly important to keep in mind the difference
-        between the index of a spectrum as stored in a spectrumset
-        object and the id value assigned to that spectrum:
+        Selecting of spectra is NOT done by their storage index within
+        the spectrumset object, but by the values of the spectra ids:
         > specset = spectrumset(...)
         > numbers = [5, 10, 11, 19]
-        > specset[numbers]
-            - returns spectra at indices 5, 10, 11, and 19
+        > specset.get_subset(numbers)
+        returns a spectrumset containing all spectra with id values of
+        5, 10, 11, or 19. I.e.,
         > ids_selector = np.in1d(specset.ids, numbers)
-        > specset[ids_selector]
-            - returns spectra that have id value of 5, 10, 11, or 19
+        > subset_via_guts = specset.spectra[np.in1d(specset.ids, numbers)]
+        > subset_via_method = specset.get_subset(numbers).spectra
+        > np.all(subset_via_guts == subset_via_method)
+        will return True.
+
+        ids can be given in any shape, but are treated as 1D. Each id
+        given must match exactly one id in the current spectrumset,
+        and the passed ids must not have duplicates. This is to prevent
+        accidental missing and mixed-up spectra - if such uncommon
+        combinations are needed they must be build explicitly.
         """
+        # check for passed duplicate
+        ids_wanted = np.asarray(ids, dtype=int).flatten()
+        count_ids = collect.Counter(ids_wanted) # dict: id:num_of_appearences
+        duplicates = [id for id, count in count_ids.iteritems() if count > 1]
+        num_duplicates = len(duplicates)
+        if num_duplicates != 0:
+            raise ValueError("Invalid spectra id - ids are not unique: {} "
+                             "each appear more than once".format(duplicates))
+        # generate index - check for unmatched ids
+        index = np.zeros(self.num_spectra, dtype=bool)
+        for id in ids_wanted:
+            selector = (self.ids == id)
+            num_selected = selector.sum()
+            if num_selected != 1:
+                raise ValueError("Invalid spectra id: {} matched {} "
+                                 "spectra in set".format(id, num_selected))
+            else:
+                index = index | selector
         return SpectrumSet(self.spectra[index, :],
                            self.metaspectra["bad_data"][index, :],
                            self.metaspectra["noise"][index, :],
@@ -270,7 +294,7 @@ class SpectrumSet(object):
         resample(self, new_waves)
         return step
 
-    def compute_flux(self, interval=None, ids=self.ids):
+    def compute_flux(self, interval=None, ids=None):
         """
         Compute the flux of spectrum over the given interval.
 
@@ -296,9 +320,12 @@ class SpectrumSet(object):
             The unit in which flux is given; this will be
             spectrum_unit*wavelength_unit.
         """
+        if ids is None:
+            ids = self.ids
+        else:
+            ids = np.asarray(ids, dtype=int)
         if interval is None:
             interval = self.spec_region
-        ids = np.asarray(ids, dtype=int)
         elif not utl.interval_contains_interval(self.spec_region, interval):
             raise ValueError("Invalid interval: {}. Region must be "
                              "contained in data spectral range: {}."

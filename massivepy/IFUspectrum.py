@@ -4,12 +4,14 @@ i.e. collections of spectra each associated with a spacial region.
 """
 
 
+import re
+
 import astropy.units as units
 
 import massivepy.spectrum as spec
 
 
-class IFUspectrum(spec.spectrum):
+class IFUspectrum(spec.SpectrumSet):
     """
     This class holds a set of spectra and associated spacial regions.
 
@@ -45,3 +47,14 @@ class IFUspectrum(spec.spectrum):
             raise ValueError(msg)
         self.coords_unit = units.Unit(coords_unit)
         self.footprint = footprint
+
+    def get_subset(self, ids):
+        """
+        Extract subset of spectral data with the passed spectrum ids.
+        The associated spectra coordinates will also be extracted.
+
+        For details, see SpectrumSet.get_subset.
+        """
+        new_spectrumset = self.spectrumset.get_subset(ids)
+        new_ids = new_spectrumset.ids
+        

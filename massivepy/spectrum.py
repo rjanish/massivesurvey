@@ -123,7 +123,7 @@ class SpectrumSet(object):
         wavelength_unit.to(units.cm)  # check if wavelength_unit is a length
         self.wave_unit = units.Unit(wavelength_unit)
 
-    def get_subset(self, ids):
+    def get_subset(self, ids, return_selector=False):
         """
         Extract subset of spectral data with the passed spectrum ids.
         Ordering of spectra is NOT preserved.
@@ -151,6 +151,8 @@ class SpectrumSet(object):
         and the passed ids must not have duplicates. This is to prevent
         accidental missing and mixed-up spectra - if such uncommon
         combinations are needed they must be build explicitly.
+
+        If return_selector is True, also returns boolean index array.
         """
         # check for passed duplicate
         ids_wanted = np.asarray(ids, dtype=int).flatten()
@@ -170,12 +172,16 @@ class SpectrumSet(object):
                                  "spectra in set".format(id, num_selected))
             else:
                 index = index | selector
-        return SpectrumSet(self.spectra[index, :],
-                           self.metaspectra["bad_data"][index, :],
-                           self.metaspectra["noise"][index, :],
-                           self.metaspectra["ir"][index, :], self.ids[index],
-                           self.waves, self.spec_unit, self.wave_unit,
-                           comments=self.comments, float_tol=self.tol)
+        subset = SpectrumSet(self.spectra[index, :],
+                             self.metaspectra["bad_data"][index, :],
+                             self.metaspectra["noise"][index, :],
+                             self.metaspectra["ir"][index, :],self.ids[index],
+                             self.waves, self.spec_unit, self.wave_unit,
+                             comments=self.comments, float_tol=self.tol)
+        if return_selector:
+            return subset, index
+        else:
+            return subset
 
     def is_linear_sampled(self):
         """ Check if wavelengths are linear spaced. Boolean output. """

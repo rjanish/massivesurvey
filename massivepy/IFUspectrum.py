@@ -7,6 +7,7 @@ i.e. collections of spectra each associated with a spacial region.
 import re
 
 import astropy.units as units
+import numpy as np
 
 import massivepy.spectrum as spec
 
@@ -56,4 +57,6 @@ class IFUspectrum(spec.SpectrumSet):
         For details, see SpectrumSet.get_subset.
         """
         new_set, index = self.spectrumset.get_subset(ids, get_selector=True)
-        new_ids = new_spectrumset.ids
+        new_coords = self.coords[index, :]
+        return IFUspectrum(new_set, new_coords,
+                           self.coords_unit, self.footprint)

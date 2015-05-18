@@ -104,6 +104,20 @@ class SpectrumSet(object):
         wavelength_unit.to(units.cm)  # check if wavelength_unit is a length
         self.wave_unit = units.Unit(wavelength_unit)
 
+    def __getitem__(self, index):
+        """
+        Return a new spectrumset object containing a subset of the
+        spectra (with metadata) from the original spectrumset.
+        Metadata that is uniform over all spectra in the set are
+        preserved. The subset is selected with numpy indexing.
+        """
+        return SpectrumSet(self.spectra[index, :],
+                           self.metaspectra["bad_data"][index, :],
+                           self.metaspectra["noise"][index, :],
+                           self.metaspectra["ir"][index, :],
+                           self.waves, self.spec_unit, self.wave_unit,
+                           comments=self.comments, float_tol=self.tol)
+
     def is_linear_sampled(self):
         """ Check if wavelengths are linear spaced. Boolean output. """
         delta = self.waves[1:] - self.waves[:-1]

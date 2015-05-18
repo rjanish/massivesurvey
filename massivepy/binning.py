@@ -177,9 +177,9 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
                                        tobin_noises[in_trialbin, :],
                                        tobin_bad_data[in_trialbin, :]]
                 trial_binned = combine_spectra(*trial_indivual_data)
-                    # outputs binned spectra, noise, bad_data - use here for
-                    # the S/N computation and discard, re-computing later,
-                    # which is cleaner and saves memory for a slight slowdown
+                    # outputs binned spectra, noise, bad_data - use for S/N
+                    # computation and discard, re-computing later, which is
+                    # cleaner and saves memory in exchange for small slowdown
                 trial_s2n = compute_s2n(*trial_binned)
                 if trial_s2n < s2n_limit: # too noisy - increase outer radius
                     break

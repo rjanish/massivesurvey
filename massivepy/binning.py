@@ -47,10 +47,9 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
       5 - If any angular bin falls below the S/N threshold and r_out
           remains less than the outermost spectrum, go to 3.
         - If any angular bin falls below the S/N threshold but r_out
-          exceeds the outermost spectrum, end the binning. Discard or
-          bin the unbinned outer spectra, i.e. those with radii
-          currently greater than r_in, according to the user-supplied
-          bin finishing_func.
+          exceeds the outermost spectrum, end the binning. Discard the
+          unbinned outer spectra, i.e. those with radii currently
+          greater than r_in
         - If all angular bins exceed S/N threshold, accept these bins
           and continue with 6.
       6 - r_out has by now been incremented to some r_out > r_in.
@@ -195,6 +194,7 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
                 break  # start new annulus
         else:
             # final annulus does not pass threshold - process outer spectra
+            # for now, discard outer spectra
             break
     # DEVELOPMENT - start here, need to re-combine
     # binning finished - package results

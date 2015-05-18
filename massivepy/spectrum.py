@@ -26,9 +26,9 @@ class SpectrumSet(object):
     methods for I/O and manipulation of spectra are meant to enforce
     the preservation and automatic updating of the metadata as needed.
     """
-    def __init__(self, spectra, bad_data, noise, ir, wavelengths,
-                 spectra_unit, wavelength_unit, comments={},
-                 float_tol=10**(-10)):
+    def __init__(self, spectra, bad_data, noise, ir, spectra_ids,
+                 wavelengths, spectra_unit, wavelength_unit,
+                 comments={}, float_tol=10**(-10)):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -53,6 +53,9 @@ class SpectrumSet(object):
             The spectral resolution of the instrument that recorded
             the spectra. This is assumed to be given as a Gaussian
             FWHM, with the units matching wavelengths.
+        spectra_ids - 1d int arraylike, size matches number of spectra
+            Unique identifiers labeling the spectra in the order given
+            in the above 'spectra' argument. Assumed to be integers.
         wavelengths - 1d arraylike
             Wavelength sample values, the same for each spectrum.
         spectra_unit - astropy unit-like
@@ -75,6 +78,13 @@ class SpectrumSet(object):
                              "dimensions.".format(self.spectra.shape))
         self.spectra = np.atleast_2d(self.spectra)  # spectrum shape now 2D
         self.num_spectra, self.num_samples = self.spectra.shape
+        # check ids format
+        self.ids = np.asarray(spectra_ids, dtype=int)
+        if ((self.ids.ndim != 1) or
+            (self.ids.size != self.num_samples)):
+            raise ValueError("Invalid spectra ids shape: {}. Must be "
+                             "1D and match the number of spectra: {}."
+                             "".format(self.ids.shape, self.num_spectra))
         # check waves format
         self.waves = np.array(wavelengths, dtype=float)
         if ((self.waves.ndim != 1) or
@@ -88,7 +98,7 @@ class SpectrumSet(object):
         metaspectra_inputs = {"noise":noise, "ir":ir, "bad_data":bad_data}
         float_2d = lambda a: np.atleast_2d(np.asarray(a, dtype=float))
         bool_2d = lambda a: np.atleast_2d(np.asarray(a, dtype=bool))
-        conversions = ["noise":float_2d, "ir":float_2d, "bad_data":bool_2d]
+        conversions = {"noise":float_2d, "ir":float_2d, "bad_data":bool_2d}
         self.metaspectra = {name:conversions[name](data)
                             for name, data in metaspectra_inputs.iteritems()}
             # metaspectra now float or bool valued and have dimension >= 2
@@ -107,15 +117,38 @@ class SpectrumSet(object):
 
     def __getitem__(self, index):
         """
-        Return a new spectrumset object containing a subset of the
-        spectra (with metadata) from the original spectrumset.
-        Metadata that is uniform over all spectra in the set are
-        preserved. The subset is selected with numpy indexing.
+        Extract a subset of spectral data.
+
+        Returns a new spectrumset object containing a subset of the
+        spectra and associated metadata from the original spectrumset.
+        Metadata that is by-assumption uniform over all spectra, such
+        as the wavelengths, spectral unit, etc., is also preserved.
+
+        Selecting a subset is done by numpy-style indexing into the
+        various data arrays, e.g.
+        > specset = spectrumset(...)
+        > specset[0]
+            - returns the first spectrum in specset.spectra
+        > specset[1:-1]
+            - returns all but the first and last spectra
+        > specset[(specset.ids % 2) == 0]
+            - returns all spectra with even-number ids
+
+        It is particularly important to keep in mind the difference
+        between the index of a spectrum as stored in a spectrumset
+        object and the id value assigned to that spectrum:
+        > specset = spectrumset(...)
+        > numbers = [5, 10, 11, 19]
+        > specset[numbers]
+            - returns spectra at indices 5, 10, 11, and 19
+        > ids_selector = np.in1d(specset.ids, numbers)
+        > specset[ids_selector]
+            - returns spectra that have id value of 5, 10, 11, or 19
         """
         return SpectrumSet(self.spectra[index, :],
                            self.metaspectra["bad_data"][index, :],
                            self.metaspectra["noise"][index, :],
-                           self.metaspectra["ir"][index, :],
+                           self.metaspectra["ir"][index, :], self.ids[index],
                            self.waves, self.spec_unit, self.wave_unit,
                            comments=self.comments, float_tol=self.tol)
 
@@ -237,7 +270,7 @@ class SpectrumSet(object):
         resample(self, new_waves)
         return step
 
-    def compute_flux(self, interval=None):
+    def compute_flux(self, interval=None, ids=self.ids):
         """
         Compute the flux of spectrum over the given interval.
 
@@ -252,6 +285,9 @@ class SpectrumSet(object):
             The wavelength interval over which to compute the flux,
             expressed as an array [lamba_start, lamba_end]. This
             interval must be contained in the data's spectral range.
+        ids - 1D int arraylike, default is all
+            The id's of the spectra for which to compute the flux. By
+            default, the flux of all spectra will be computed.
 
         Return:
         fluxes - arraylike
@@ -262,16 +298,19 @@ class SpectrumSet(object):
         """
         if interval is None:
             interval = self.spec_region
+        ids = np.asarray(ids, dtype=int)
         elif not utl.interval_contains_interval(self.spec_region, interval):
             raise ValueError("Invalid interval: {}. Region must be "
                              "contained in data spectral range: {}."
                              "".format(region, self.spec_region))
         flux_region = utl.in_linear_interval(self.waves, interval)
-        fluxes = np.zeros(self.num_spectra)
-        for index in xrange(self.num_spectra):
-            valid_data = ~self.metaspectra["bad_data"][index]
+        fluxes = np.zeros(ids.size)
+        for result_index, id in enumerate(ids):
+            spec_index = (self.ids == id)
+            valid_data = ~self.metaspectra["bad_data"][spec_index]
             to_integrate = flux_region & valid_data
-            fluxes[index] = integ.simps(self.spectra[index, to_integrate],
-                                        self.waves[to_integrate])
+            flux = integ.simps(self.spectra[spec_index, to_integrate],
+                               self.waves[to_integrate])
+            fluxes[result_index] = flux
         flux_unit = self.spec_unit*self.wave_unit
         return fluxes, flux_unit

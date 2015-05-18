@@ -87,9 +87,11 @@ class SpectrumSet(object):
         # 'metaspectra' are those metadata that have a spectra-like form
         metaspectra_inputs = [noise, ir, bad_data]
         metaspectra_names = ["noise", "ir", "bad_data"]
-        conversion = lambda a: np.atleast_2d(np.array(a, dtype=float))
-        metaspectra_data = map(conversion, metaspectra_inputs)
-            # metaspectra are now float-valued and have dimension >= 2
+        float_2d = lambda a: np.atleast_2d(np.array(a, dtype=float))
+        bool_2d = lambda a: np.atleast_2d(np.array(a, dtype=float))
+        conversions = [float_2d, float_2d, bool_2d]
+        metaspectra_data = [convert(data) for data in metaspectra_inputs]
+            # metaspectra are now float/bool-valued and have dimension >= 2
         self.metaspectra = dict(zip(metaspectra_names, metaspectra_data))
         for name, data in self.metaspectra.iteritems():
             if data.shape != self.spectra.shape:

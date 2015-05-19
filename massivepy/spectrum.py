@@ -182,6 +182,12 @@ class SpectrumSet(object):
         else:
             return subset
 
+    def get_maskedspectra(self):
+        """ Return a masked array version of spectra """
+        masked_spectra = np.ma.array(self.spectra,
+                                     mask=self.metaspectra['bad_data'])
+        return masked_spectra
+
     def is_linear_sampled(self):
         """ Check if wavelengths are linear spaced. Boolean output. """
         delta = self.waves[1:] - self.waves[:-1]
@@ -331,11 +337,13 @@ class SpectrumSet(object):
         else:
             ids = np.asarray(ids, dtype=int)
         if interval is None:
-            interval = self.spec_region
+            inwward_shift = np.asarray([1 + self.tol, 1 - self.tol])
+            interval = self.spec_region*inwward_shift
+                # shift to avoid roundoff in comparisons with full interval
         elif not utl.interval_contains_interval(self.spec_region, interval):
             raise ValueError("Invalid interval: {}. Region must be "
                              "contained in data spectral range: {}."
-                             "".format(region, self.spec_region))
+                             "".format(interval, self.spec_region))
         flux_region = utl.in_linear_interval(self.waves, interval)
         fluxes = np.zeros(ids.size)
         for result_index, id in enumerate(ids):
@@ -350,3 +358,52 @@ class SpectrumSet(object):
             fluxes[result_index] = flux
         flux_unit = self.spec_unit*self.wave_unit
         return fluxes, flux_unit
+
+    def compute_fluxnorm(self, interval=None, target_flux=None):
+        """
+        Compute the factors which normalize spectra to equal flux.
+
+        Args:
+        interval - 1D, 2-element arraylike; default = full data range
+            The wavelength interval over which to compute the flux
+            for normalization, as an array [lamba_start, lamba_end].
+        target_flux - float, default is 1/delta_interval
+            The value at which to fix the flux over the given interval,
+            by default (interval[1] - interval[0]) is used, which
+            sets the numeric values of the spectrum near 1.
+
+        Return:
+        scale_factors - 1d arraylike
+            The normalization scale factors
+        """
+        if target_flux is None:
+            if interval is None:
+                inwward_shift = np.asarray([1 + self.tol, 1 - self.tol])
+                interval = self.spec_region*inwward_shift
+                    # shift to avoid roundoff when compared with full range
+            target_flux = (self.spec_region[1] - self.spec_region[0])
+        fluxes, flux_unit = self.compute_flux(interval=interval)
+        factors = target_flux/fluxes
+        return factors
+
+    def get_normalized(self, norm_func):
+        """
+        Normalize spectral data, returning as a new SpectrumSet.
+        Metadata are scaled consistent with the corresponding spectra.
+
+        The norm type is controlled by the passed function norm_func...
+        """
+        norm_factors = norm_func(self)
+        normed_spectra = (self.spectra.T*norm_factors).T
+            # mult each row of spectra by corresponding entry in norm_factors
+        normed_noise = (self.metaspectra["noise"].T*norm_factors).T
+        extened_comments = self.comments.copy()
+        extened_comments["Normalization"] = ("Normalized to have unit {}"
+                                             "".format(norm_func.__name__))
+        return SpectrumSet(spectra=normed_spectra, noise=normed_noise,
+                           bad_data=self.metaspectra["bad_data"],
+                           ir=self.metaspectra["ir"], spectra_ids=self.ids,
+                           wavelengths=self.waves, float_tol=self.tol,
+                           spectra_unit=self.spec_unit,
+                           wavelength_unit=self.wave_unit,
+                           comments=extened_comments)

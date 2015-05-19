@@ -28,9 +28,9 @@ class SpectrumSet(object):
     methods for I/O and manipulation of spectra are meant to enforce
     the preservation and automatic updating of the metadata as needed.
     """
-    def __init__(self, spectra, bad_data, noise, ir, spectra_ids,
-                 wavelengths, spectra_unit, wavelength_unit,
-                 comments={}, float_tol=10**(-10)):
+    def __init__(self, spectra=None, bad_data=None, noise=None, ir=None,
+                 spectra_ids=None, wavelengths=None, spectra_unit=None,
+                 wavelength_unit=None, comments={}, float_tol=10**(-10)):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the

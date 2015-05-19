@@ -9,6 +9,8 @@ import re
 import astropy.units as units
 import numpy as np
 
+import massivepy.spectrum as spec
+
 
 class IFUspectrum(object):
     """
@@ -19,11 +21,16 @@ class IFUspectrum(object):
     and to not be the result of binning multiple spectra from
     non-coincident regions.
     """
-    def __init__(self, spectrumset, coords, coords_unit, footprint):
+    def __init__(self, coords=None, coords_unit=None,
+                 footprint=None, **kwargs):
         """
+        See SpectrumSet. Arguments needed beyond those of SpectrumSet
+        are described below.
+
         Args:
-        spectrumset - SpectrumSet object
-            The spectral data, as a SpectrumSet object
+        spectrumset - SpectrumSet object or keyword args
+            The spectral data, either as a SpectrumSet object, or by
+            passing all of the keyword arguments needed by SpectrumSet
         coords - (Nx2) arraylike
             The Cartesian coordinates of the center of each spectrum's
             spacial footprint. The ordering along the 0-axis must
@@ -37,7 +44,10 @@ class IFUspectrum(object):
             as a 1d arraylike, and return a footprint shape as a
             shapely polygon object centered on the passed coordinates.
         """
-        self.spectrumset = spectrumset
+        if 'spectrumset' in kwargs:
+            self.spectrumset = kwargs['spectrumset']
+        else:
+            self.spectrumset = spec.SpectrumSet(**kwargs)
         self.coords = np.asarray(coords)
         required_coord_shape = (self.spectrumset.num_spectra, 2)
         if self.coords.shape != required_coord_shape:
@@ -56,5 +66,6 @@ class IFUspectrum(object):
         """
         new_set, index = self.spectrumset.get_subset(ids, get_selector=True)
         new_coords = self.coords[index, :]
-        return IFUspectrum(new_set, new_coords,
-                           self.coords_unit, self.footprint)
+        return IFUspectrum(spectrumset=new_set, coords=new_coords,
+                           coords_unit=self.coords_unit,
+                           footprint=self.footprint)

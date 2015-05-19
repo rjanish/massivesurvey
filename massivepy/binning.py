@@ -12,6 +12,279 @@ np.seterr(under='warn')  # for all but underflow warnings (numpy
 
 import utilities as utl
 
+# below here untested
+
+def median_normalize(spectra, noise=None, mask=None, mask_fill=None):
+    """
+    Simultaneous normalization of multiple spectra with noises,
+    including possible masking of bad pixels. Each spectrum/noise pair
+    is normalized to have a spectrum median over wavelength of 1.
+
+    Args:
+    spectrum - 1d or 2d float array
+        An array of spectra to normalize, with each row a spectrum
+        and each spectrum identically sampled in wavelength. A 1d
+        array can be used for only a single spectrum.
+    noise - 1d or 2d float array, default=None
+        The estimated noise in each spectral value. A 1d array can be
+        used for only a single spectrum. Ignored if not used.
+    mask - 1d or 2d boolean array, defualt=None
+        Indicator of spectral values to ignore. Only spectrum values
+        corresponding to a mask of False are included when computing
+        the normalization median. Setting this to None is equivalent
+        to passing a mask array of all False. A 1d array can be used
+        for only a single spectrum.
+    mask_fill - float, default=None
+        A fill value to be used in the spectrum and/or noise all
+        masked pixels. If None, the no fill is uses and the masked
+        data are treated as if valid (though not included in median).
+
+    Returns: normalized_spectra, normalized_noise (optional)
+    normalized_spectra - 2d float array
+        Normalized spectra in the same format as the passed spectra.
+    normalized_noise - 2d float array
+        Normalized noises in the same format as the passed noise. Only
+        returned if called with a noise array.
+    """
+    spectra = np.array(spectra, dtype=float)
+    if noise is not None:
+        noise = np.array(noise, dtype=float)
+    if mask is None:  # assume all values are good
+        mask = np.zeros(spectra.shape, dtype=bool)
+    else:
+        mask = np.array(mask, dtype=bool)
+    masked_spectra = np.ma.array(spectra, mask=mask)
+    scale_factors = np.ma.median(masked_spectra, axis=-1).data
+    all_masked = np.all(mask, axis=-1)
+        # identifies all-bad fibers, use to set their fiducial scale to 1.0
+        # to keep numbers well-behaved. Default would set to zero.
+    if scale_factors.ndim > 0:
+        scale_factors[all_masked, ...] = 1.0
+    else:  # spectra is 1d and identifiers are scalar, cannot use indexing
+        if all_masked:
+            scale_factors = 1.0
+    normed_spectra = (spectra.T/scale_factors).T
+        # if spectra 2d, scale_factors 1d: divides each row by constant
+        # if spectra 1d, scale_factors 0d: divides single vector by constant
+    if mask_fill is not None:
+        normed_spectra[mask] = mask_fill
+    if noise is None:
+        return normed_spectra
+    else:  # normalize noise with same scale factor
+        normed_noise = (noise.T/scale_factors).T
+        if mask_fill is not None:
+            normed_noise[mask] = mask_fill
+        return normed_spectra, normed_noise
+
+def clipped_mean(data, weights=None, noise=None, mask=None, fill_value=None,
+                clip=5, max_iters=5, max_fractional_remove=0.02,
+                converge_fraction=0.02):
+    """
+    Compute a clipped, weighted mean of each column in the passed 2d
+    array.  This is the weighted mean excluding any data points that
+    differ from the unweighted median by greater than the passed clip
+    factor times the standard deviation. This is iterative.
+
+    Args:
+    data - 2d ndarray
+        Array for which the clipped, weighted mean of
+        each column will be computed
+    weights - 1d or 2d ndarray
+        The weighting factors to be used.  Will be normalized so that
+        each column of weights sums to 1.  If a 1d array is passed,
+        the same weights will be used for each column. If unspecified,
+        then uniform weights are used.
+    noise - 2d ndarray, defalt=None
+        The estimated noise in the passed data, will be ignored if not
+        passed or combined in quadrature if an array is given
+    fill_value - float, default=None
+        If given, will be used to fill all mask values in the final
+        output, otherwise masked values are allowed to float.
+    clip - float, default=3
+        All data differing from the unweighted median by more than
+        clip*standard_deviation will be ignored
+    max_iters - int, default=10
+        maximum number of iterations before clipping is halted
+    max_fractional_remove - float, default=0.02
+        maximum fraction number of data points
+        that can be clipped before clipping is halted
+    mask - 2d boolean ndarray
+        True for any pixels to be ignored in the computation.
+
+    Returns: clipped_data_mean, clipped_data_noise (optional),
+             mean_mask, clipped
+    clipped_data_mean - 1d ndarray
+        The clipped, weighted mean of each column of data
+    clipped_data_noise - 1d ndarray
+        The noise estimate in the clipped mean of each column, only
+        returned if a noise array is passed
+    mean_mask - 1d ndarray
+        The masking array for the mean data, indicated any columns
+        for which all values were either masked or clipped
+    clipped_points - 2d boolean ndarray
+        An array of the same size as the input data, with a True for
+        every data point that was clipped
+    """
+    data = np.array(data, dtype=float)
+    if noise is not None:
+        noise = np.array(noise, dtype=float)
+        normed_data, normed_noise = median_normalize(data, noise=noise,
+                                                     mask=mask)
+    else:
+        normed_data = median_normalize(data, mask=mask)
+    if mask is None:
+        masked = np.zeros(data.shape, dtype=bool)
+    else:
+        masked = np.array(mask, dtype=bool)
+    total_num_points = float(data.size)  # float for fractional divisions
+    normed_masked_data = np.ma.array(normed_data, mask=masked)
+    clipped = np.zeros(data.shape, dtype=bool)
+    # compute clipping
+    for iter in xrange(max_iters):
+        sigma = np.ma.std(normed_masked_data, axis=0)
+        central = np.ma.median(normed_masked_data, axis=0)
+        distance = np.ma.absolute(normed_masked_data - central)/sigma
+            # default broadcasting is to copy vector along each row
+        new_clipped = (distance > clip).data
+            # a non-masked array, any data already masked in distance are set
+            # False by default in size compare - this finds new clipped only
+        num_old_nonclipped = np.sum(~clipped)
+        clipped = clipped | new_clipped  # all clipped points
+        normed_masked_data.mask = clipped | masked  # actual clipping
+        total_frac_clipped = np.sum(clipped)/total_num_points
+        delta_nonclipped = np.absolute(np.sum(~clipped) - num_old_nonclipped)
+        delta_frac_nonclipped = delta_nonclipped/float(num_old_nonclipped)
+        if ((delta_frac_nonclipped <= converge_fraction) or  # convergence
+            (total_frac_clipped > max_fractional_remove)):
+            break
+    # compute mean
+    bad_pixels = masked | clipped
+    if weights is None:
+        weights = np.ones(data.shape)
+    else:
+        weights = np.array(weights, dtype=float)
+    if weights.ndim == 1:
+        weights = inflate(weights, 'v', masked_data.shape[1])
+    weights[bad_pixels] = 0.0  # do not include clipped or masked in norm
+
+    total_weight = weights.sum(axis=0)
+    all_bad = np.all(bad_pixels, axis=0)
+    total_weight[all_bad] = 1.0
+        # set nonzero fiducial total weight for wavelengths with no un-masked
+        # values to avoid division errors; normalized weight is still zero
+    weights = weights/total_weight  # divides each col by const
+    clipped_data_mean = np.ma.sum(normed_masked_data*weights, axis=0).data
+    mean_mask = np.all(bad_pixels, axis=0)
+    if fill_value is not None:
+        clipped_data_mean[mean_mask] == fill_value
+    if noise is not None:
+        normed_masked_noise = np.ma.masked_array(normed_noise,
+                                                 mask=bad_pixels)
+        clipped_variance = np.ma.sum((normed_masked_noise*weights)**2,
+                                     axis=0).data
+        clipped_data_noise = np.sqrt(clipped_variance)
+        if fill_value is not None:
+            clipped_data_noise[mean_mask] == fill_value
+        return clipped_data_mean, clipped_data_noise, mean_mask, clipped
+    else:
+        return clipped_data_mean, mean_mask, clipped
+
+
+def inverse_variance(spectra, noise, mask=None, mask_fill=None):
+    """
+    Combine multiple spectra with noise and possible masking, using an
+    inverse variance weighted mean at each wavelength.
+
+    Args:
+    spectrum - 2d float array
+        An array of spectra to combine, with each row a spectrum
+        and each spectrum identically sampled in wavelength. No
+        normalization is assumed.
+    noise - 2d float array
+        The estimated standard deviation of the noise in each spectral
+        value. Spectra will be weighted by noise^(-2).
+    mask - 2d boolean array, defualt=None
+        Indicator of spectral values to ignore. At each wavelength,
+        only spectrum values corresponding to a mask of False are
+        included in the weighted mean.
+    mask_fill - float, default=None
+        If mask_fill is set and for some wavelengths all input spectra
+        are masked, then the corresponding value in the final spectrum
+        will be filled with mask_fill. Otherwise, the output is given
+        by the weighted mean of the inputs as though they were valid.
+
+    Returns: mean_spectrum, mean_noise, mean_mask
+    mean_spectrum - 1d float array
+        Combined and normalized spectrum
+    mean_noise - 1d float array
+        Combined and normalized standard deviation of the noise
+    mean_mask - 1d boolean array
+        Indicator of remaining, : masked pixels, i.e. those wavelengths
+        for which all input data was masked.
+    """
+    spectra = np.array(spectra, dtype=float)
+    noise = np.array(noise, dtype=float)
+    if mask is not None:
+        mask = np.array(mask, dtype=bool)
+    normed_spectra, normed_noise = median_normalize(spectra, noise, mask)
+    relative_weights = 1.0/normed_noise**2  # inverse variance weighting
+    relative_weights[mask] = 0.0  # no masked pixels in weight normalization
+    total_weight = relative_weights.sum(axis=0)
+    all_masked = np.all(mask, axis=0)
+    total_weight[all_masked] = 1.0
+        # set nonzero fiducial total weight of wavelengths with no un-masked
+        # values to avoid division errors; normalized weight is still zero
+    weights = relative_weights/total_weight  # divide each column by constant
+    [mean_spectrum, mean_noise,
+     mean_mask, clipped] = clipped_mean(normed_spectra, weights=weights,
+                                        noise=normed_noise, mask=mask)
+    mean_spectrum, mean_noise = median_normalize(mean_spectrum, mean_noise,
+                                                  mean_mask, mask_fill)
+        # median_normalize will apply masked filling if needed
+    return mean_spectrum, mean_noise, mean_mask
+
+
+def unfolded_partitioner(radii, angles, major_axis, aspect_ratio):
+    """
+    Partition fibers into angular bins symmetric across both axes.
+
+    aspect_ratio - float, default=1.5
+        The target aspect ratio of the constructed bins, defined as
+        angular_size/radial_size. The final bins will have an
+        aspect_ratio no larger than the passed value, but it may be
+        smaller as the bins is restricted to be in only one quadrant.
+    """
+    angles -= major_axis
+    outer_radius, inner_radius = radii.max(), radii.min()
+    delta_r = outer_radius - inner_radius
+    mid_r = 0.5*(outer_radius + inner_radius)
+    target_bin_arclength = delta_r*aspect_ratio
+    available_arclength = 0.5*np.pi*mid_r  # one quadrant
+    num_firstquad = int(available_arclength/target_bin_arclength)
+    if num_firstquad == 0:
+        raise ValueError
+    num_bins_north = 2*num_firstquad
+    angular_bounds_n = np.linspace(0.0, np.pi, num_bins_north + 1)
+        # angular boundaries on the positive side of the y axis,
+        # counterclockwise, including boundaries at 0 and pi
+    angular_bounds_s = -angular_bounds_n[-2::-1]
+        # angular boundaries on the negative side of the y axis,
+        # counterclockwise, *not* including the boundary at pi or 2pi
+    # angular_bounds_s[-1] = 2*np.pi
+    #     # shift will cause angular_bounds_s in [0, 2pi), i.e. the final bound
+    #     # is 0 - this will cause orderer issues, need it to be 2pi instead
+    angular_bounds = np.concatenate((angular_bounds_n, angular_bounds_s))
+    # sort fibers
+    # partition = []
+    # angle_iteration = zip(angular_bounds[:-1], angular_bounds[1:])
+    # for start, stop in angle_iteration:
+    #     angle_selector = ((start <= angles) & (angles < stop))
+    #     partition.append(fibers[angle_selector])
+    angular_bounds = (angular_bounds + major_axis) % (np.pi*2)
+    return angular_bounds
+
+# above here untested
+
 
 def mean_s2n(data, noise, bad_data):
     """
@@ -82,7 +355,7 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
 
     Returns:
     """
-    num_spectra = ifu_spectra.spectumset.num_spectra
+    num_spectra = ifu_spectra.spectrumset.num_spectra
     spectra_ids = np.arange(num_spectra, dtype=int)  # integer identifiers
     coords = ifu_spectra.coords  # Cartesian, shape (N, 2)
     radii = np.sqrt(np.sum(coords**2, axis=1))
@@ -91,9 +364,9 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
     outer_footprint = ifu_spectra.footprint(outer_coords)
     outer_circrad = utl.bounding_radius(outer_footprint, outer_coords)
         # ~cirumradius of the footprint of the outermost spectrum
-    spectra = ifu_spectra.spectumset.spectra
-    noises = ifu_spectra.spectumset.metaspectra['noise']
-    bad_data = ifu_spectra.spectumset.metaspectra['bad_data']
+    spectra = ifu_spectra.spectrumset.spectra
+    noises = ifu_spectra.spectrumset.metaspectra['noise']
+    bad_data = ifu_spectra.spectrumset.metaspectra['bad_data']
     # find division between innermost bin boundary and solitary spectra
     initial_s2n = compute_s2n(spectra, noises, bad_data)
     s2n_passes = (initial_s2n > s2n_limit)
@@ -142,27 +415,37 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
     radial_bounds = []
     angular_bounds = []
     binned_spectra_ids = []
+    print "solitary radius", nobin_radius
+    print "outermost radius", radial_partition.max()
     while starting_index < final_index:
+        print ""
+        print "new annulus"
         lower_rad = radial_partition[starting_index]
         possible_upper_rad = radial_partition[(starting_index + 1):]
         for upper_iter, trial_upper_rad in enumerate(possible_upper_rad):
+            print "lower rad", lower_rad
+            print upper_iter, "trial upper rad:", trial_upper_rad
             trial_radial_interval = [lower_rad, trial_upper_rad]
             in_annulus = utl.in_linear_interval(tobin_radii,
                                                 trial_radial_interval)
             num_spectra_in_annulus = np.sum(in_annulus)
+            print "num spec in annulus", num_spectra_in_annulus
             if num_spectra_in_annulus == 0:  # empty - increase outer radius
                 continue
             # attempt angular partition
-            try:
-                dividers = angular_paritioner(tobin_radii[in_annulus],
-                                              tobin_angles[in_annulus])
-            except ValueError:
-                # unable to partition annulus - increase radius
-                continue
+            dividers = angular_paritioner(tobin_radii[in_annulus],
+                                          tobin_angles[in_annulus])
+            # try:
+            #     dividers = angular_paritioner(tobin_radii[in_annulus],
+            #                                   tobin_angles[in_annulus])
+            # except ValueError:
+            #     # unable to partition annulus - increase radius
+            #     continue
             # check S/N of angular bins
             starting_angles = dividers.copy()
-            ending_angles = np.concatenate((dividers[1:], dividers[-1:]))
-            angle_intervals = zip(starting_angles, ending_angles)
+            # ending_angles = np.concatenate((dividers[1:], dividers[-1:]))
+            # angle_intervals = zip(starting_angles, ending_angles)
+            angle_intervals = np.asarray(zip(dividers[:-1], dividers[1:]))
             accepted_spectra_ids = [] # spectra ids in each valid bin
             for angle_interval in angle_intervals:
                 in_arc = utl.in_periodic_interval(tobin_angles,
@@ -170,7 +453,7 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
                                                   period=2*np.pi)
                 in_trialbin = in_arc & in_annulus
                 num_in_trialbin = in_trialbin.sum()
-                if num_trial_fibers == 0: # empty - increase outer radius
+                if num_in_trialbin == 0: # empty - increase outer radius
                     break
                 trial_indivual_data = [tobin_spectra[in_trialbin, :],
                                        tobin_noises[in_trialbin, :],
@@ -181,10 +464,12 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
                     # cleaner and saves memory in exchange for small slowdown
                 trial_s2n = compute_s2n(*trial_binned)
                 if trial_s2n < s2n_limit: # too noisy - increase outer radius
+                    print "too noisy"
                     break
                 # angular section valid, save results
                 accepted_spectra_ids.append(tobin_spectra_ids[in_trialbin])
             else:
+                print "accpted", angle_intervals.shape[0], "divisions"
                 # this clause runs only if the above 'for' does not 'break'
                 # i.e., angular binning was successful, all sections valid
                 binned_spectra_ids.append(accepted_spectra_ids)
@@ -198,17 +483,17 @@ def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,
             break
     # DEVELOPMENT - start here, need to re-combine
     # binning finished - package results
-    solitary_spectra_ids = spectra_ids[is_solitary]
-    solitary_spectra_ids = solitary_spectra_ids[:, np.newaxis]
-        # now has form of a list of lists of fiber ids
-    all_binned_spectra_ids = np.concatenate((solitary_spectra_ids,
-                                             binned_spectra_ids))
-    all_bined_spectra = np.concatenate((spectra[solitary_spectra_ids],
-                                        accepted_spectra))
-    all_bined_noise = np.concatenate((noise[solitary_spectra_ids],
-                                      accepted_noise))
-    all_bined_baddata = np.concatenate((baddata[solitary_spectra_ids],
-                                        accepted_baddata))
+    # solitary_spectra_ids = spectra_ids[is_solitary]
+    # solitary_spectra_ids = solitary_spectra_ids[:, np.newaxis]
+    #     # now has form of a list of lists of fiber ids
+    # all_binned_spectra_ids = np.concatenate((solitary_spectra_ids,
+    #                                          binned_spectra_ids))
+    # all_bined_spectra = np.concatenate((spectra[solitary_spectra_ids],
+    #                                     accepted_spectra))
+    # all_bined_noise = np.concatenate((noise[solitary_spectra_ids],
+    #                                   accepted_noise))
+    # all_bined_baddata = np.concatenate((baddata[solitary_spectra_ids],
+    #                                     accepted_baddata))
 
-    return
+    return spectra_ids[is_solitary], binned_spectra_ids, radial_bounds, angular_bounds
 

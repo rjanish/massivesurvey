@@ -172,11 +172,14 @@ class SpectrumSet(object):
                                  "spectra in set".format(id, num_selected))
             else:
                 index = index | selector
-        subset = SpectrumSet(self.spectra[index, :],
-                             self.metaspectra["bad_data"][index, :],
-                             self.metaspectra["noise"][index, :],
-                             self.metaspectra["ir"][index, :],self.ids[index],
-                             self.waves, self.spec_unit, self.wave_unit,
+        subset = SpectrumSet(spectra=self.spectra[index, :],
+                             bad_data=self.metaspectra["bad_data"][index, :],
+                             noise=self.metaspectra["noise"][index, :],
+                             ir=self.metaspectra["ir"][index, :],
+                             spectra_ids=self.ids[index],
+                             wavelengths=self.waves,
+                             spectra_unit=self.spec_unit,
+                             wavelength_unit=self.wave_unit,
                              comments=self.comments, float_tol=self.tol)
         if get_selector:
             return subset, index

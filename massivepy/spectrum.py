@@ -3,6 +3,7 @@ This module handles the storage and common manipulations of spectra
 and collections of spectra.
 """
 
+
 import collections as collect
 
 import numpy as np
@@ -11,11 +12,6 @@ import scipy.integrate as integ
 import scipy.interpolate as inter
 
 import utilities as utl
-
-
-cgs_flux = units.erg/(units.second*(units.cm**2))
-angstrom = units.angstrom
-flux_per_angstrom = cgs_flux/units.angstrom
 
 
 class SpectrumSet(object):

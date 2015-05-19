@@ -118,6 +118,7 @@ class SpectrumSet(object):
         self.spec_unit = units.Unit(spectra_unit)
         wavelength_unit.to(units.cm)  # check if wavelength_unit is a length
         self.wave_unit = units.Unit(wavelength_unit)
+        self.integratedflux_unit = self.spec_unit*self.wave_unit
 
     def get_subset(self, ids, get_selector=False):
         """
@@ -328,9 +329,6 @@ class SpectrumSet(object):
         Return:
         fluxes - arraylike
             The wavelength-integrated flux of each spectrum.
-        flux_unit - astropy unit
-            The unit in which flux is given; this will be
-            spectrum_unit*wavelength_unit.
         """
         if ids is None:
             ids = self.ids
@@ -356,44 +354,20 @@ class SpectrumSet(object):
             flux = integ.simps(self.spectra[spec_index, to_integrate],
                                self.waves[to_integrate])
             fluxes[result_index] = flux
-        flux_unit = self.spec_unit*self.wave_unit
-        return fluxes, flux_unit
+        return fluxes
 
-    def compute_fluxnorm(self, interval=None, target_flux=None):
-        """
-        Compute the factors which normalize spectra to equal flux.
-
-        Args:
-        interval - 1D, 2-element arraylike; default = full data range
-            The wavelength interval over which to compute the flux
-            for normalization, as an array [lamba_start, lamba_end].
-        target_flux - float, default is 1/delta_interval
-            The value at which to fix the flux over the given interval,
-            by default (interval[1] - interval[0]) is used, which
-            sets the numeric values of the spectrum near 1.
-
-        Return:
-        scale_factors - 1d arraylike
-            The normalization scale factors
-        """
-        if target_flux is None:
-            if interval is None:
-                inwward_shift = np.asarray([1 + self.tol, 1 - self.tol])
-                interval = self.spec_region*inwward_shift
-                    # shift to avoid roundoff when compared with full range
-            target_flux = (self.spec_region[1] - self.spec_region[0])
-        fluxes, flux_unit = self.compute_flux(interval=interval)
-        factors = target_flux/fluxes
-        return factors
-
-    def get_normalized(self, norm_func):
+    def get_normalized(self, norm_func=None, norm_value=1):
         """
         Normalize spectral data, returning as a new SpectrumSet.
         Metadata are scaled consistent with the corresponding spectra.
 
-        The norm type is controlled by the passed function norm_func...
+        The norm type is controlled by the passed function norm_func
+        and norm_value - the norm will be set such that all spectra
+        have norm_func(spectrum) = norm_value. It is assumed that
+        norm_func is linear: norm_func(v*M) = v*norm_func(M).
         """
-        norm_factors = norm_func(self)
+        current_values = norm_func(self)
+        norm_factors = norm_value/current_values
         normed_spectra = (self.spectra.T*norm_factors).T
             # mult each row of spectra by corresponding entry in norm_factors
         normed_noise = (self.metaspectra["noise"].T*norm_factors).T
@@ -407,3 +381,35 @@ class SpectrumSet(object):
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments)
+
+    def combine_set(self, weight_func=None, id=None):
+        """
+        Combine all spectra into a single spectrum, treating metadata
+        consistently, returned as a new SpectrumSet object.
+
+        Each spectrum is first normalized such that all have equal
+        equal over the full spectral range. Weights for each spectrum
+        in the combination are determined by the passed weight_func
+        acting on the normalized spectra - weight_func must accept a
+        SpectrumSet and return an array of combination weights. The
+        combination is done via a clipped mean.
+        """
+        delta = self.spec_region[1] - self.spec_region[0]
+        fluxnormed_set = self.get_normalized(SpectrumSet.compute_flux, delta)
+            # normalized by flux, with spectra numerical values ~ 1.0
+        weight = weight_func(fluxnormed_set)
+        comb = utl.clipped_mean(fluxnormed_set.spectra, weights=weight,
+                                noise=fluxnormed_set.metaspectra['noise'],
+                                mask=fluxnormed_set.metaspectra['bad_data'])
+        comb_spectra, comb_noise, comb_bad_data, clipped = comb
+        comb_ir = (self.metaspectra["ir"].T*weight).sum(axis=1)/weight.sum()
+        extened_comments = self.comments.copy()
+        extened_comments["Binning"] = ("This spectrum was binned from {} "
+                                       "spectra {} with weight function {}"
+                                       "".format(self, self.ids,
+                                                 weight_func.__name__))
+        return SpectrumSet(spectra=comb_spectra, bad_data=comb_bad_data,
+                           noise=comb_noise, ir=comb_ir, spectra_ids=[id],
+                           wavelengths=self.waves, comments=extened_comments,
+                           spectra_unit=self.spec_unit, float_tol=self.tol,
+                           wavelength_unit=self.wave_unit)

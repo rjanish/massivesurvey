@@ -183,11 +183,16 @@ class SpectrumSet(object):
         else:
             return subset
 
-    def get_maskedspectra(self):
-        """ Return a masked array version of spectra """
-        masked_spectra = np.ma.array(self.spectra,
-                                     mask=self.metaspectra['bad_data'])
-        return masked_spectra
+    def get_masked(self, name=None):
+        """ Return a masked array version of passed data """
+        mask = self.metaspectra['bad_data']
+        if name == 'spectra':
+            masked = np.ma.array(self.spectra, mask=mask)
+        elif name == 'waves':
+            masked = np.ma.array(self.waves, mask=mask)
+        else:
+            masked = np.ma.array(self.metaspectra[name], mask=mask)
+        return masked
 
     def is_linear_sampled(self):
         """ Check if wavelengths are linear spaced. Boolean output. """
@@ -366,6 +371,8 @@ class SpectrumSet(object):
         else:
             ids = np.asarray(ids, dtype=int)
         index = np.in1d(self.ids, ids)
+        print index.sum()
+        print np.sum(~(self.metaspectra['noise'][index, :] > 0))
         s2n = self.spectra[index, :]/self.metaspectra['noise'][index, :]
         mean_s2n = np.mean(s2n, axis=1)
         return mean_s2n

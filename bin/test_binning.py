@@ -52,7 +52,7 @@ ifuset = ifu.IFUspectrum(spectra=spectra, bad_data=bad_data, noise=noise,
 # do binning
 ma = np.pi/2 - np.deg2rad(pa)
 unfolded_1600 = functools.partial(binning.partition_quadparity,
-                                  major_axis=ma, aspect_ratio=1)
+                                  major_axis=ma, aspect_ratio=2)
 binning_func = functools.partial(binning.polar_threshold_binning,
                                  step_size=fiber_radius,
                                  angle_partition_func=unfolded_1600)
@@ -60,7 +60,7 @@ combine_func = functools.partial(spec.SpectrumSet.collapse, id=0,
                                  weight_func=spec.SpectrumSet.compute_flux)
 binned = ifuset.s2n_spacial_binning(binning_func=binning_func,
                                     combine_func=combine_func,
-                                    threshold=20)
+                                    threshold=20/np.sqrt(2))
 grouped_ids, radial_bounds, angular_bounds = binned
 # results
 single_fiber_bins = [l for l in grouped_ids if len(l) == 1]
@@ -97,12 +97,13 @@ for unused_fiber in range(fiber_coords.shape[0]):
                                     linewidth=0.25, alpha=0.3))
 # plot bin outlines
 for n, (rmin, rmax) in enumerate(radial_bounds):
-    for m, (amin, amax) in enumerate(angular_bounds[n]):
-        num = n + m
-        bin_poly = geo_utils.polar_box(rmin, rmax, np.rad2deg(amin),
-                                       np.rad2deg(amax))
-        ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
-                                            linestyle='solid', linewidth=1.5))
+    for angular_bins in angular_bounds[n]:
+        for amin, amax in angular_bins:
+            bin_poly = geo_utils.polar_box(rmin, rmax, np.rad2deg(amin),
+                                           np.rad2deg(amax))
+            ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
+                                                linestyle='solid',
+                                                linewidth=1.5))
 ax.add_artist(patches.Circle((0, 0), radial_bounds[0][0], edgecolor='k',
               facecolor='none'))
 ax.plot([-rmax*1.1*np.cos(ma), rmax*1.1*np.cos(ma)],

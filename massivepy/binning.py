@@ -4,7 +4,7 @@ and for the manipulation of sets of bins.
 """
 
 
-import sys  # DEBUGGING
+import functools
 
 import numpy as np
 np.seterr(all='raise')   # force numpy warnings to raise exceptions
@@ -16,6 +16,51 @@ import utilities as utl
 
 
 def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
+    """
+    Partition an annulus into angular bins that have parity across
+    both axes.
+
+    Args:
+    major_axis - float
+        The major axis, as an angle counterclockwise from the
+        x-axis, in radians. Bins will have parity across the major
+        axis and the minor (major_axis + pi/2).
+    aspect_ratio - float
+        The target aspect ratio of the constructed bins, defined as
+        angular_size/radial_size. The bins will have an aspect ratio
+        no larger than the passed value, but it may be smaller.
+
+    Returns: intervals
+    intervals - 3D array
+        The first axis delineates bins, the second axis list the
+        disconnected polar boxes whose unions forms the bin, and the
+        third gives the min and max angle of a particular polar box.
+    """
+    inner_radius, outer_radius = np.asarray(rad_interval, dtype=float)
+    delta_r = outer_radius - inner_radius
+    mid_r = 0.5*(outer_radius + inner_radius)
+    target_bin_arclength = delta_r*aspect_ratio
+    available_arclength = 0.5*np.pi*mid_r  # one quadrant
+    num_in_quad = int(available_arclength/target_bin_arclength)
+    if num_in_quad == 0:
+        raise ValueError # invalid annulus - too thin for given aspect_ratio
+    num_in_half = 2*num_in_quad
+    angular_bounds_n = np.linspace(0.0, np.pi, num_in_half + 1)
+        # angular boundaries on the positive side of the y axis, ordered
+        # counterclockwise, including boundaries at 0 and pi
+    angular_bounds_s = -angular_bounds_n[-2::-1]
+        # angular boundaries on the negative side of the y axis, ordered
+        # counterclockwise, *not* including the boundary at pi or 2pi
+    angular_bounds = np.concatenate((angular_bounds_n, angular_bounds_s))
+    angular_bounds = (angular_bounds + major_axis) % (np.pi*2)
+    intervals = np.asarray(zip(angular_bounds[:-1], angular_bounds[1:]))
+    intervals = intervals[:, np.newaxis, :]
+        # add size-1 middle axis to indicate each bin is a single box
+    return intervals
+
+
+def partition_quadparity_folded(rad_interval, major_axis=None,
+                                aspect_ratio=None):
     """
     Partition an annulus into angular bins that have parity across
     both axes.
@@ -116,15 +161,14 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
                 angle_parition = angle_partition_func(rad_interval)
             except ValueError:
                 break # invalid annulus - increase outer radius
-            angle_intervals = np.asarray(zip(angle_parition[:-1],
-                                             angle_parition[1:]))
-                # assuming angle_parition[0] = angle_parition[-1]
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             grouped_annular_ids = []
-            for ang_interval in angle_intervals:
-                in_wedge = utl.in_periodic_interval(angles, ang_interval,
-                                                    period=2*np.pi)
-                in_bin = in_wedge & in_annulus
+            for ang_intervals in angle_parition:
+                in_arc_func = functools.partial(utl.in_periodic_interval,
+                                                period=2*np.pi)
+                in_arcs = utl.in_union_of_intervals(angles, ang_intervals,
+                                                    inclusion=in_arc_func)
+                in_bin = in_arcs & in_annulus
                 ids_in_bin = ids[in_bin]
                 objs_in_bin = indexing_func(collection, ids_in_bin)
                 try:
@@ -141,7 +185,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
                 # i.e., all bins valid and pass
                 binned_ids += grouped_annular_ids
                 radial_bounds.append(rad_interval)
-                angular_bounds.append(angle_intervals)
+                angular_bounds.append(angle_parition)
                 starting_index += upper_iter + 1 # ~ num radial steps taken
                 break  # start new annulus
         else:

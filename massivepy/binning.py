@@ -13,48 +13,78 @@ np.seterr(under='warn')  # for all but underflow warnings (numpy
 import utilities as utl
 
 
-def unfolded_partitioner(radii, angles, major_axis, aspect_ratio):
-    """
-    Partition fibers into angular bins symmetric across both axes.
+# def unfolded_partitioner(radii, angles, major_axis, aspect_ratio):
+#     """
+#     Partition fibers into angular bins symmetric across both axes.
 
+#     aspect_ratio - float, default=1.5
+#         The target aspect ratio of the constructed bins, defined as
+#         angular_size/radial_size. The final bins will have an
+#         aspect_ratio no larger than the passed value, but it may be
+#         smaller as the bins is restricted to be in only one quadrant.
+#     """
+#     angles -= major_axis
+#     outer_radius, inner_radius = radii.max(), radii.min()
+#     delta_r = outer_radius - inner_radius
+#     mid_r = 0.5*(outer_radius + inner_radius)
+#     target_bin_arclength = delta_r*aspect_ratio
+#     available_arclength = 0.5*np.pi*mid_r  # one quadrant
+#     num_firstquad = int(available_arclength/target_bin_arclength)
+#     if num_firstquad == 0:
+#         raise ValueError
+#     num_bins_north = 2*num_firstquad
+#     angular_bounds_n = np.linspace(0.0, np.pi, num_bins_north + 1)
+#         # angular boundaries on the positive side of the y axis,
+#         # counterclockwise, including boundaries at 0 and pi
+#     angular_bounds_s = -angular_bounds_n[-2::-1]
+#         # angular boundaries on the negative side of the y axis,
+#         # counterclockwise, *not* including the boundary at pi or 2pi
+#     # angular_bounds_s[-1] = 2*np.pi
+#     #     # shift will cause angular_bounds_s in [0, 2pi), i.e. the final bound
+#     #     # is 0 - this will cause orderer issues, need it to be 2pi instead
+#     angular_bounds = np.concatenate((angular_bounds_n, angular_bounds_s))
+#     # sort fibers
+#     # partition = []
+#     # angle_iteration = zip(angular_bounds[:-1], angular_bounds[1:])
+#     # for start, stop in angle_iteration:
+#     #     angle_selector = ((start <= angles) & (angles < stop))
+#     #     partition.append(fibers[angle_selector])
+#     angular_bounds = (angular_bounds + major_axis) % (np.pi*2)
+#     return angular_bounds
+
+# above here untested
+
+def unfolded_partitioner(rad_interval, major_axis, aspect_ratio):
+    """
+    Partition an annulus into angular bins that have parity across
+    both axes.
+
+    major_axis - float
+        The major axis, as an angle counterclockwise from the
+        x-axis, in radians. Bins will have parity across the major
+        axis and the minor (major_axis + pi/2).
     aspect_ratio - float, default=1.5
         The target aspect ratio of the constructed bins, defined as
-        angular_size/radial_size. The final bins will have an
-        aspect_ratio no larger than the passed value, but it may be
-        smaller as the bins is restricted to be in only one quadrant.
+        angular_size/radial_size. The bins will have an aspect ratio
+        no larger than the passed value, but it may be smaller.
     """
-    angles -= major_axis
-    outer_radius, inner_radius = radii.max(), radii.min()
     delta_r = outer_radius - inner_radius
     mid_r = 0.5*(outer_radius + inner_radius)
     target_bin_arclength = delta_r*aspect_ratio
     available_arclength = 0.5*np.pi*mid_r  # one quadrant
-    num_firstquad = int(available_arclength/target_bin_arclength)
-    if num_firstquad == 0:
-        raise ValueError
-    num_bins_north = 2*num_firstquad
-    angular_bounds_n = np.linspace(0.0, np.pi, num_bins_north + 1)
-        # angular boundaries on the positive side of the y axis,
+    num_in_quad = int(available_arclength/target_bin_arclength)
+    if num_in_quad == 0:
+        raise ValueError # invalid annulus - too thin for given aspect_ratio
+    num_in_half = 2*num_in_quad
+    angular_bounds_n = np.linspace(0.0, np.pi, num_in_half + 1)
+        # angular boundaries on the positive side of the y axis, ordered
         # counterclockwise, including boundaries at 0 and pi
     angular_bounds_s = -angular_bounds_n[-2::-1]
-        # angular boundaries on the negative side of the y axis,
+        # angular boundaries on the negative side of the y axis, ordered
         # counterclockwise, *not* including the boundary at pi or 2pi
-    # angular_bounds_s[-1] = 2*np.pi
-    #     # shift will cause angular_bounds_s in [0, 2pi), i.e. the final bound
-    #     # is 0 - this will cause orderer issues, need it to be 2pi instead
     angular_bounds = np.concatenate((angular_bounds_n, angular_bounds_s))
-    # sort fibers
-    # partition = []
-    # angle_iteration = zip(angular_bounds[:-1], angular_bounds[1:])
-    # for start, stop in angle_iteration:
-    #     angle_selector = ((start <= angles) & (angles < stop))
-    #     partition.append(fibers[angle_selector])
     angular_bounds = (angular_bounds + major_axis) % (np.pi*2)
     return angular_bounds
-
-# above here untested
-
-
 
 
 
@@ -321,9 +351,12 @@ def spacialbinning_polar(collection=None, coords=None, ids=None,
         possible_upper_rads = radial_partition[(starting_index + 1):]
         for upper_iter, trial_upper_rad in enumerate(possible_upper_rads):
             rad_interval = [lower_rad, trial_upper_rad]
-            angle_parition = angular_paritioner(rad_interval)
-                # assuming angle_parition[0] = angle_parition[-1]
+            try:
+                angle_parition = angular_paritioner(rad_interval)
+            except ValueError:
+                break # invalid annulus - increase outer radius
             angle_intervals = np.asarray(zip(dividers[:-1], dividers[1:]))
+                # assuming angle_parition[0] = angle_parition[-1]
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             for ang_interval in angle_intervals:
                 in_wedge = utl.in_periodic_interval(angles, ang_interval,

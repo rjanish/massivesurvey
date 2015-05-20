@@ -74,14 +74,14 @@ class IFUspectrum(object):
                            coords_unit=self.coords_unit,
                            footprint=self.footprint)
 
-    def s2n_spacial_binning(self, threshold, binning_func):
+    def s2n_spacial_binning(self, threshold=None, binning_func=None,
+                            combine_func=None):
         """
         """
         binned = binning_func(
             collection=self.spectrumset, coords=self.coords,
             ids=self.spectrumset.ids, linear_scale=self.linear_scale,
             indexing_func=spec.SpectrumSet.get_subset,
-            combine_func=spec.SpectrumSet.collapse,
-            score_func=spec.SpectrumSet.compute_mean_s2n,
-            threshold=threshold)
+            combine_func=combine_func, threshold=threshold,
+            score_func=spec.SpectrumSet.compute_mean_s2n)
         return binned

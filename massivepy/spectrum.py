@@ -398,7 +398,7 @@ class SpectrumSet(object):
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments)
 
-    def collapse(self, id=0, weight_func=None):
+    def collapse(self, weight_func=None, id=None):
         """
         Combine all spectra into a single spectrum, treating metadata
         consistently, returned as a new SpectrumSet object.
@@ -410,19 +410,19 @@ class SpectrumSet(object):
         SpectrumSet and return an array of combination weights. The
         combination is done via a clipped mean.
         """
-        if weight_func is None:
-            weight_func = SpectrumSet.compute_flux
-            # weight_func = lambda s: s.metaspectra['noise']**(-2)
         delta = self.spec_region[1] - self.spec_region[0]
         fluxnormed_set = self.get_normalized(SpectrumSet.compute_flux, delta)
             # normalized by flux, with spectra numerical values ~ 1.0
         weight = weight_func(fluxnormed_set)
+        if weight.ndim == 1:
+            weight = np.vstack((weight,)*fluxnormed_set.num_samples).T
+                # array with each row a constant value
         comb = utl.clipped_mean(fluxnormed_set.spectra, weights=weight,
                                 noise=fluxnormed_set.metaspectra['noise'],
                                 mask=fluxnormed_set.metaspectra['bad_data'])
         comb_spectra, comb_noise, comb_bad_data, clipped = comb
-        comb_ir = (self.metaspectra["ir"].T*weight).sum(axis=1)/weight.sum()
-        # comb_ir = (self.metaspectra["ir"]*weight).sum(axis=0)/weight.sum(axis=0)
+        total_weight = weight.sum(axis=0)
+        comb_ir = (self.metaspectra["ir"]*weight).sum(axis=0)/total_weight
         extened_comments = self.comments.copy()
         extened_comments["Binning"] = ("This spectrum was binned from {} "
                                        "spectra {} with weight function {}"

@@ -371,10 +371,10 @@ class SpectrumSet(object):
         else:
             ids = np.asarray(ids, dtype=int)
         index = np.in1d(self.ids, ids)
-        print index.sum()
-        print np.sum(~(self.metaspectra['noise'][index, :] > 0))
-        s2n = self.spectra[index, :]/self.metaspectra['noise'][index, :]
-        mean_s2n = np.mean(s2n, axis=1)
+        masked_spectra = self.get_masked('spectra')
+        masked_noise = self.get_masked('noise')
+        s2n = masked_spectra[index, :]/masked_noise[index, :]
+        mean_s2n = np.mean(s2n, axis=1).data
         return mean_s2n
 
     def get_normalized(self, norm_func=None, norm_value=1):

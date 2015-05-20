@@ -339,7 +339,9 @@ def spacialbinning_polar(collection=None, coords=None, ids=None,
                 in_bin = in_wedge & in_annulus
                 objs_in_bin = collection.indexing_method(in_annulus)
                 try:
-                    bin_score = score_func(objs_in_bin)
+                    combined_object = combine_func(objs_in_bin)
+                    bin_score = score_func(combined_object)[0]
+                        # combined_object is a collection with 1 element
                 except ValueError:
                     break # invalid bin - increase outer radius
                 if bin_score < threshold:

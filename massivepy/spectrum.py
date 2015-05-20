@@ -356,6 +356,22 @@ class SpectrumSet(object):
             fluxes[result_index] = flux
         return fluxes
 
+    def compute_mean_s2n(self, ids=None):
+        """
+        Return the mean S/N over wavelength for the spectra with the
+        passed ids, or by default all of the spectra.
+        """
+        if ids is None:
+            ids = self.ids
+        else:
+            ids = np.asarray(ids, dtype=int)
+        mean_s2n = np.zeros(ids.shape[0])
+        for iter, id in enumerate(ids):
+            index = (id == self.ids)
+            s2n = self.spectra[index]/self.metaspectra['noise'][index]
+            mean_s2n[iter] = np.mean(s2n)
+        return mean_s2n
+
     def get_normalized(self, norm_func=None, norm_value=1):
         """
         Normalize spectral data, returning as a new SpectrumSet.
@@ -382,7 +398,7 @@ class SpectrumSet(object):
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments)
 
-    def combine_set(self, weight_func=None, id=None):
+    def collapse(self, weight_func=None, id=None):
         """
         Combine all spectra into a single spectrum, treating metadata
         consistently, returned as a new SpectrumSet object.

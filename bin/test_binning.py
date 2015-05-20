@@ -51,7 +51,7 @@ ifuset = ifu.IFUspectrum(spectra=spectra, bad_data=bad_data, noise=noise,
                          linear_scale=fiber_radius, footprint=fiber_circle)
 # do binning
 ma = np.pi/2 - np.deg2rad(pa)
-unfolded_1600 = functools.partial(binning.partition_quadparity,
+unfolded_1600 = functools.partial(binning.partition_quadparity_folded,
                                   major_axis=ma, aspect_ratio=2)
 binning_func = functools.partial(binning.polar_threshold_binning,
                                  step_size=fiber_radius,
@@ -60,7 +60,7 @@ combine_func = functools.partial(spec.SpectrumSet.collapse, id=0,
                                  weight_func=spec.SpectrumSet.compute_flux)
 binned = ifuset.s2n_spacial_binning(binning_func=binning_func,
                                     combine_func=combine_func,
-                                    threshold=20/np.sqrt(2))
+                                    threshold=20)
 grouped_ids, radial_bounds, angular_bounds = binned
 # results
 single_fiber_bins = [l for l in grouped_ids if len(l) == 1]

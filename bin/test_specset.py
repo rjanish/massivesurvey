@@ -58,5 +58,9 @@ delta_lambda = binned.spec_region[1] - binned.spec_region[0]
 binned = binned.get_normalized(norm_func=spec.SpectrumSet.compute_flux,
                                norm_value=delta_lambda)
 
+print 's2n all fibers'
 s2n_fibers = specset.compute_mean_s2n()
+print 's2n done'
+print 's2n combined'
 s2n_binned = binned.compute_mean_s2n()
+print 's2n combined'

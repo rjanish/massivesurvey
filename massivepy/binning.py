@@ -102,7 +102,9 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
     radii = np.sqrt(np.sum(coords**2, axis=1))
     angles = np.arctan2(coords[:, 1], coords[:, 0])  # output in [-pi, pi]
     # find division between innermost bin boundary and solitary objects
+    print "computing initial s2n"
     initial_scores = score_func(collection)
+    print "done"
     passed = (initial_scores > threshold)
     central_obj_passed = passed[np.argmin(radii)]
     if not central_obj_passed:
@@ -145,6 +147,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
     starting_index = 0
     final_index = radial_partition.shape[0] - 1
     radial_bounds, angular_bounds, binned_ids = [], [], []
+    print 'binning starts'
     while starting_index < final_index:
         lower_rad = radial_partition[starting_index]
         possible_upper_rads = radial_partition[(starting_index + 1):]
@@ -166,6 +169,8 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
                 objs_in_bin = indexing_func(collection, ids_in_bin)
                 try:
                     combined_object = combine_func(objs_in_bin)
+                    print 'valid angle bin, check s2n'
+                    print combined_object.num_spectra
                     bin_score = score_func(combined_object)[0]
                         # combined_object is a collection with 1 element
                 except ValueError, msg:

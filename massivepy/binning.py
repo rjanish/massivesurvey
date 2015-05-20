@@ -74,24 +74,17 @@ def partition_quadparity_folded(rad_interval, major_axis=None,
         angular_size/radial_size. The bins will have an aspect ratio
         no larger than the passed value, but it may be smaller.
     """
-    inner_radius, outer_radius = np.asarray(rad_interval, dtype=float)
-    delta_r = outer_radius - inner_radius
-    mid_r = 0.5*(outer_radius + inner_radius)
-    target_bin_arclength = delta_r*aspect_ratio
-    available_arclength = 0.5*np.pi*mid_r  # one quadrant
-    num_in_quad = int(available_arclength/target_bin_arclength)
-    if num_in_quad == 0:
-        raise ValueError # invalid annulus - too thin for given aspect_ratio
-    num_in_half = 2*num_in_quad
-    angular_bounds_n = np.linspace(0.0, np.pi, num_in_half + 1)
-        # angular boundaries on the positive side of the y axis, ordered
-        # counterclockwise, including boundaries at 0 and pi
-    angular_bounds_s = -angular_bounds_n[-2::-1]
-        # angular boundaries on the negative side of the y axis, ordered
-        # counterclockwise, *not* including the boundary at pi or 2pi
-    angular_bounds = np.concatenate((angular_bounds_n, angular_bounds_s))
-    angular_bounds = (angular_bounds + major_axis) % (np.pi*2)
-    return angular_bounds
+    unfolded_bins = partition_quadparity(rad_interval, major_axis=major_axis,
+                                         aspect_ratio=aspect_ratio)
+    num_unfolded_bins = unfolded_bins.shape[0]  # always even
+    midpoint = num_unfolded_bins/2
+    bins_n_of_ma = unfolded_bins[:midpoint]
+    bins_s_of_ma = unfolded_bins[midpoint:][::-1, ...]
+        # these are now ordered such that corresponding elements are
+        # reflected pairs: bins_n_of_ma[j] is the reflection across
+        # the major_axis of bins_s_of_ma[j]
+    folded_bins = np.concatenate((bins_n_of_ma, bins_s_of_ma), axis=1)
+    return folded_bins
 
 
 def polar_threshold_binning(collection=None, coords=None, ids=None,

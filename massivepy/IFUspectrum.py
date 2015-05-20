@@ -69,3 +69,8 @@ class IFUspectrum(object):
         return IFUspectrum(spectrumset=new_set, coords=new_coords,
                            coords_unit=self.coords_unit,
                            footprint=self.footprint)
+
+    def bin_spacial(self, binning_func):
+        """
+        """
+        

@@ -50,9 +50,10 @@ ifuset = ifu.IFUspectrum(spectra=spectra, bad_data=bad_data, noise=noise,
                          coords=coords, coords_unit=const.arcsec,
                          linear_scale=fiber_radius, footprint=fiber_circle)
 # do binning
-ma = np.pi/2 - np.deg2rad(pa)
+ma_bin = np.pi/2 - np.deg2rad(pa)
+ma_xy = np.pi/2 + np.deg2rad(pa)
 unfolded_1600 = functools.partial(binning.partition_quadparity_folded,
-                                  major_axis=ma, aspect_ratio=2)
+                                  major_axis=ma_bin, aspect_ratio=2)
 binning_func = functools.partial(binning.polar_threshold_binning,
                                  step_size=fiber_radius,
                                  angle_partition_func=unfolded_1600)
@@ -98,16 +99,19 @@ for unused_fiber in range(fiber_coords.shape[0]):
 # plot bin outlines
 for n, (rmin, rmax) in enumerate(radial_bounds):
     for angular_bins in angular_bounds[n]:
-        for amin, amax in angular_bins:
-            bin_poly = geo_utils.polar_box(rmin, rmax, np.rad2deg(amin),
-                                           np.rad2deg(amax))
+        for amin_NofE, amax_NofE in angular_bins:
+            amin_xy = np.pi - amax_NofE
+            amax_xy = np.pi - amin_NofE
+            bin_poly = geo_utils.polar_box(rmin, rmax,
+                                           np.rad2deg(amin_xy),
+                                           np.rad2deg(amax_xy))
             ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
                                                 linestyle='solid',
                                                 linewidth=1.5))
 ax.add_artist(patches.Circle((0, 0), radial_bounds[0][0], edgecolor='k',
               facecolor='none'))
-ax.plot([-rmax*1.1*np.cos(ma), rmax*1.1*np.cos(ma)],
-        [-rmax*1.1*np.sin(ma), rmax*1.1*np.sin(ma)],
+ax.plot([-rmax*1.1*np.cos(ma_xy), rmax*1.1*np.cos(ma_xy)],
+        [-rmax*1.1*np.sin(ma_xy), rmax*1.1*np.sin(ma_xy)],
         linewidth=1.5, color='r')
 ax.autoscale_view()
 ax.set_aspect('equal')

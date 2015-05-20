@@ -55,15 +55,7 @@ def unfolded_partitioner(radii, angles, major_axis, aspect_ratio):
 # above here untested
 
 
-def mean_s2n(data, noise, bad_data):
-    """
-    For a set of 1D measurements, compute the mean S/N of each
-    measurement. The mean is taken uniform over the dependent
-    variable, which is assumed to be the final dimension of the input.
-    """
-    masked_data = np.ma.array(data, mask=bad_data)
-    masked_noise = np.ma.array(noise, mask=bad_data)
-    return np.ma.mean(masked_data/masked_noise, axis=-1).data
+
 
 
 # def binfiber_polar(ifu_spectra, s2n_limit, angular_paritioner,

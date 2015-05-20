@@ -72,7 +72,8 @@ class IFUspectrum(object):
         new_coords = self.coords[index, :]
         return IFUspectrum(spectrumset=new_set, coords=new_coords,
                            coords_unit=self.coords_unit,
-                           footprint=self.footprint)
+                           footprint=self.footprint,
+                           linear_scale=self.linear_scale)
 
     def s2n_spacial_binning(self, threshold=None, binning_func=None,
                             combine_func=None):

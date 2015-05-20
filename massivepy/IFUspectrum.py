@@ -10,6 +10,7 @@ import astropy.units as units
 import numpy as np
 
 import massivepy.spectrum as spec
+import massivepy.binning as binning
 
 
 class IFUspectrum(object):
@@ -22,7 +23,7 @@ class IFUspectrum(object):
     non-coincident regions.
     """
     def __init__(self, coords=None, coords_unit=None,
-                 footprint=None, **kwargs):
+                 footprint=None, linear_scale=None, **kwargs):
         """
         See SpectrumSet. Arguments needed beyond those of SpectrumSet
         are described below.
@@ -43,6 +44,8 @@ class IFUspectrum(object):
             It should accept a pair of central Cartesian coordinates
             as a 1d arraylike, and return a footprint shape as a
             shapely polygon object centered on the passed coordinates.
+        linear_scale - float
+            -
         """
         if 'spectrumset' in kwargs:
             self.spectrumset = kwargs['spectrumset']
@@ -56,6 +59,7 @@ class IFUspectrum(object):
             raise ValueError(msg)
         self.coords_unit = units.Unit(coords_unit)
         self.footprint = footprint
+        self.linear_scale = float(linear_scale)
 
     def get_subset(self, ids):
         """
@@ -70,7 +74,14 @@ class IFUspectrum(object):
                            coords_unit=self.coords_unit,
                            footprint=self.footprint)
 
-    def bin_spacial(self, binning_func):
+    def s2n_spacial_binning(self, threshold, binning_func):
         """
         """
-        
+        binned = binning_func(
+            collection=self.spectrumset, coords=self.coords,
+            ids=self.spectrumset.ids, linear_scale=self.linear_scale,
+            indexing_func=spec.SpectrumSet.get_subset,
+            combine_func=spec.SpectrumSet.collapse,
+            score_func=spec.SpectrumSet.compute_mean_s2n,
+            threshold=threshold)
+        return binned

@@ -4,6 +4,8 @@ and for the manipulation of sets of bins.
 """
 
 
+import sys  # DEBUGGING
+
 import numpy as np
 np.seterr(all='raise')   # force numpy warnings to raise exceptions
 np.seterr(under='warn')  # for all but underflow warnings (numpy
@@ -54,7 +56,7 @@ import utilities as utl
 
 # above here untested
 
-def unfolded_partitioner(rad_interval, major_axis, aspect_ratio):
+def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
     """
     Partition an annulus into angular bins that have parity across
     both axes.
@@ -68,6 +70,7 @@ def unfolded_partitioner(rad_interval, major_axis, aspect_ratio):
         angular_size/radial_size. The bins will have an aspect ratio
         no larger than the passed value, but it may be smaller.
     """
+    inner_radius, outer_radius = np.asarray(rad_interval, dtype=float)
     delta_r = outer_radius - inner_radius
     mid_r = 0.5*(outer_radius + inner_radius)
     target_bin_arclength = delta_r*aspect_ratio
@@ -290,10 +293,10 @@ def unfolded_partitioner(rad_interval, major_axis, aspect_ratio):
 
 
 
-def spacialbinning_polar(collection=None, coords=None, ids=None,
-                         linear_scale=None, indexing_method=None,
-                         combine_func=None, score_func=None, threshold=None,
-                         angle_partition_func=None, step_size=None):
+def polar_binning(collection=None, coords=None, ids=None,
+                  linear_scale=None, indexing_func=None,
+                  combine_func=None, score_func=None, threshold=None,
+                  angle_partition_func=None, step_size=None):
     """
     ABSTRACT
     """
@@ -330,9 +333,10 @@ def spacialbinning_polar(collection=None, coords=None, ids=None,
     # compute multi-object bins
     if step_size is None:
         # partition between every single spectrum to be binned
-        sorted_radii = np.sort(radii)
+        radii_tobin = radii[~is_solitary]
+        sorted_radii = np.sort(radii_tobin)
         midpoints = (sorted_radii[:-1] + sorted_radii[1:])*0.5
-        final_radius = radii.max() + 2*linear_scale
+        final_radius = radii_tobin.max() + 2*linear_scale
         radial_partition = ([nobin_radius], midpoints, [final_radius])
         radial_partition = np.concatenate(radial_partition)
         step_size = np.median(midpoints[1:] - midpoints[:-1]) # typical gap
@@ -347,22 +351,28 @@ def spacialbinning_polar(collection=None, coords=None, ids=None,
     final_index = radial_partition.shape[0] - 1
     radial_bounds, angular_bounds, binned_ids = [], [], []
     while starting_index < final_index:
+        print 'new annulus'
         lower_rad = radial_partition[starting_index]
         possible_upper_rads = radial_partition[(starting_index + 1):]
         for upper_iter, trial_upper_rad in enumerate(possible_upper_rads):
             rad_interval = [lower_rad, trial_upper_rad]
+            print rad_interval
             try:
-                angle_parition = angular_paritioner(rad_interval)
+                angle_parition = angle_partition_func(rad_interval)
             except ValueError:
                 break # invalid annulus - increase outer radius
-            angle_intervals = np.asarray(zip(dividers[:-1], dividers[1:]))
+            angle_intervals = np.asarray(zip(angle_parition[:-1],
+                                             angle_parition[1:]))
                 # assuming angle_parition[0] = angle_parition[-1]
             in_annulus = utl.in_linear_interval(radii, rad_interval)
+            grouped_annular_ids = []
             for ang_interval in angle_intervals:
                 in_wedge = utl.in_periodic_interval(angles, ang_interval,
                                                     period=2*np.pi)
                 in_bin = in_wedge & in_annulus
-                objs_in_bin = collection.indexing_method(in_annulus)
+                print "in trial bin:", in_bin.sum()
+                ids_in_bin = ids[in_bin]
+                objs_in_bin = indexing_func(collection, ids_in_bin)
                 try:
                     combined_object = combine_func(objs_in_bin)
                     bin_score = score_func(combined_object)[0]
@@ -370,11 +380,14 @@ def spacialbinning_polar(collection=None, coords=None, ids=None,
                 except ValueError:
                     break # invalid bin - increase outer radius
                 if bin_score < threshold:
+                    print 'too noisy'
                     break # bin too noise - increase outer radius
+                grouped_annular_ids.append(ids_in_bin)  # bin accepted
             else:
+                print 'accepted'
                 # this clause runs only if the above 'for' does not 'break'
                 # i.e., all bins valid and pass
-                binned_ids.append(ids[in_bin])
+                binned_ids += grouped_annular_ids
                 radial_bounds.append(rad_interval)
                 angular_bounds.append(angle_intervals)
                 starting_index += upper_iter + 1 # ~ num radial steps taken

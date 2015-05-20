@@ -412,6 +412,7 @@ class SpectrumSet(object):
         """
         if weight_func is None:
             weight_func = SpectrumSet.compute_flux
+            # weight_func = lambda s: s.metaspectra['noise']**(-2)
         delta = self.spec_region[1] - self.spec_region[0]
         fluxnormed_set = self.get_normalized(SpectrumSet.compute_flux, delta)
             # normalized by flux, with spectra numerical values ~ 1.0
@@ -421,6 +422,7 @@ class SpectrumSet(object):
                                 mask=fluxnormed_set.metaspectra['bad_data'])
         comb_spectra, comb_noise, comb_bad_data, clipped = comb
         comb_ir = (self.metaspectra["ir"].T*weight).sum(axis=1)/weight.sum()
+        # comb_ir = (self.metaspectra["ir"]*weight).sum(axis=0)/weight.sum(axis=0)
         extened_comments = self.comments.copy()
         extened_comments["Binning"] = ("This spectrum was binned from {} "
                                        "spectra {} with weight function {}"

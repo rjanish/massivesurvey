@@ -366,6 +366,7 @@ def polar_binning(collection=None, coords=None, ids=None,
                 # assuming angle_parition[0] = angle_parition[-1]
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             grouped_annular_ids = []
+            print "angular bins:", len(angle_intervals)
             for ang_interval in angle_intervals:
                 in_wedge = utl.in_periodic_interval(angles, ang_interval,
                                                     period=2*np.pi)
@@ -377,7 +378,9 @@ def polar_binning(collection=None, coords=None, ids=None,
                     combined_object = combine_func(objs_in_bin)
                     bin_score = score_func(combined_object)[0]
                         # combined_object is a collection with 1 element
-                except ValueError:
+                except ValueError, msg:
+                    print "invalid bin"
+                    print msg
                     break # invalid bin - increase outer radius
                 if bin_score < threshold:
                     print 'too noisy'

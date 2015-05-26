@@ -403,7 +403,8 @@ class SpectrumSet(object):
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments)
 
-    def collapse(self, weight_func=None, id=None):
+    def collapse(self, weight_func=None, id=None,
+                 norm_func=None, norm_value=None):
         """
         Combine all spectra into a single spectrum, treating metadata
         consistently, returned as a new SpectrumSet object.
@@ -416,8 +417,10 @@ class SpectrumSet(object):
         combination is done via a clipped mean.
         """
         delta = self.spec_region[1] - self.spec_region[0]
-        fluxnormed_set = self.get_normalized(SpectrumSet.compute_flux, delta)
+        fluxnormed_set = self.get_normalized(norm_func, norm_value)
             # normalized by flux, with spectra numerical values ~ 1.0
+        # spec_median = lambda s: np.median(s.get_masked('spectra'), axis=1)
+        # fluxnormed_set = self.get_normalized(spec_median, 1)
         weight = weight_func(fluxnormed_set)
         if weight.ndim == 1:
             weight = np.vstack((weight,)*fluxnormed_set.num_samples).T

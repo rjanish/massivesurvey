@@ -171,7 +171,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
                 except ValueError, msg:
                     break # invalid bin - increase outer radius
                 if bin_score < threshold:
-                    break # bin too noise - increase outer radius
+                    break # bin too noisy - increase outer radius
                 grouped_annular_ids.append(ids_in_bin)  # bin accepted
             else:
                 # this clause runs only if the above 'for' does not 'break'

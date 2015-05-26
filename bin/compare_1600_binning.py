@@ -12,11 +12,14 @@ using binning code dating from May 20 2015.
 import os
 import pickle
 import functools
+import subprocess
+import sys # temporary debug
 
 import numpy as np
 import descartes
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+import astropy.io.fits as fits
 
 import utilities as utl
 import plotting.geo_utils as geo_utils
@@ -38,6 +41,8 @@ nominal_const_fwhm = 4.5  # A
 mask_threshold = 10**4
 # binned 2014-08 locations
 old_dir = 'old_results/ngc1600'
+old_data_dir = 'data'
+old_data_pattern = r"bin\d{2}_ngc1600.fits"
 old_kins_filename = 'ngc1600mitchell-lib_optfull00-7-gh_params.txt'
 old_errs_filename = 'ngc1600mitchell-lib_optfull00-7-gh_params_errors.txt'
 old_binpickle_filename = 'ngc1600-bindata.p'
@@ -47,9 +52,15 @@ old_kins_path = os.path.join(old_results_dir, old_kins_filename)
 old_errs_path = os.path.join(old_results_dir, old_errs_filename)
 old_binpickle_path = os.path.join(old_dir, old_binpickle_filename)
 old_binbounds_path = os.path.join(old_dir, old_binbounds_filename)
+# new results location
+new_results_dir = "ngc1600_bincomparison"
+new_data_dir = os.path.join("ngc1600_bincomparison/data_ivar")
+new_kins_filename = "ngc1600mitchell-201505compare-3900.0_5200.0-gh_params.txt"
+
 # re-bin settings
-aspect_ratio = 2
-threshold = 20/np.sqrt(2)
+aspect_ratio = 1.5
+threshold = 20
+step_size = None
 
 # get binned 2014-08 results
 old_kins = np.loadtxt(old_kins_path)
@@ -66,6 +77,15 @@ old_single_fiber_bins = [l for l, p in old_binned_fibers if len(l) == 1]
 old_flat_binned_fibers = [f for l, p in old_binned_fibers for f in l]
 old_unbinned_fibers = [f for f in np.arange(old_fiberfluxes.shape[0])
                        if f not in old_flat_binned_fibers]
+old_datafiles_paths = utl.re_filesearch(old_data_pattern,
+                                        os.path.join(old_dir, old_data_dir))[0]
+old_datafiles_paths.sort()
+old_binneddata = np.asarray([utl.fits_quickread(path)[0][0]
+                             for path in old_datafiles_paths])
+old_waves = old_binneddata[0, 2, :] # waves are uniform
+old_spectra = old_binneddata[1:, 0, :] # skip full galaxy bin
+old_noise = old_binneddata[1:, 1, :]
+old_mask = old_binneddata[1:, 3, :].astype(bool)
 
 # re-bin now
 # read Jenny's fiber datacube
@@ -97,11 +117,17 @@ ma_binning = np.pi/2 - np.deg2rad(pa)
 unfolded_1600 = functools.partial(binning.partition_quadparity,
                                   major_axis=ma_binning,
                                   aspect_ratio=aspect_ratio)
+folded_1600 = functools.partial(binning.partition_quadparity_folded,
+                                major_axis=ma_binning,
+                                aspect_ratio=aspect_ratio)
 binning_func = functools.partial(binning.polar_threshold_binning,
-                                 step_size=fiber_radius,
-                                 angle_partition_func=unfolded_1600)
+                                 step_size=step_size,
+                                 angle_partition_func=folded_1600)
+# combine_func = functools.partial(spec.SpectrumSet.collapse, id=0,
+#                                  weight_func=spec.SpectrumSet.compute_flux)
+ivar = lambda s: s.metaspectra['noise']**(-2)
 combine_func = functools.partial(spec.SpectrumSet.collapse, id=0,
-                                 weight_func=spec.SpectrumSet.compute_flux)
+                                 weight_func=ivar)
 binned = ifuset.s2n_spacial_binning(binning_func=binning_func,
                                     combine_func=combine_func,
                                     threshold=threshold)
@@ -110,6 +136,42 @@ grouped_ids, radial_bounds, angular_bounds = binned
 new_single_fiber_bins = [l for l in grouped_ids if len(l) == 1]
 new_flat_binned_fibers = [f for l in grouped_ids for f in l]
 new_unbinned_fibers = [f for f in fiber_ids if f not in new_flat_binned_fibers]
+# make binned spectra
+new_binned_specsets = [combine_func(ifuset.spectrumset.get_subset(f))
+                       for f in grouped_ids]
+new_waves = new_binned_specsets[0].waves # waves are uniform
+new_spectra = np.asarray([s.spectra[0] for s in new_binned_specsets])
+new_noise = np.asarray([s.metaspectra['noise'][0] for s in new_binned_specsets])
+new_mask = np.asarray([s.metaspectra['bad_data'][0] for s in new_binned_specsets])
+for bin_iter in xrange(len(grouped_ids)):
+    bin_num = bin_iter + 1
+    data_package = np.asarray([new_spectra[bin_iter],
+                               new_noise[bin_iter], new_waves,
+                               new_mask[bin_iter].astype(float)])
+    path = os.path.join(new_data_dir, "bin{:02d}_ngc1600_201505.fits".format(bin_num))
+    fits.writeto(path, data_package, clobber=True)
+
+print "data saved"
+sys.exit()
+
+# get new kins
+new_kins = np.loadtxt(os.path.join(new_results_dir, new_kins_filename))
+figs = []
+for moment in xrange(6):
+    fig, ax = plt.subplots()
+    ax.plot(old_kins[moment, 1:], linestyle='', marker='o',
+            alpha=0.6, label='August 2014')
+    ax.plot(new_kins[moment, :], linestyle='', marker='o',
+            alpha=0.6, label='May 20 2015')
+    ax.set_title("param {}".format(moment))
+    ax.legend(loc='best', fontsize=12)
+    figs.append("ngc1600_Aug14May15bincompare-{}.pdf".format(moment))
+    fig.savefig("ngc1600_Aug14May15bincompare-{}.pdf".format(moment))
+    plt.close(fig)
+cmd = "pdfunite {} {}".format(" ".join(figs), "ngc1600_Aug14May15bincompare.pdf")
+subprocess.call(cmd, shell=True)
+
+
 # print compares
 print "August 2014 bins:"
 print "{} total number of bins".format(len(old_binned_fibers))
@@ -159,16 +221,17 @@ for fiber in range(new_fiber_xy.shape[0]):
                                 linewidth=0.25, alpha=0.15))
 # plot bin outlines
 for n, (rmin, rmax) in enumerate(radial_bounds):
-    for m, (amin_NofE, amax_NofE) in enumerate(angular_bounds[n]):
-        amin_xy = np.pi - amax_NofE
-        amax_xy = np.pi - amin_NofE
-        bin_poly = geo_utils.polar_box(rmin, rmax, np.rad2deg(amin_xy),
-                                       np.rad2deg(amax_xy))
-        ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
-                                            edgecolor='r', linestyle='solid',
-                                            linewidth=1.5))
+    for angular_bins in angular_bounds[n]:
+        for amin_NofE, amax_NofE in angular_bins:
+            amin_xy = np.pi - amax_NofE
+            amax_xy = np.pi - amin_NofE
+            bin_poly = geo_utils.polar_box(rmin, rmax, np.rad2deg(amin_xy),
+                                           np.rad2deg(amax_xy))
+            ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
+                                                edgecolor='r', linewidth=1.5,
+                                                linestyle='solid'))
 ax.plot([], [], color='r', linestyle='solid', linewidth=1.5,
-        label='bins May 20 2014')
+        label='bins May 20 2015')
 # add major axis
 ax.plot([-rmax*1.3*np.cos(ma_xy), rmax*1.3*np.cos(ma_xy)],
         [-rmax*1.3*np.sin(ma_xy), rmax*1.3*np.sin(ma_xy)],

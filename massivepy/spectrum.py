@@ -24,9 +24,10 @@ class SpectrumSet(object):
     methods for I/O and manipulation of spectra are meant to enforce
     the preservation and automatic updating of the metadata as needed.
     """
-    def __init__(self, spectra=None, bad_data=None, noise=None, ir=None,
-                 spectra_ids=None, wavelengths=None, spectra_unit=None,
-                 wavelength_unit=None, comments={}, float_tol=10**(-10)):
+    def __init__(self, spectra=None, bad_data=None, noise=None,
+                 ir=None, spectra_ids=None, wavelengths=None,
+                 spectra_unit=None, wavelength_unit=None,
+                 comments={}, name=None, float_tol=10**(-10)):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -66,6 +67,8 @@ class SpectrumSet(object):
             The keys are treated as strings, otherwise there are no
             formatting restrictions. These comments will be shuffled
             along with I/O operations in file headers.
+        name - str, default is 'None'
+            The name of this set of spectra
         float_tol - float, default = 10^(-10)
             The relative tolerance used for floating-point comparison.
         """
@@ -113,12 +116,13 @@ class SpectrumSet(object):
                              "".format(name, data.shape, self.spectra.shape))
                 raise ValueError(error_msg)
         # remaining arg checks
-        self.comments = {str(k):v for k, v in comments.iteritems()}
-        self.tol = float(float_tol)
         self.spec_unit = units.Unit(spectra_unit)
         wavelength_unit.to(units.cm)  # check if wavelength_unit is a length
         self.wave_unit = units.Unit(wavelength_unit)
         self.integratedflux_unit = self.spec_unit*self.wave_unit
+        self.comments = {str(k):v for k, v in comments.iteritems()}
+        self.name = str(name)
+        self.tol = float(float_tol)
 
     def get_subset(self, ids, get_selector=False):
         """

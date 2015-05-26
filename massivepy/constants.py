@@ -3,7 +3,9 @@ Miscellaneous constants and unit definitions of general use.
 """
 
 
+import numpy as np
 import astropy.units as units
+
 
 # units
 arcsec = units.arcsec
@@ -20,3 +22,6 @@ selected_twelve = [14, 227, 303, 311, 547, 561, 586, 591, 052, 755, 844, 871]
     # These were chosen in order to have a defined set of a handful of mostly
     # G and K, with a few M, stars spanning the available MILES range of
     # metallicity. Otherwise, they were chosen by-hand and mostly randomly.
+
+# math
+gaussian_fwhm_over_sigma = 2*np.sqrt(2*np.log(2))

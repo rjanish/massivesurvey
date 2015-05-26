@@ -451,7 +451,7 @@ class SpectrumSet(object):
                            spectra_unit=self.spec_unit, float_tol=self.tol,
                            wavelength_unit=self.wave_unit)
 
-    def convolve_gaussian(self, std):
+    def gaussian_convolve(self, std):
         """
         Convolve each spectrum with a centered Gaussian having the
         passed standard deviation, which may be a function of

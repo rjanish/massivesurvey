@@ -76,3 +76,4 @@ class TemplateLibrary(spec.SpectrumSet):
         fwhm_to_add = np.sqrt(target_fwhm**2 - self.metaspectra["ir"]**2)
         sigma_to_add = fwhm_to_add/const.gaussian_fwhm_over_sigma
         self.specset = self.specset.gaussian_convolve(sigma_to_add)
+        return

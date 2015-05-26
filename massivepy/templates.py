@@ -4,8 +4,11 @@ of stellar template spectra.
 """
 
 
-import massive.spectrum as spec
-import massive.constants as const
+import os
+
+import utilities as utl
+import massivepy.spectrum as spec
+import massivepy.constants as const
 
 
 def miles_number_to_filename(num):
@@ -31,7 +34,32 @@ def miles_filename_to_number(filename):
     """
     return int(filename[1:-1])
 
+
+def read_templatelibrary(dirname):
+    """
+    Read the template library located at the passed dirname into a new
+    TemplateLibrary object.
+
+    This assume a library directory structure:
+    dirname/
+      spectra/
+        - contains one ascii file per spectrum, with wavelengths [A]
+          in first column and spectrum [flux(cgs)/A] in second column
+      README.txt
+        - readable ascii dict file, contains value of the wavelength-
+          independent spectral resolution (Gaussian FWHM) [A]
+      catalog.txt
+        - ascii file giving the parameters of each spectrum, readable
+          as a pandas DataFrame
+    """
     
+    spectra_dir = os.path.join()
+
+
+
+    return
+
+
 class TemplateLibrary(spec.SpectrumSet):
     """
     This class holds a stellar template library, and provides methods

@@ -26,10 +26,11 @@ import pandas as pd
 
 import utilities as utl
 import massivepy.templates as temps
+import massivepy.constants as const
 
 
 # defaults
-DATAPATHS_PATH = os.path.join('etc', 'data_locations.txt')
+DATAPATHS_PATH = const.path_to_datamap
     # file specifying locations of MASSIVE static data
 TEMPLATE_LIBS_KEY = 'template_libraries'  # Entry needed from DATAPATHS_PATH
 
@@ -61,7 +62,7 @@ INDEX_CONVERSIONS = {"object_name":lambda s: utl.safe_str(s),
                      "z":lambda s: utl.safe_float(s),
                      "libs":lambda s: utl.safe_str(re.sub(r'\s+', '', s))}
     # conversions to be applied to each column of raw MILES index file
-NEW_INDEX_FILENAME = 'template-index.txt' # new template index
+NEW_INDEX_FILENAME = 'catalog.txt' # new template index
 NEW_SPECTRA_SUBDIR = 'spectra' # location of raw MILES spectra
 
 # parse destination name
@@ -91,7 +92,7 @@ os.mkdir(path_new_spectra)
 old_spectra = utl.re_filesearch(".*", dir=path_milesraw_spectra)[0]
 for old_template_path in old_spectra:
     old_template_filename = os.path.split(old_template_path)[1]
-    old_template_id = templates.miles_filename_to_number(old_template_filename)
+    old_template_id = temps.miles_filename_to_number(old_template_filename)
     if old_template_id in BAD_MILES_TEMPLATES:
         print "omitting template {}".format(old_template_id)
         continue

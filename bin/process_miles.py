@@ -25,7 +25,7 @@ import re
 import pandas as pd
 
 import utilities as utl
-import massivepy.templatelib as mtemp
+import massivepy.templates as temps
 
 
 # defaults
@@ -91,7 +91,7 @@ os.mkdir(path_new_spectra)
 old_spectra = utl.re_filesearch(".*", dir=path_milesraw_spectra)[0]
 for old_template_path in old_spectra:
     old_template_filename = os.path.split(old_template_path)[1]
-    old_template_id = mtemp.miles_filename_to_number(old_template_filename)
+    old_template_id = templates.miles_filename_to_number(old_template_filename)
     if old_template_id in BAD_MILES_TEMPLATES:
         print "omitting template {}".format(old_template_id)
         continue

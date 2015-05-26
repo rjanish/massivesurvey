@@ -5,6 +5,7 @@ and collections of spectra.
 
 
 import collections as collect
+import warnings
 
 import numpy as np
 import astropy.units as units
@@ -12,6 +13,7 @@ import scipy.integrate as integ
 import scipy.interpolate as inter
 
 import utilities as utl
+import massivepy.constants as const
 
 
 class SpectrumSet(object):
@@ -191,11 +193,12 @@ class SpectrumSet(object):
         """ Return a masked array version of passed data """
         mask = self.metaspectra['bad_data']
         if name == 'spectra':
-            masked = np.ma.array(self.spectra, mask=mask)
+            masked = np.ma.array(self.spectra, mask=mask, fill_value=np.nan)
         elif name == 'waves':
-            masked = np.ma.array(self.waves, mask=mask)
+            masked = np.ma.array(self.waves, mask=mask, fill_value=np.nan)
         else:
-            masked = np.ma.array(self.metaspectra[name], mask=mask)
+            masked = np.ma.array(self.metaspectra[name],
+                                 mask=mask, fill_value=np.nan)
         return masked
 
     def is_linear_sampled(self):
@@ -378,8 +381,10 @@ class SpectrumSet(object):
         masked_spectra = self.get_masked('spectra')
         masked_noise = self.get_masked('noise')
         s2n = masked_spectra[index, :]/masked_noise[index, :]
-        mean_s2n = np.mean(s2n, axis=1).data
-        return mean_s2n
+        mean_s2n = np.mean(s2n, axis=1)  # new ma array - default fill value
+        mean_s2n.set_fill_value(np.nan)
+        s2n_values = mean_s2n.filled() # gets data with filling
+        return s2n_values
 
     def get_normalized(self, norm_func=None, norm_value=1):
         """
@@ -445,3 +450,62 @@ class SpectrumSet(object):
                            wavelengths=self.waves, comments=extened_comments,
                            spectra_unit=self.spec_unit, float_tol=self.tol,
                            wavelength_unit=self.wave_unit)
+
+    def convolve_gaussian(self, std):
+    """
+    Convolve each spectrum with a centered Gaussian having the passed
+    standard deviation, which may be a function of wavelength. A new
+    SpectrumSet will be returned, with updated spectra and resolution.
+
+    Args:
+    std - 1d arraylike
+        The standard deviation of the Gaussian smoothing kernel. The
+        units are assumed to be the SpectrumSet's wavelength units,
+        and the wavelength sampling must match that of the spectra.
+
+    Returns: specset
+    specset - SpectrumSet
+        A new SpectrumSet, containing the smoothed version of the
+        current spectra and an updated spectral resolution.
+    """
+    sigmas = np.asarray(std, dtype=float)
+    if np.any(sigmas <= self.float_tol):
+        raise ValueError("Invalid smoothing values - Gaussian "
+                         "standard deviation must be positive")
+    if sigmas.shape != self.waves:
+        raise ValueError("Invalid smoothing shape - must match the "
+                         "spectra sampling wavelengths")
+    smoothed_spectra = np.zeros((self.num_spectra, self.num_samples))
+    for w_index, (output_w, sigma) in enumerate(zip(self.waves, sigma)):
+        kernel = utl.gaussian(self.waves, output_w, sigma)
+        for spec_index, spectrum in enumerate(self.spectra):
+            mask = self.metaspectra['bad_data'][spec_index, :]
+            smoothed_value = integ.simps(spectrum[~mask]*kernel[~mask],
+                                         self.waves[~mask])
+            smoothed_spectra[spec_index, w_index] = smoothed_value
+    new_ir = np.sqrt(self.metaspectra["ir"]**2 +
+                     (sigmas*const.gaussian_fwhm_over_sigma)**2)
+        # TO DO: Implement here some noise estimate in the smoothed
+        # spectra to replace the error handling below
+    no_noise = np.all(np.absolute(self.metaspectra["noise"]) < self.tol)
+    if no_noise:
+        # can propagate the noise for perfect data
+        new_noise = np.zeros(self.metaspectra["noise"].shape)
+    else:
+        new_noise = np.nan*np.ones(self.num_samples)
+        warning.warn("Convolution has no noise propagation - "
+                     "noises will be set NaN")
+    extened_comments = self.comments.copy()
+    extened_comments["smoothing"] = "Spectra have been Gaussian-smoothed"
+    return SpectrumSet(spectra=smoothed_spectra,
+                       bad_data=self.metaspectra['bad_data'],
+                       noise=new_noise, ir=new_ir,
+                       spectra_ids=self.ids,
+                       wavelengths=self.waves,
+                       spectra_unit=self.spectra_unit,
+                       wavelength_unit=self.wave_unit,
+                       comments=extened_comments, name=self.name)
+
+
+
+

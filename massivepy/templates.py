@@ -5,6 +5,7 @@ of stellar template spectra.
 
 
 import massive.spectrum as spec
+import massive.constants as const
 
 
 class TemplateLibrary(spec.SpectrumSet):
@@ -73,35 +74,5 @@ class TemplateLibrary(spec.SpectrumSet):
             raise ValueError("Invalid target resolution - must be "
                              "greater than the current resolution")
         fwhm_to_add = np.sqrt(target_fwhm**2 - self.metaspectra["ir"]**2)
-        sigma_to_add = fwhm_to_add/(2*np.sqrt(2*np.log(2)))
-
-
-    # compute convolution weights
-    fwhm_to_add = np.sqrt(target_fwhm**2 - current_fwhm**2)
-    sigma_to_add = fwhm_to_add/(2*np.sqrt(2*np.log(2)))
-    measure = wavelengths[1:] - wavelengths[:-1]
-    weights = []
-    for central_wavelength, sigma in zip(wavelengths, sigma_to_add):
-        trapz_samples = np.array([wavelengths[:-1], wavelengths[1:]])
-            # sample points needed for trapezoid integration
-        psf = gaussian(trapz_samples, central_wavelength, sigma)
-        weights.append(psf*measure*0.5)
-    weights = np.swapaxes(weights, 0, 1)
-    # apply convolution, log transform, re-sampling, and normalization
-    finished_spectra = []
-    for counter, spectrum in enumerate(spectra):
-        smoothed_spectrum = (weights[0, ...]*spectrum[:-1] +
-                             weights[1, ...]*spectrum[1:]).sum(axis=1)
-            # trapezoid integration of continuous convolution integral
-        interpolator = interp1d(wavelengths, smoothed_spectrum)
-        interpolated_spectrum = interpolator(logspaced_waves)
-        edge_sigmas = target_fwhm[[0, -1]]/(2*np.sqrt(2*np.log(2)))
-        edge_buffer = crop_factor*edge_sigmas
-        valid = ((wavelengths.min() + edge_buffer[0] < logspaced_waves) &
-                 (logspaced_waves < wavelengths.max() - edge_buffer[1]))
-        interpolated_spectrum = interpolated_spectrum[valid]
-        logspaced_waves = logspaced_waves[valid]
-            # crop to eliminate edge effects
-
-        norm = np.median(interpolated_spectrum)
-        finished_spectra.append(interpolated_spectrum/norm)
+        sigma_to_add = fwhm_to_add/const.gaussian_fwhm_over_sigma
+        self.specset = self.specset.gaussian_convolve(sigma_to_add)

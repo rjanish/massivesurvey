@@ -42,6 +42,13 @@ ifuset = ifu.IFUspectrum(spectra=spectra, bad_data=bad_data, noise=noise,
                          wavelength_unit=const.angstrom, comments=comments,
                          coords=coords, coords_unit=const.arcsec,
                          linear_scale=fiber_radius, footprint=fiber_circle)
+ifuset = ifu.IFUspectrum(spectra=spectra, bad_data=bad_data,
+                            noise=np.zeros(spectra.shape),
+                         ir=ir, spectra_ids=fiber_ids, wavelengths=waves,
+                         spectra_unit=const.flux_per_angstrom,
+                         wavelength_unit=const.angstrom, comments=comments,
+                         coords=coords, coords_unit=const.arcsec,
+                         linear_scale=fiber_radius, footprint=fiber_circle)
 
 # get odd-numbered fibers from 2nd dither
 num_in_dither = ifuset.spectrumset.num_spectra/3

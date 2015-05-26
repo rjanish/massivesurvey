@@ -8,6 +8,30 @@ import massive.spectrum as spec
 import massive.constants as const
 
 
+def miles_number_to_filename(num):
+    """
+    Convert an id number from the MILES stellar template library into
+    the matching default filename (tail only) that holds the spectrum.
+
+    Example:
+    > miles_filename_conversion(42)
+    'm0042V'
+    """
+    return "m{:04d}V".format(int(num))
+
+
+def miles_filename_to_number(filename):
+    """
+    Convert a default spectra filename (tail only) from the MILES
+    stellar template library into the matching MILES id number.
+
+    Example:
+    > miles_filename_conversion('m0042V')
+    42
+    """
+    return int(filename[1:-1])
+
+    
 class TemplateLibrary(spec.SpectrumSet):
     """
     This class holds a stellar template library, and provides methods

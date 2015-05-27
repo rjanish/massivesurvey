@@ -86,3 +86,54 @@ class IFUspectrum(object):
             combine_func=combine_func, threshold=threshold,
             score_func=spec.SpectrumSet.compute_mean_s2n)
         return binned
+
+
+def center_coordinates(coords, center):
+    """
+    Given a set of sky coordinates and a center point, transform the
+    coordinates into a Cartesian system centered on the passed center.
+    The new coordinates are the projection of the old onto the plane
+    passing through center and perpendicular to the line of sight.
+
+    Args:
+    coords - 2d arraylike, shape (N, 2)
+        An array of N sky coordinates (RA, Dec), in degrees, to be
+        transformed to a Cartesian system.
+    center - 1d arraylike, shape (2,)
+        The origin of the new coordinate system, in (Ra, Dec) degrees
+
+    Returns: new_coords
+    new_coords - 2d arraylike, same shape as passed coords
+        The transformed coordinates. They are dimensionless, given the
+        distance in the plane (see above) measured in units of the
+        distance along the light-of-sight to the plane, and expressed
+        in arcseconds. The first coordinate is the scaled-distance
+        along East and the second North. [Physical distances in the
+        plane are given by the rescaling (new_coords/3600)*(pi/180)*R,
+        with R the distance along the light-of-sight to the plane.]
+    """
+    coords = np.asarray(new_coords, dtype=float)
+    num_coords, dim = coords.shape
+    if dim != 2:
+        raise ValueError("Invalid coordinate shape {}, must "
+                         "have shape (N, 2)".format(coords.shape))
+    center = np.asarray(center, dtype=float)
+    if center.shape != (2,):
+        raise ValueError("Invalid center coordinate shape {}, must "
+                         "have shape (2,)".format(center.shape))
+    new_coords = np.zeros(coords.shape)
+    new_coords[:, 0] = coords[:, 0] - center[0]  # degrees
+    new_coords[:, 1] = coords[:, 1] - center[1]  # degrees
+    new_coords[:, 0] = new_coords[:, 0]*np.cos(np.deg2rad(center[1]))
+    new_coords *= 60*60  # to arcseconds
+    return new_coords
+
+
+# def read_mitchell_datacube(path):
+#     """
+#     Read the Mitchell datacube at the passed path into an IFUspectrum.
+
+#     The datacube is assumed to have the format:
+#      ...
+#     """
+#     path = os.path.normpath(path)

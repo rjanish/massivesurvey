@@ -5,6 +5,7 @@ of stellar template spectra.
 
 
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -87,7 +88,6 @@ def read_miles_library(dirname):
     all_good = np.zeros(spectra.shape, dtype=bool)
         # assume perfect template data
     junk, library_name = os.path.split(dirname)
-    print library_name
     comments = {}
     comments["original fwhm"] = "{} A".format(fwhm)
     comments["base library"] = "MILES - empirical stellar template library"
@@ -99,6 +99,7 @@ def read_miles_library(dirname):
                            spectra_unit=const.flux_per_angstrom,
                            wavelength_unit=const.angstrom, comments=comments,
                            name=library_name, catalog=catalog)
+
 
 class TemplateLibrary(object):
     """
@@ -155,17 +156,18 @@ class TemplateLibrary(object):
             to be Gaussian FWHM in the wavelength units of the library.
         """
         target_fwhm = np.asarray(target_resolution)
-        res_matches = np.max(np.absolute(self.metaspectra["ir"] -
-                                         target_resolution))
+        current_resolution = self.spectrumset.metaspectra["ir"]
+        delta_var = target_resolution**2 - current_resolution**2
+        res_matches = np.max(np.absolute(delta_var)) < const.float_tol
         if res_matches:
             warnings.warn("Templates already have the target spectral "
                           "resolution, skipping convolution", RuntimeWarning)
             return
-        increase_res = np.any(self.metaspectra["ir"] > target_resolution)
-        if included_res:
+        decrease_fwhm = np.any(delta_var < 0.0)
+        if decrease_fwhm:
             raise ValueError("Invalid target resolution - must be "
                              "greater than the current resolution")
-        fwhm_to_add = np.sqrt(target_fwhm**2 - self.metaspectra["ir"]**2)
+        fwhm_to_add = np.sqrt(delta_var)
         sigma_to_add = fwhm_to_add/const.gaussian_fwhm_over_sigma
-        self.specset = self.specset.gaussian_convolve(sigma_to_add)
+        self.spectrumset = self.spectrumset.gaussian_convolve(sigma_to_add)
         return

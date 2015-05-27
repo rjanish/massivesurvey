@@ -29,7 +29,7 @@ class SpectrumSet(object):
     def __init__(self, spectra=None, bad_data=None, noise=None,
                  ir=None, spectra_ids=None, wavelengths=None,
                  spectra_unit=None, wavelength_unit=None,
-                 comments={}, name=None, float_tol=10**(-10)):
+                 comments={}, name=None):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -124,7 +124,6 @@ class SpectrumSet(object):
         self.integratedflux_unit = self.spec_unit*self.wave_unit
         self.comments = {str(k):v for k, v in comments.iteritems()}
         self.name = str(name)
-        self.tol = float(float_tol)
 
     def get_subset(self, ids, get_selector=False):
         """
@@ -183,7 +182,7 @@ class SpectrumSet(object):
                              wavelengths=self.waves,
                              spectra_unit=self.spec_unit,
                              wavelength_unit=self.wave_unit,
-                             comments=self.comments, float_tol=self.tol)
+                             comments=self.comments)
         if get_selector:
             return subset, index
         else:
@@ -205,14 +204,14 @@ class SpectrumSet(object):
         """ Check if wavelengths are linear spaced. Boolean output. """
         delta = self.waves[1:] - self.waves[:-1]
         residual = np.absolute(delta - delta[0]).max()
-        return residual < self.tol
+        return residual < const.float_tol
 
     def is_log_sampled(self):
         """ Check if wavelengths are log spaced. Boolean output. """
         log_waves = np.log(self.waves)
         delta = log_waves[1:] - log_waves[:-1]
         residual = np.absolute(delta - delta[0]).max()
-        return residual < self.tol
+        return residual < const.float_tol
 
     def resample(self, new_waves):
         """
@@ -270,7 +269,8 @@ class SpectrumSet(object):
         """
         if self.is_log_sampled():
             raise ValueError("Spectrum is already log-sampled.")
-        new_spec_region = self.spec_region*(1 + np.array([1, -1])*self.tol)
+        inward_scaling = 1 + np.array([1, -1])*const.float_tol
+        new_spec_region = self.spec_region*inward_scaling
             # prevents unintended extrapolation due to roundoff
         log_ends = np.log(new_spec_region)
         if logscale is None:  # preserve sample number
@@ -308,7 +308,8 @@ class SpectrumSet(object):
         """
         if self.is_linear_sampled():
             raise ValueError("Spectrum is already linear-sampled.")
-        new_ends = self.spec_region*(1 + np.array([1, -1])*self.tol)
+        inward_scaling = 1 + np.array([1, -1])*const.float_tol
+        new_ends = self.spec_region*inward_scaling
             # prevents unintended extrapolation due to roundoff
         if step is None:  # preserve sample number
             new_waves = np.linspace(new_ends[0], new_ends[1],
@@ -347,8 +348,8 @@ class SpectrumSet(object):
         else:
             ids = np.asarray(ids, dtype=int)
         if interval is None:
-            inwward_shift = np.asarray([1 + self.tol, 1 - self.tol])
-            interval = self.spec_region*inwward_shift
+            inward_scaling = 1 + np.array([1, -1])*const.float_tol
+            interval = self.spec_region*inward_scaling
                 # shift to avoid roundoff in comparisons with full interval
         elif not utl.interval_contains_interval(self.spec_region, interval):
             raise ValueError("Invalid interval: {}. Region must be "
@@ -407,7 +408,7 @@ class SpectrumSet(object):
         return SpectrumSet(spectra=normed_spectra, noise=normed_noise,
                            bad_data=self.metaspectra["bad_data"],
                            ir=self.metaspectra["ir"], spectra_ids=self.ids,
-                           wavelengths=self.waves, float_tol=self.tol,
+                           wavelengths=self.waves, float_tol=const.float_tol,
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments)
@@ -448,7 +449,7 @@ class SpectrumSet(object):
         return SpectrumSet(spectra=comb_spectra, bad_data=comb_bad_data,
                            noise=comb_noise, ir=comb_ir, spectra_ids=[id],
                            wavelengths=self.waves, comments=extened_comments,
-                           spectra_unit=self.spec_unit, float_tol=self.tol,
+                           spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit)
 
     def gaussian_convolve(self, std):
@@ -470,7 +471,7 @@ class SpectrumSet(object):
             current spectra and an updated spectral resolution.
         """
         sigmas = np.asarray(std, dtype=float)
-        if np.any(sigmas <= self.float_tol):
+        if np.any(sigmas <= const.float_tol):
             raise ValueError("Invalid smoothing values - Gaussian "
                              "standard deviation must be positive")
         if sigmas.shape != self.waves:
@@ -488,7 +489,8 @@ class SpectrumSet(object):
                          (sigmas*const.gaussian_fwhm_over_sigma)**2)
             # TO DO: Implement here some noise estimate in the smoothed
             # spectra to replace the error handling below
-        no_noise = np.all(np.absolute(self.metaspectra["noise"]) < self.tol)
+        scaled_noise = np.absolute(self.metaspectra["noise"]/self.spectra)
+        no_noise = np.all(scaled_noise < const.float_tol)
         if no_noise:
             # can propagate the noise for perfect data
             new_noise = np.zeros(self.metaspectra["noise"].shape)

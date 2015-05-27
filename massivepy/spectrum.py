@@ -474,14 +474,15 @@ class SpectrumSet(object):
         if np.any(sigmas <= const.float_tol):
             raise ValueError("Invalid smoothing values - Gaussian "
                              "standard deviation must be positive")
-        if sigmas.shape != self.waves:
-            raise ValueError("Invalid smoothing shape - must match the "
-                             "spectra sampling wavelengths")
+        if sigmas.shape != self.spectra.shape:
+            raise ValueError("Invalid smoothing shape - must match the shape "
+                             "of spectra: {}".format(self.spectra.shape))
         smoothed_spectra = np.zeros((self.num_spectra, self.num_samples))
-        for w_index, (output_w, sigma) in enumerate(zip(self.waves, sigma)):
-            kernel = utl.gaussian(self.waves, output_w, sigma)
-            for spec_index, spectrum in enumerate(self.spectra):
-                mask = self.metaspectra['bad_data'][spec_index, :]
+        for spec_index, spectrum in enumerate(self.spectra):
+            mask = self.metaspectra['bad_data'][spec_index, :]
+            sigma_iteration = enumerate(zip(self.waves, sigmas[spec_index]))
+            for w_index, (output_w, sigma) in sigma_iteration:
+                kernel = utl.gaussian(self.waves, output_w, sigma)
                 smoothed_value = integ.simps(spectrum[~mask]*kernel[~mask],
                                              self.waves[~mask])
                 smoothed_spectra[spec_index, w_index] = smoothed_value
@@ -503,9 +504,8 @@ class SpectrumSet(object):
         return SpectrumSet(spectra=smoothed_spectra,
                            bad_data=self.metaspectra['bad_data'],
                            noise=new_noise, ir=new_ir,
-                           spectra_ids=self.ids,
-                           wavelengths=self.waves,
-                           spectra_unit=self.spectra_unit,
+                           spectra_ids=self.ids, wavelengths=self.waves,
+                           spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments, name=self.name)
 

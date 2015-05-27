@@ -15,6 +15,16 @@ flux_per_angstrom = cgs_flux/units.angstrom
 
 # instrument constants
 mitchell_fiber_radius = 2.08 * arcsec
+arc_centers = np.array([4046.5469,
+                        4077.8403,
+                        4358.3262,
+                        4678.1558,
+                        4799.9038,
+                        4916.0962,
+                        5085.8110,
+                        5460.7397,
+                        5769.5972])
+nominal_spec_resoluiton = 4.6  # Angstroms, Gaussian FWHM
 
 # MASSIVE conventions
 selected_twelve = [14, 227, 303, 311, 547, 561, 586, 591, 052, 755, 844, 871]

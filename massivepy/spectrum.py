@@ -108,14 +108,14 @@ class SpectrumSet(object):
         float_2d = lambda a: np.atleast_2d(np.asarray(a, dtype=float))
         bool_2d = lambda a: np.atleast_2d(np.asarray(a, dtype=bool))
         conversions = {"noise":float_2d, "ir":float_2d, "bad_data":bool_2d}
-        self.metaspectra = {name:conversions[name](data)
-                            for name, data in metaspectra_inputs.iteritems()}
+        self.metaspectra = {key:conversions[key](data)
+                            for key, data in metaspectra_inputs.iteritems()}
             # metaspectra now float or bool valued and have dimension >= 2
-        for name, data in self.metaspectra.iteritems():
+        for key, data in self.metaspectra.iteritems():
             if data.shape != self.spectra.shape:
                 error_msg = ("Invalid {} shape: {}. "
                              "Must match the shape of spectra: {}."
-                             "".format(name, data.shape, self.spectra.shape))
+                             "".format(key, data.shape, self.spectra.shape))
                 raise ValueError(error_msg)
         # remaining arg checks
         self.spec_unit = units.Unit(spectra_unit)

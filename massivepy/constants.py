@@ -22,6 +22,7 @@ selected_twelve = [14, 227, 303, 311, 547, 561, 586, 591, 052, 755, 844, 871]
     # These were chosen in order to have a defined set of a handful of mostly
     # G and K, with a few M, stars spanning the available MILES range of
     # metallicity. Otherwise, they were chosen by-hand and mostly randomly.
+float_tol = 10**(-10)
 
 # math
 gaussian_fwhm_over_sigma = 2*np.sqrt(2*np.log(2))

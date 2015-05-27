@@ -123,6 +123,7 @@ with open(path_milesraw_index, 'r') as milesraw_index:
             print "skipping header line"
 print "done - read {} lines".format(len(template_props))
 new_index = pd.DataFrame(template_props, index=miles_ids)
+  # setting index argument will force rows to sort by miles ID number
 new_index.sort(axis=0, inplace=True)
 new_index.to_csv(path_new_index, index=False)
 print "saved new index at {}".format(path_new_index)

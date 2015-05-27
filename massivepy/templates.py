@@ -6,6 +6,9 @@ of stellar template spectra.
 
 import os
 
+import numpy as np
+import pandas as pd
+
 import utilities as utl
 import massivepy.spectrum as spec
 import massivepy.constants as const
@@ -35,7 +38,7 @@ def miles_filename_to_number(filename):
     return int(filename[1:-1])
 
 
-def read_templatelibrary(dirname):
+def read_miles_library(dirname):
     """
     Read the template library located at the passed dirname into a new
     TemplateLibrary object.
@@ -52,20 +55,57 @@ def read_templatelibrary(dirname):
         - ascii file giving the parameters of each spectrum, readable
           as a pandas DataFrame
     """
-    
-    spectra_dir = os.path.join()
+    dirname = os.path.normpath(dirname)
+    spectra_dir = os.path.join(dirname, "spectra")
+    spectra_paths = utl.re_filesearch(r".*", spectra_dir)[0]
+        # output is sorted by filename - i.e., miles id number
+    spectra, all_waves, ids = [], [], []
+    for path in spectra_paths:
+        id = miles_filename_to_number(os.path.basename(path))
+        w, s = np.loadtxt(path).T
+        spectra.append(s)
+        all_waves.append(w)
+        ids.append(id)
+    spectra = np.asarray(spectra, dtype=float) # all arrays sorted by miles id
+    all_waves = np.asarray(all_waves, dtype=float)
+    ids = np.asarray(ids, dtype=int)
+    wave_frac_spread = all_waves.std(axis=0)/all_waves.mean(axis=0)
+    uniform_waves = wave_frac_spread.max() < const.float_tol
+    if not uniform_waves:
+        return all_waves
+        raise ValueError("Spectra must have uniform wavelength sampling")
+    waves = all_waves[0]
+    readme_path = os.path.join(dirname, "README.txt")
+    readme_data = utl.read_dict_file(readme_path)
+    fwhm = readme_data["library_fwhm"]
+    resolution = np.ones(spectra.shape, dtype=float)*fwhm
+        # assume uniform, wavelength-independent template resolution
+    catalog_path = os.path.join(dirname, "catalog.txt")
+    catalog = pd.read_csv(catalog_path, index_col='miles_id')
+        # indexing by miles id will sort DataFrame by miles id
+    no_noise = np.zeros(spectra.shape, dtype=float)
+    all_good = np.zeros(spectra.shape, dtype=bool)
+        # assume perfect template data
+    junk, library_name = os.path.split(dirname)
+    print library_name
+    comments = {}
+    comments["original fwhm"] = "{} A".format(fwhm)
+    comments["base library"] = "MILES - empirical stellar template library"
+    comments["library location"] = dirname
+    # return catalog, ids
+    return TemplateLibrary(spectra=spectra, bad_data=all_good,
+                           noise=no_noise, ir=resolution,
+                           spectra_ids=ids, wavelengths=waves,
+                           spectra_unit=const.flux_per_angstrom,
+                           wavelength_unit=const.angstrom, comments=comments,
+                           name=library_name, catalog=catalog)
 
-
-
-    return
-
-
-class TemplateLibrary(spec.SpectrumSet):
+class TemplateLibrary(object):
     """
     This class holds a stellar template library, and provides methods
     for manipulations commonly needed on such libraries.
     """
-    def __init__(self, catalouge=None, **kwargs):
+    def __init__(self, catalog=None, **kwargs):
         """
         See SpectrumSet. Arguments needed beyond those of SpectrumSet
         are described below.
@@ -85,7 +125,7 @@ class TemplateLibrary(spec.SpectrumSet):
         else:
             self.spectrumset = spec.SpectrumSet(**kwargs)
         self.catalog = pd.DataFrame(catalog)
-        index_array = self.catalog.values
+        index_array = self.catalog.index.values
         index_matches = np.all(index_array == self.spectrumset.ids)
         if not index_matches:
             raise ValueError("Invalid catalog index - does "

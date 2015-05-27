@@ -33,10 +33,10 @@ selected_twelve = [14, 227, 303, 311, 547, 561, 586, 591, 052, 755, 844, 871]
     # G and K, with a few M, stars spanning the available MILES range of
     # metallicity. Otherwise, they were chosen by-hand and mostly randomly.
 float_tol = 10**(-10)
-re_ngc = r"(?:NGC|ngc)[ _-]?(?P<num>\d{4})"
+re_ngc = r"(?:NGC|ngc|N)(?P<num>\d{4})"
 
 # math
 gaussian_fwhm_over_sigma = 2*np.sqrt(2*np.log(2))
 
 # directory structure
-path_to_datamap = "etc/data_locations.txt"
+path_to_datamap = "etc/datamap.txt"

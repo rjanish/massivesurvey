@@ -9,7 +9,7 @@ import massivepy.gausshermite as gh
 import massivepy.constants as const
 
 
-def fit_arcset(wavelengths, arcs, line_centers, fwhm_guess, fit_scale):
+def fit_arcset(wavelengths, arcs, line_centers, fwhm_guess, fit_scale=10):
     """
     """
     arcs = np.asarray(arcs, dtype=float)

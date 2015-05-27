@@ -112,7 +112,7 @@ def center_coordinates(coords, center):
         plane are given by the rescaling (new_coords/3600)*(pi/180)*R,
         with R the distance along the light-of-sight to the plane.]
     """
-    coords = np.asarray(new_coords, dtype=float)
+    coords = np.asarray(coords, dtype=float)
     num_coords, dim = coords.shape
     if dim != 2:
         raise ValueError("Invalid coordinate shape {}, must "
@@ -128,12 +128,3 @@ def center_coordinates(coords, center):
     new_coords *= 60*60  # to arcseconds
     return new_coords
 
-
-# def read_mitchell_datacube(path):
-#     """
-#     Read the Mitchell datacube at the passed path into an IFUspectrum.
-
-#     The datacube is assumed to have the format:
-#      ...
-#     """
-#     path = os.path.normpath(path)

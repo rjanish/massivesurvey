@@ -452,7 +452,7 @@ class SpectrumSet(object):
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit)
 
-    def gaussian_convolve(self, std):
+    def gaussian_convolve(self, std, crop_factor=5):
         """
         Convolve each spectrum with a centered Gaussian having the
         passed standard deviation, which may be a function of
@@ -464,6 +464,9 @@ class SpectrumSet(object):
             The standard deviation of the Gaussian smoothing kernel.
             The units are assumed to be the SpectrumSet's wavelength
             units, and the wavelength sampling must match spectra.
+        crop_factor - float, default=5
+            To eliminate edge effects, the output will be cropped to
+            remove all data within sigma*crop_factor of the edge.
 
         Returns: specset
         specset - SpectrumSet
@@ -477,6 +480,7 @@ class SpectrumSet(object):
         if sigmas.shape != self.spectra.shape:
             raise ValueError("Invalid smoothing shape - must match the shape "
                              "of spectra: {}".format(self.spectra.shape))
+        # convolve spectra
         smoothed_spectra = np.zeros((self.num_spectra, self.num_samples))
         for spec_index, spectrum in enumerate(self.spectra):
             mask = self.metaspectra['bad_data'][spec_index, :]
@@ -499,16 +503,24 @@ class SpectrumSet(object):
             new_noise = np.nan*np.ones(self.num_samples)
             warning.warn("Convolution has no noise propagation - "
                          "noises will be set NaN")
+        # crop output
+        edge_fwhm = new_ir[:, [0, -1]].max(axis=0) # max over spectra
+        edge_sigmas = edge_fwhm/const.gaussian_fwhm_over_sigma
+        edge_buffer = crop_factor*edge_sigmas
+        valid_interval = self.spec_region + edge_buffer*np.array([1, -1])
+        valid = utl.in_linear_interval(self.waves, valid_interval)
+        # record smoothing
         extened_comments = self.comments.copy()
-        extened_comments["smoothing"] = "Spectra have been Gaussian-smoothed"
-        return SpectrumSet(spectra=smoothed_spectra,
-                           bad_data=self.metaspectra['bad_data'],
-                           noise=new_noise, ir=new_ir,
-                           spectra_ids=self.ids, wavelengths=self.waves,
-                           spectra_unit=self.spec_unit,
+        extened_comments["smoothing"] = ("Spectra have been Gaussian-"
+                                         "smoothed and cropped to "
+                                         "remove edge-effects")
+        return SpectrumSet(spectra=smoothed_spectra[:, valid],
+                           bad_data=self.metaspectra['bad_data'][:, valid],
+                           noise=new_noise[:, valid], ir=new_ir[:, valid],
+                           spectra_ids=self.ids, spectra_unit=self.spec_unit,
+                           wavelengths=self.waves[valid], name=self.name,
                            wavelength_unit=self.wave_unit,
-                           comments=extened_comments, name=self.name)
-
+                           comments=extened_comments)
 
 
 

@@ -1,4 +1,4 @@
-""" bin mitchell fibers """
+""" construct polar, s/n threshold binning of Mitchell fibers """
 
 
 import os
@@ -33,6 +33,10 @@ parser.add_argument("cubes", nargs='*', type=str,
 parser.add_argument("--destination_dir", action="store",
                     type=str, nargs=1, default=proc_cube_dir,
                     help="Directory in which to place processed cubes")
+parser.add_argument("-s2n", action="store", type=float,
+                    help="The s2n threshold to use in binning")
+parser.add_argument("-ar", action="store", type=float,
+                    help="The target aspect ratio (arc_length/delta_radius)")
 args = parser.parse_args()
 cube_paths = [os.path.normpath(os.path.join(proc_cube_dir, p))
               for p in args.cubes]
@@ -43,8 +47,11 @@ for path in cube_paths:
 dest_dir = os.path.normpath(args.destination_dir)
 if not os.path.isdir(dest_dir):
     raise ValueError("Invalid destination dir {}".format(dest_dir))
+aspect_ratio = float(args.ar)
+s2n_threshold = float(args.s2n)
 
 for path in cube_paths:
+    # get bin layout
     ifuset = ifu.read_mitchell_datacube(path)
     ngc_match = re.search(const.re_ngc, path)
     if ngc_match is None:
@@ -58,7 +65,7 @@ for path in cube_paths:
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
     fiber_radius = const.mitchell_fiber_radius.value
     folded = functools.partial(binning.partition_quadparity_folded,
-                               major_axis=ma_bin, aspect_ratio=1.5)
+                               major_axis=ma_bin, aspect_ratio=aspect_ratio)
     binning_func = functools.partial(binning.polar_threshold_binning,
                                      angle_partition_func=folded)
     delta_lambda = (ifuset.spectrumset.spec_region[1] -
@@ -69,13 +76,52 @@ for path in cube_paths:
                                      norm_value=delta_lambda)
     binned = ifuset.s2n_spacial_binning(binning_func=binning_func,
                                         combine_func=combine_func,
-                                        threshold=20)
+                                        threshold=s2n_threshold)
     grouped_ids, radial_bounds, angular_bounds = binned
     # results
+    number_bins = len(grouped_ids)
+    bin_ids = np.arange(number_bins, dtype=int) + 1  # bin 0 is full galaxy
+    binned_data_shape = (number_bins, ifuset.spectrumset.num_samples)
+    binned_data = {"spectra":np.zeros(binned_data_shape),
+                   "bad_data":np.zeros(binned_data_shape),
+                   "noise":np.zeros(binned_data_shape),
+                   "ir":np.zeros(binned_data_shape),
+                   "spectra_ids":bin_ids, # TO DO: add radial sorting
+                   "wavelengths":ifuset.spectrumset.waves}
+    bin_coords = np.zeros((number_bins, 4))  # flux weighted x, y, r, theta
+    for bin_iter, fibers in enumerate(grouped_ids):
+        bin_number = bin_iter + 1
+        subset = ifuset.get_subset(fibers)
+        binned = subset.spectrumset.collapse(
+                                 weight_func=spec.SpectrumSet.compute_flux,
+                                 norm_func=spec.SpectrumSet.compute_flux,
+                                 norm_value=delta_lambda, id=bin_number)
+        binned_data["spectra"][bin_iter, :] = binned.spectra
+        binned_data["bad_data"][bin_iter, :] = binned.metaspectra["bad_data"]
+        binned_data["noise"][bin_iter, :] = binned.metaspectra["noise"]
+        binned_data["ir"][bin_iter, :] = binned.metaspectra["ir"]
+        binned_comments = subset.spectrumset.comments.copy()
+        binned_comments["binning"] = "spectra have been spatially binned"
+        bindesc = "polar_folded_s2n20"
+        spec_unit = spectra_unit=subset.spectrumset.spec_unit
+        wave_unit = wavelength_unit=subset.spectrumset.wave_unit
+        binned_specset = spec.SpectrumSet(spectra_unit=spec_unit,
+                                          wavelength_unit=wave_unit,
+                                          comments=binned_comments,
+                                          name=bindesc, **binned_data)
+        bin_xs, bin_ys = subset.coords.T
+        fluxes = subset.spectrumset.compute_flux()
+        total_flux = fluxes.sum()
+        x_com = np.sum(bin_xs*fluxes)/total_flux
+        y_com = np.sum(bin_ys*fluxes)/total_flux
+        r_com = np.sqrt(x_com**2 + y_com**2)
+        th_com = np.arctan2(y_com, x_com)
+        bin_coords[bin_iter, :] = np.asarray([x_com, y_com, r_com, th_com])
     fiber_ids = ifuset.spectrumset.ids
     single_fiber_bins = [l for l in grouped_ids if len(l) == 1]
     flat_binned_fibers = [f for l in grouped_ids for f in l]
     unbinned_fibers = [f for f in fiber_ids if f not in flat_binned_fibers]
+    # output
     print "{} total number of bins".format(len(grouped_ids))
     print "{} single-fiber bins".format(len(single_fiber_bins))
     print "{} un-binned outer fibers".format(len(unbinned_fibers))
@@ -84,18 +130,17 @@ for path in cube_paths:
                                                      angular_bounds)):
         print ("  {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
                "".format(iter + 1, rin, rout, len(angles)))
-    bindesc = "polar_folded_s2n20"
     output_base = os.path.join(binned_dir, "{}_{}".format(ngc_name, bindesc))
-    # binned_data_filename = "{}.fits".format(output_base)
-    # output_path = os.path.join(binned_dir, binned_data_filename)
-    # binned.write_to_fits(output_path)
-    with open("{}_binned_fibers.p".format(output_base), 'wb') as pfile:
-        pickle.dump(grouped_ids, pfile)
-    with open("{}_unbinned_fibers.p".format(output_base), 'wb') as pfile:
-        pickle.dump(unbinned_fibers, pfile)
-    with open("{}_radial_bounds.p".format(output_base), 'wb') as pfile:
-        pickle.dump(radial_bounds, pfile)
+    binned_data_path = "{}.fits".format(output_base)
+    binned_specset.write_to_fits(binned_data_path)
+    binned_path = "{}_binfibers.p".format(output_base)
+    utl.save_pickle(grouped_ids, binned_path)
+    unbinned_path = "{}_unbinnedfibers.p".format(output_base)
+    utl.save_pickle(unbinned_fibers, unbinned_path)
+    rad_path = "{}_radialbounds.p".format(output_base)
+    utl.save_pickle(radial_bounds, rad_path)
+    coord_path = "{}_fluxcenters.p".format(output_base)
+    utl.save_pickle(bin_coords, coord_path)
     for anulus_iter, angle_bounds in enumerate(angular_bounds):
-        filename = "{}_angular_bounds-{}.p".format(output_base, anulus_iter)
-        with open(filename, 'wb') as pfile:
-            pickle.dump(angle_bounds, pfile)
+        angle_path = "{}_angular_bounds-{}.p".format(output_base, anulus_iter)
+        utl.save_pickle(angle_bounds, angle_path)

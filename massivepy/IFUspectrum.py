@@ -133,9 +133,10 @@ def read_mitchell_datacube(path, name=None):
     footprint = lambda center: geo.Point(center).buffer(linear_scale)
     spec_unit = const.flux_per_angstrom
     waves_unit = const.angstrom
+    # TO DO: remove overwrite in comment concat
     comments = {}
-    comments.update(waves_h)
-    comments.update(spectra_h)
+    comments.update({k:str(v) for k, v in waves_h.iteritems()})
+    comments.update({k:str(v) for k, v in spectra_h.iteritems()})
     return IFUspectrum(coords=coords, coords_unit=coords_unit,
                        footprint=footprint, linear_scale=linear_scale,
                        coord_comments=dict(coords_h), spectra=spectra,

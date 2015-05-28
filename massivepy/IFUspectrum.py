@@ -99,7 +99,7 @@ class IFUspectrum(object):
         coords_header = fits.Header()
         coords_header.append(["coordinate unit", str(self.coords_unit)])
         for k, v in self.coord_comments.iteritems():
-            coords_header.add_comment("{} - {}".format(k, v))
+            coords_header.add_comment("{}: {}".format(k, v))
         hdu_coords = fits.ImageHDU(data=self.coords,
                                     header=coords_header, name="coordinates")
         spec_HDUList.append(hdu_coords)

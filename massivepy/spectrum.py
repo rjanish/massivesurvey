@@ -532,7 +532,7 @@ class SpectrumSet(object):
         baseheader.append(["spectral unit", str(self.spec_unit)])
         baseheader.append(["wavelength unit", str(self.wave_unit)])
         for k, v in self.comments.iteritems():
-            baseheader.add_comment("{} - {}".format(k, v))
+            baseheader.add_comment("{}: {}".format(k, v))
         hdu_spectra = fits.ImageHDU(data=self.spectra,
                                     header=baseheader, name="spectra")
         hdu_waves = fits.ImageHDU(data=self.waves,

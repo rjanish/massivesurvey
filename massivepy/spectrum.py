@@ -72,8 +72,6 @@ class SpectrumSet(object):
             along with I/O operations in file headers.
         name - str, default is 'None'
             The name of this set of spectra
-        float_tol - float, default = 10^(-10)
-            The relative tolerance used for floating-point comparison.
         """
         # check spectra format
         self.spectra = np.array(spectra, dtype=float)
@@ -409,7 +407,7 @@ class SpectrumSet(object):
         return SpectrumSet(spectra=normed_spectra, noise=normed_noise,
                            bad_data=self.metaspectra["bad_data"],
                            ir=self.metaspectra["ir"], spectra_ids=self.ids,
-                           wavelengths=self.waves, float_tol=const.float_tol,
+                           wavelengths=self.waves,
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments)

@@ -52,11 +52,11 @@ ifuset = ifu.IFUspectrum(spectra=spectra, bad_data=bad_data, noise=noise,
 # do binning
 ma_bin = np.pi/2 - np.deg2rad(pa)
 ma_xy = np.pi/2 + np.deg2rad(pa)
-unfolded_1600 = functools.partial(binning.partition_quadparity_folded,
-                                  major_axis=ma_bin, aspect_ratio=2)
+folded_1600 = functools.partial(binning.partition_quadparity_folded,
+                                major_axis=ma_bin, aspect_ratio=2)
 binning_func = functools.partial(binning.polar_threshold_binning,
                                  step_size=fiber_radius,
-                                 angle_partition_func=unfolded_1600)
+                                 angle_partition_func=folded_1600)
 combine_func = functools.partial(spec.SpectrumSet.collapse, id=0,
                                  weight_func=spec.SpectrumSet.compute_flux)
 binned = ifuset.s2n_spacial_binning(binning_func=binning_func,

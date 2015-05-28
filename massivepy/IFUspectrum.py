@@ -5,12 +5,17 @@ i.e. collections of spectra each associated with a spacial region.
 
 
 import re
+import os
 
-import astropy.units as units
 import numpy as np
+import shapely.geometry as geo
+import astropy.units as units
+import astropy.io.fits as fits
 
+import utilities as utl
 import massivepy.spectrum as spec
 import massivepy.binning as binning
+import massivepy.constants as const
 
 
 class IFUspectrum(object):
@@ -95,14 +100,15 @@ class IFUspectrum(object):
         """
         Convert to fits hdu list
         """
-        spec_HDUList = self.spectrumset.to_fits_hdulist()
+        hdulist = self.spectrumset.to_fits_hdulist()
         coords_header = fits.Header()
-        coords_header.append(["coordinate unit", str(self.coords_unit)])
+        coords_header.append(("coordunit", str(self.coords_unit)))
         for k, v in self.coord_comments.iteritems():
             coords_header.add_comment("{}: {}".format(k, v))
         hdu_coords = fits.ImageHDU(data=self.coords,
                                     header=coords_header, name="coordinates")
-        spec_HDUList.append(hdu_coords)
+        hdulist.append(hdu_coords)
+        return hdulist
 
     def write_to_fits(self, path):
         """
@@ -110,6 +116,33 @@ class IFUspectrum(object):
         hdulist = self.to_fits_hdulist()
         hdulist.writeto(path)
 
+
+def read_mitchell_datacube(path, name=None):
+    """
+    """
+    path = os.path.normpath(path)
+    if name is None:
+        name = os.path.splitext(os.path.split(path)[-1])[0]
+    data, headers = utl.fits_quickread(path)
+    [spectra, noise, waves,
+     bad_data, ir, ids, coords] = data  # assumed order
+    [spectra_h, noise_h, waves_h,
+     bad_data_h, ir_h, ids_h, coords_h] = headers  # assumed order
+    coords_unit = const.angstrom  # Mitchell assumed values
+    linear_scale = const.mitchell_fiber_radius.value
+    footprint = lambda center: geo.Point(center).buffer(linear_scale)
+    spec_unit = const.flux_per_angstrom
+    waves_unit = const.angstrom
+    comments = {}
+    comments.update(waves_h)
+    comments.update(spectra_h)
+    return IFUspectrum(coords=coords, coords_unit=coords_unit,
+                       footprint=footprint, linear_scale=linear_scale,
+                       coord_comments=dict(coords_h), spectra=spectra,
+                       bad_data=bad_data.astype(bool), noise=noise,
+                       ir=ir, spectra_ids=ids, wavelengths=waves,
+                       spectra_unit=spec_unit, wavelength_unit=waves_unit,
+                       comments=comments, name=name)
 
 
 def center_coordinates(coords, center):

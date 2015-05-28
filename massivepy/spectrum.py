@@ -528,13 +528,15 @@ class SpectrumSet(object):
         Convert to fits hdu list
         """
         baseheader = fits.Header()
-        baseheader.append(["dataset", self.name])
-        baseheader.append(["spectral unit", str(self.spec_unit)])
-        baseheader.append(["wavelength unit", str(self.wave_unit)])
+        baseheader.append(("dataset", self.name))
+        baseheader.append(("specunit", str(self.spec_unit)))
+        baseheader.append(("waveunit", str(self.wave_unit)))
+        baseheader.append(("primary", "spectra"))
+        baseheader.add_comment("spectral resolution given in "
+                               "wavelength units, Gaussian FWHM")
         for k, v in self.comments.iteritems():
             baseheader.add_comment("{}: {}".format(k, v))
-        hdu_spectra = fits.ImageHDU(data=self.spectra,
-                                    header=baseheader, name="spectra")
+        hdu_spectra = fits.PrimaryHDU(data=self.spectra, header=baseheader)
         hdu_waves = fits.ImageHDU(data=self.waves,
                                   header=baseheader, name="waves")
         hdu_ids = fits.ImageHDU(data=self.ids, header=baseheader, name="ids")
@@ -542,9 +544,10 @@ class SpectrumSet(object):
                                   header=baseheader, name="noise")
         hdu_ir = fits.ImageHDU(data=self.metaspectra["ir"],
                                header=baseheader, name="ir")
-        hdu_bad_data = fits.ImageHDU(data=self.metaspectra["bad_data"],
+        integer_bad_data = self.metaspectra["bad_data"].astype(int)
+        hdu_bad_data = fits.ImageHDU(data=integer_bad_data,
                                      header=baseheader, name="bad_data")
-        hdulist = fits.HDUList(huds=[hdu_spectra, hdu_noise, hdu_waves,
+        hdulist = fits.HDUList(hdus=[hdu_spectra, hdu_noise, hdu_waves,
                                      hdu_bad_data, hdu_ir, hdu_ids])
         return hdulist
 

@@ -6,6 +6,7 @@ and collections of spectra.
 
 import collections as collect
 import warnings
+import os
 
 import numpy as np
 import scipy.integrate as integ
@@ -554,4 +555,26 @@ class SpectrumSet(object):
         """
         hdulist = self.to_fits_hdulist()
         hdulist.writeto(path)
+
+
+def read_datacube(path, name=None):
+    """
+    """
+    path = os.path.normpath(path)
+    if name is None:
+        name = os.path.splitext(os.path.split(path)[-1])[0]
+    data, headers = utl.fits_quickread(path)
+    [spectra, noise, waves, bad_data, ir, ids] = data  # assumed order
+    [spectra_h, noise_h, waves_h, bad_data_h, ir_h, ids_h] = headers
+    spec_unit = const.flux_per_angstrom
+    waves_unit = const.angstrom
+    # TO DO: remove overwrite in comment concat
+    comments = {}
+    comments.update({k:str(v) for k, v in waves_h.iteritems()})
+    comments.update({k:str(v) for k, v in spectra_h.iteritems()})
+    return SpectrumSet(spectra=spectra, bad_data=bad_data.astype(bool),
+                       noise=noise, ir=ir, spectra_ids=ids,
+                       wavelengths=waves, spectra_unit=spec_unit,
+                       wavelength_unit=waves_unit, comments=comments,
+                       name=name)
 

@@ -22,7 +22,7 @@ class IFUspectrum(object):
     and to not be the result of binning multiple spectra from
     non-coincident regions.
     """
-    def __init__(self, coords=None, coords_unit=None,
+    def __init__(self, coords=None, coords_unit=None, coord_comments={},
                  footprint=None, linear_scale=None, **kwargs):
         """
         See SpectrumSet. Arguments needed beyond those of SpectrumSet
@@ -45,6 +45,8 @@ class IFUspectrum(object):
             as a 1d arraylike, and return a footprint shape as a
             shapely polygon object centered on the passed coordinates.
         linear_scale - float
+        coord_comments - dict, default empty
+            Comments about the coordinate system
             -
         """
         if 'spectrumset' in kwargs:
@@ -60,6 +62,7 @@ class IFUspectrum(object):
         self.coords_unit = units.Unit(coords_unit)
         self.footprint = footprint
         self.linear_scale = float(linear_scale)
+        self.coord_comments = coord_comments
 
     def get_subset(self, ids):
         """
@@ -73,7 +76,8 @@ class IFUspectrum(object):
         return IFUspectrum(spectrumset=new_set, coords=new_coords,
                            coords_unit=self.coords_unit,
                            footprint=self.footprint,
-                           linear_scale=self.linear_scale)
+                           linear_scale=self.linear_scale,
+                           coord_comments=self.coord_comments)
 
     def s2n_spacial_binning(self, threshold=None, binning_func=None,
                             combine_func=None):
@@ -86,6 +90,26 @@ class IFUspectrum(object):
             combine_func=combine_func, threshold=threshold,
             score_func=spec.SpectrumSet.compute_mean_s2n)
         return binned
+
+    def to_fits_hdulist(self):
+        """
+        Convert to fits hdu list
+        """
+        spec_HDUList = self.spectrumset.to_fits_hdulist()
+        coords_header = fits.Header()
+        coords_header.append(["coordinate unit", str(self.coords_unit)])
+        for k, v in self.coord_comments.iteritems():
+            coords_header.add_comment("{} - {}".format(k, v))
+        hdu_coords = fits.ImageHDU(data=self.coords,
+                                    header=coords_header, name="coordinates")
+        spec_HDUList.append(hdu_coords)
+
+    def write_to_fits(self, path):
+        """
+        """
+        hdulist = self.to_fits_hdulist()
+        hdulist.writeto(path)
+
 
 
 def center_coordinates(coords, center):
@@ -127,4 +151,3 @@ def center_coordinates(coords, center):
     new_coords[:, 0] = new_coords[:, 0]*np.cos(np.deg2rad(center[1]))
     new_coords *= 60*60  # to arcseconds
     return new_coords
-

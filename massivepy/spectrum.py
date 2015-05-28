@@ -8,9 +8,10 @@ import collections as collect
 import warnings
 
 import numpy as np
-import astropy.units as units
 import scipy.integrate as integ
 import scipy.interpolate as inter
+import astropy.units as units
+import astropy.io.fits as fits
 
 import utilities as utl
 import massivepy.constants as const
@@ -522,5 +523,34 @@ class SpectrumSet(object):
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments)
 
+    def to_fits_hdulist(self):
+        """
+        Convert to fits hdu list
+        """
+        baseheader = fits.Header()
+        baseheader.append(["dataset", self.name])
+        baseheader.append(["spectral unit", str(self.spec_unit)])
+        baseheader.append(["wavelength unit", str(self.wave_unit)])
+        for k, v in self.comments.iteritems():
+            baseheader.add_comment("{} - {}".format(k, v))
+        hdu_spectra = fits.ImageHDU(data=self.spectra,
+                                    header=baseheader, name="spectra")
+        hdu_waves = fits.ImageHDU(data=self.waves,
+                                  header=baseheader, name="waves")
+        hdu_ids = fits.ImageHDU(data=self.ids, header=baseheader, name="ids")
+        hdu_noise = fits.ImageHDU(data=self.metaspectra["noise"],
+                                  header=baseheader, name="noise")
+        hdu_ir = fits.ImageHDU(data=self.metaspectra["ir"],
+                               header=baseheader, name="ir")
+        hdu_bad_data = fits.ImageHDU(data=self.metaspectra["bad_data"],
+                                     header=baseheader, name="bad_data")
+        hdulist = fits.HDUList(huds=[hdu_spectra, hdu_noise, hdu_waves,
+                                     hdu_bad_data, hdu_ir, hdu_ids])
+        return hdulist
 
+    def write_to_fits(self, path):
+        """
+        """
+        hdulist = self.to_fits_hdulist()
+        hdulist.writeto(path)
 

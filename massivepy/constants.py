@@ -25,6 +25,8 @@ mitchell_arc_centers = np.array([4046.5469,
                                  5460.7397,
                                  5769.5972])
 mitchell_nominal_spec_resolution = 4.6  # Angstroms, Gaussian FWHM
+mitchell_crop_region = [3650, 5650] # Angstrom, galaxy rest frame
+    # edges can have goofy extrapolated data, this is a stable safe region
 
 # MASSIVE conventions
 selected_twelve = [14, 227, 303, 311, 547, 561, 586, 591, 052, 755, 844, 871]

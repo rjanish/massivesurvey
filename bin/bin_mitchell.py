@@ -5,16 +5,21 @@ import os
 import re
 import argparse
 import functools
-import pickle
 
 import numpy as np
 import pandas as pd
+import shapely.geometry as geo
+import descartes
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+
 
 import utilities as utl
 import massivepy.constants as const
 import massivepy.IFUspectrum as ifu
 import massivepy.spectrum as spec
 import massivepy.binning as binning
+import plotting.geo_utils as geo_utils
 
 
 # defaults
@@ -125,7 +130,7 @@ for path in cube_paths:
                                                      angular_bounds)):
         print ("  {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
                "".format(iter + 1, rin, rout, len(angles)))
-    output_base = os.path.join(binned_dir, "{}_{}".format(ngc_name, bindesc))
+    output_base = os.path.join(binned_dir, "{}-{}".format(ngc_name, bindesc))
     binned_data_path = "{}.fits".format(output_base)
     binned_specset.write_to_fits(binned_data_path)
     binned_path = "{}_binfibers.p".format(output_base)
@@ -137,9 +142,10 @@ for path in cube_paths:
     coord_path = "{}_fluxcenters.p".format(output_base)
     utl.save_pickle(bin_coords, coord_path)
     for anulus_iter, angle_bounds in enumerate(angular_bounds):
-        angle_path = "{}_angular_bounds-{}.p".format(output_base, anulus_iter)
+        angle_path = "{}_angularbounds-{}.p".format(output_base, anulus_iter)
         utl.save_pickle(angle_bounds, angle_path)
     # plot bins
+    # TO DO: move this to a MASSVIE plotting module
     fiber_coords = ifuset.coords.copy()
     fiber_coords[:, 0] *= -1  # east-west reflect
     # plots - each fiber colored by bin membership
@@ -180,6 +186,6 @@ for path in cube_paths:
             linewidth=1.5, color='r')
     ax.autoscale_view()
     ax.set_aspect('equal')
-    plot_path = "{}-bin_outlines.pdf".format(output_base)
+    plot_path = "{}-binoutlines.pdf".format(output_base)
     fig.savefig(plot_path)
     plt.close(fig)

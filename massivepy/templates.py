@@ -1,6 +1,6 @@
 """
-This module handles storage and common manipulations for libraries
-of stellar template spectra.
+This module handles storage and common computation on libraries of
+template spectra, both in general and for specific libraries.
 """
 
 

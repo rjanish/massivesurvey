@@ -139,3 +139,47 @@ for path in cube_paths:
     for anulus_iter, angle_bounds in enumerate(angular_bounds):
         angle_path = "{}_angular_bounds-{}.p".format(output_base, anulus_iter)
         utl.save_pickle(angle_bounds, angle_path)
+    # plot bins
+    fiber_coords = ifuset.coords.copy()
+    fiber_coords[:, 0] *= -1  # east-west reflect
+    # plots - each fiber colored by bin membership
+    colors = ['b', 'g', 'r', 'c', 'm']
+    used_fibers = []
+    fig, ax = plt.subplots()
+    for n, fibers  in enumerate(grouped_ids):
+        # fibers_in_bins is a list of lists of fibers in each bin
+        bin_color = colors[n % len(colors)]
+        for fiber in fibers:
+            used_fibers.append(fiber)
+            ax.add_patch(patches.Circle(fiber_coords[fiber, :], fiber_radius,
+                                facecolor=bin_color, zorder=0,
+                                linewidth=0.25, alpha=0.8))
+        ax.set_aspect('equal')
+    # gray-out unbinned fibers
+    for unused_fiber in range(fiber_coords.shape[0]):
+        if unused_fiber not in used_fibers:
+            ax.add_patch(patches.Circle(fiber_coords[unused_fiber, :],
+                                        fiber_radius, facecolor='k', zorder=0,
+                                        linewidth=0.25, alpha=0.3))
+    # plot bin outlines
+    for n, (rmin, rmax) in enumerate(radial_bounds):
+        for angular_bins in angular_bounds[n]:
+            for amin_NofE, amax_NofE in angular_bins:
+                amin_xy = np.pi - amax_NofE
+                amax_xy = np.pi - amin_NofE
+                bin_poly = geo_utils.polar_box(rmin, rmax,
+                                               np.rad2deg(amin_xy),
+                                               np.rad2deg(amax_xy))
+                ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
+                                                    linestyle='solid',
+                                                    linewidth=1.5))
+    ax.add_artist(patches.Circle((0, 0), radial_bounds[0][0], edgecolor='k',
+                  facecolor='none'))
+    ax.plot([-rmax*1.1*np.cos(ma_xy), rmax*1.1*np.cos(ma_xy)],
+            [-rmax*1.1*np.sin(ma_xy), rmax*1.1*np.sin(ma_xy)],
+            linewidth=1.5, color='r')
+    ax.autoscale_view()
+    ax.set_aspect('equal')
+    plot_path = "{}-bin_outlines.pdf".format(output_base)
+    fig.savefig(plot_path)
+    plt.close(fig)

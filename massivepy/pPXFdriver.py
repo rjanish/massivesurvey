@@ -5,6 +5,7 @@ This is a wrapper for ppxf, facilitating kinematic fitting.
 
 import warnings
 import functools
+import copy
 
 import numpy as np
 import ppxf
@@ -29,94 +30,59 @@ class pPXFDriver(object):
     exact record of the fit, and I/O methods are provided to simplify
     recording of individual results.
     """
-    def __init__(self, spectra=None, templates=None, fit_settings=None):
+    REQUIRED_SETTINGS = ["additive_degree", "multiplicative_degree",
+                         "moments_to_fit", "bias", "v_guess", "sigma_guess",
+                         "hn_guess", "fit_range"]
+
+    def __init__(self, spectra=None, templates=None, **kwargs):
         """
         Args:
         spectra - SpectraSet object
             The spectra which will be fit by pPXF. Must be sampled
             with logarithmic spacing and have units of flux/velocity.
         templates - TemplateLibrary object
-        fit_settings - dictionary of fit settings
+        settings - dictionary of fit settings
         """
-        self.spectra = spectra
-        self.templates = templates
-        self.fit_settings = dict(fit_settings)
-
-    def ready_to_fit(self):
-        """ all inputs ready for ppxf """
-        logscales = {}
-        for name, specset in zip(["spectra", "templates"],
-                                 [self.spectra, self.templates.spectrumset]):
-            if specset.is_log_sampled():
-                logscale = np.log(specset.waves[1]/specset.waves[0])
-                logscales[name] = logscale
-            else:
-                warnings.warn("{} are not log-spaced".format(name))
-                return False, "{}-spacing".format(name)
-        delta_logscale = (logscales["spectra"] -
-                          logscales["templates"])/logscales["spectra"]
-        logscale_matches = np.absolute(delta_logscale) < const.float_tol
-        if not logscale_matches:
-            warnings.warn("log-scales of spectra and templates do not match")
-            return False, "templates-spacing"
-        fitrange = self.fit_settings["fit_range"]
-        delta_lambda = fitrange[1] - fitrange[0]
-        spec_flux = self.spectra.compute_flux(interval=fitrange)
-        temp_flux = self.templates.spectrumset.compute_flux(interval=fitrange)
-        for name, flux_set in zip(["spectra", "templates"],
-                                  [spec_flux, temp_flux]):
-            flux_delta = (flux_set - delta_lambda)/delta_lambda
-            flux_matches = np.all(np.absolute(flux_delta) < const.float_tol)
-            if not flux_matches:
-                warnings.warn("{} are not properly normalized".format(name))
-                return False, "{}-normalization".format(name)
-        # TO DO: settings_needed
-        return True, None
-
-    def prepare_fit(self):
-        """
-        """
+        self.spectra = copy.deepcopy(spectra)
+        self.templates = copy.deepcopy(templates)
+        if "settings" in kwargs:
+            self.settings = dict(settings)
+        else:
+            self.setting = dict(kwargs)
+        for setting in self.REQUIRED_SETTINGS:
+            if setting not in self.settings:
+                raise ValueError("{} must be specified to fit spectra"
+                                 "".format(setting))
+        # prepare copied spectra
         try:
             self.spectra.log_resample()
         except ValueError, msg:
-            print "skipping spectra log_resample - {}".format(msg)
-        logscale = np.log(self.spectra.waves[1]/self.spectra.waves[0])
-        try:
-            self.templates.spectrumset.log_resample(logscale=logscale)
-        except ValueError, msg:
-            print "skipping template log_resample - {}".format(msg)
-        to_fit = utl.in_linear_interval(self.spectra.waves,
-                                        self.fit_settings["fit_range"])
-        target_flux = (self.fit_settings["fit_range"][1] -
-                       self.fit_settings["fit_range"][0])
-        fitregion_flux = functools.partial(spec.SpectrumSet.compute_flux,
-                                    interval=self.fit_settings["fit_range"])
-        fitregion_flux.__name__ = "compute_flux_of_fitting_region"
+            print "skipping spectra log_resample ({})".format(msg)
+        self.to_fit = utl.in_linear_interval(self.spectra.waves,
+                                             self.settings["fit_range"])
+        self.target_flux = (self.settings["fit_range"][1] -
+                            self.settings["fit_range"][0])
+            # this sets numerical spectral values near 1
+        self.get_flux = functools.partial(spec.SpectrumSet.compute_flux,
+                                          interval=self.settings["fit_range"])
+            # this computes the flux of a SpectrumSet only within the
+            # fitting range - useful for normalization of templates
+        self.get_flux.__name__ = "compute_flux_of_fitting_region"
         self.spectra = self.spectra.get_normalized(norm_func=fitregion_flux,
                                                    norm_value=target_flux)
-        self.templates.spectrumset.metaspectra["bad_data"] = (
-            self.templates.spectrumset.metaspectra["bad_data"].astype(bool))
-        # HACK - this should not need to be here, FIX THIS
-        self.templates.spectrumset = (
-            self.templates.spectrumset.get_normalized(
-                norm_func=fitregion_flux, norm_value=target_flux))
-        return
+
 
     def run_fit(self):
         """
         """
-        # self.prepare_fit() - this function is likely evil
-        # if not self.ready_to_fit(): - possibly this one too
-        #     warnings.warn("fit setup invalid, aborting")
-        #     return
-        add_deg = int(self.fit_settings["additive_degree"])
-        mul_deg = int(self.fit_settings["multiplicative_degree"])
-        num_moments = int(self.fit_settings["moments_to_fit"])
-        bias = float(self.fit_settings["bias"])
-        v_guess = float(self.fit_settings["v_guess"])
-        sigma_guess = float(self.fit_settings["sigma_guess"])
-        hn_guess = float(self.fit_settings["hn_guess"])
-        fit_range = np.asarray(self.fit_settings["fit_range"])
+        add_deg = int(self.settings["additive_degree"])
+        mul_deg = int(self.settings["multiplicative_degree"])
+        num_moments = int(self.settings["moments_to_fit"])
+        bias = float(self.settings["bias"])
+        v_guess = float(self.settings["v_guess"])
+        sigma_guess = float(self.settings["sigma_guess"])
+        hn_guess = float(self.settings["hn_guess"])
+        fit_range = np.asarray(self.settings["fit_range"])
         guess = ([v_guess, sigma_guess] +
                  [hn_guess]*int(num_moments - 2))
         results = np.zeros((self.spectra.num_spectra, num_moments + 2))

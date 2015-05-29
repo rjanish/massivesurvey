@@ -50,9 +50,9 @@ class IFUspectrum(object):
             as a 1d arraylike, and return a footprint shape as a
             shapely polygon object centered on the passed coordinates.
         linear_scale - float
+            A characteristic linear dimension of the spacial footprint
         coord_comments - dict, default empty
             Comments about the coordinate system
-            -
         """
         if 'spectrumset' in kwargs:
             self.spectrumset = kwargs['spectrumset']
@@ -84,9 +84,11 @@ class IFUspectrum(object):
                            linear_scale=self.linear_scale,
                            coord_comments=self.coord_comments)
 
-    def s2n_spacial_binning(self, threshold=None, binning_func=None,
-                            combine_func=None):
+    def s2n_spacial_binning(self, threshold=None,
+                            binning_func=None, combine_func=None):
         """
+        Construct a spacial partition of the spectra into bins,
+        according to a S/N threshold.
         """
         binned = binning_func(
             collection=self.spectrumset, coords=self.coords,

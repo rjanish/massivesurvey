@@ -6,6 +6,7 @@ i.e. collections of spectra each associated with a spacial region.
 
 import re
 import os
+import functools
 
 import numpy as np
 import shapely.geometry as geo
@@ -84,36 +85,59 @@ class IFUspectrum(object):
                            linear_scale=self.linear_scale,
                            coord_comments=self.coord_comments)
 
-    def s2n_spacial_binning(self, threshold=None,
-                            binning_func=None, combine_func=None):
+    def s2n_fluxweighted_binning(self, threshold=None, get_bins=None):
         """
         Construct a spacial partition of the spectra into bins,
         according to a S/N threshold.
+
+        Args:
+        threshold - float
+            The s2n threshold above which bins are valid
+        get_bins - func
+            A binning algorithm function, which must accept an a
+            collection of data and methods for indexing, combining,
+            and scoring those collections, and then produce a set of
+            bins. See the module 'binning' for detailed examples.
         """
-        binned = binning_func(
-            collection=self.spectrumset, coords=self.coords,
-            ids=self.spectrumset.ids, linear_scale=self.linear_scale,
-            indexing_func=spec.SpectrumSet.get_subset,
-            combine_func=combine_func, threshold=threshold,
-            score_func=spec.SpectrumSet.compute_mean_s2n)
-        return binned
+        delta_lambda = (self.spectrumset.spec_region[1] -
+                        self.spectrumset.spec_region[0])
+        combine = functools.partial(spec.SpectrumSet.collapse, id=0,
+                                    weight_func=spec.SpectrumSet.compute_flux,
+                                    norm_func=spec.SpectrumSet.compute_flux,
+                                    norm_value=delta_lambda)
+            # this is flux-normed, flux-weighted mean (i.e, coaddition), with
+            # fluxes set so that the numerical spectra values are near 1
+        partition = get_bins(collection=self.spectrumset,
+                             coords=self.coords, ids=self.spectrumset.ids,
+                             linear_scale=self.linear_scale,
+                             indexing_func=spec.SpectrumSet.get_subset,
+                             combine_func=combine, threshold=threshold,
+                             score_func=spec.SpectrumSet.compute_mean_s2n)
+        return partition
 
     def to_fits_hdulist(self):
         """
-        Convert to fits hdu list
+        Convert all data to an astropy HDUList object, which can be
+        directly written to a .fits file.
         """
         hdulist = self.spectrumset.to_fits_hdulist()
         coords_header = fits.Header()
         coords_header.append(("coordunit", str(self.coords_unit)))
         for k, v in self.coord_comments.iteritems():
+            # add all coord_comments as header comments
             coords_header.add_comment("{}: {}".format(k, v))
         hdu_coords = fits.ImageHDU(data=self.coords,
-                                    header=coords_header, name="coordinates")
+                                   header=coords_header, name="coords")
         hdulist.append(hdu_coords)
         return hdulist
 
     def write_to_fits(self, path):
         """
+        Write all data to a .fits file at the passed location.
+
+        See the corresponding function for SpectrumSet. The file
+        written by this function will have an addition extension
+        giving the spectra coordinates.
         """
         hdulist = self.to_fits_hdulist()
         hdulist.writeto(path, clobber=True)

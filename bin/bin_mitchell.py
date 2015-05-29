@@ -68,15 +68,8 @@ for path in cube_paths:
                                major_axis=ma_bin, aspect_ratio=aspect_ratio)
     binning_func = functools.partial(binning.polar_threshold_binning,
                                      angle_partition_func=folded)
-    delta_lambda = (ifuset.spectrumset.spec_region[1] -
-                    ifuset.spectrumset.spec_region[0])
-    combine_func = functools.partial(spec.SpectrumSet.collapse, id=0,
-                                     weight_func=spec.SpectrumSet.compute_flux,
-                                     norm_func=spec.SpectrumSet.compute_flux,
-                                     norm_value=delta_lambda)
-    binned = ifuset.s2n_spacial_binning(binning_func=binning_func,
-                                        combine_func=combine_func,
-                                        threshold=s2n_threshold)
+    binned = ifuset.s2n_fluxweighted_binning(get_bins=binning_func,
+                                             threshold=s2n_threshold)
     grouped_ids, radial_bounds, angular_bounds = binned
     # results
     number_bins = len(grouped_ids)
@@ -92,6 +85,8 @@ for path in cube_paths:
     for bin_iter, fibers in enumerate(grouped_ids):
         bin_number = bin_iter + 1
         subset = ifuset.get_subset(fibers)
+        delta_lambda = (ifuset.spectrumset.spec_region[1] -
+                        ifuset.spectrumset.spec_region[0])
         binned = subset.spectrumset.collapse(
                                  weight_func=spec.SpectrumSet.compute_flux,
                                  norm_func=spec.SpectrumSet.compute_flux,

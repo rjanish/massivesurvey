@@ -19,10 +19,12 @@ import utilities as utl
 import plotting.geo_utils as geo_utils  # replace with plotting library
 
 
-test_data = 'data/mitchell-cubes/QnovallfibNGC1600_log.fits'
+test_data = 'data/mitchell-rawcubes/QnovallfibNGC1600_log.fits'
 x, y, pa = 67.9161, -5.0861, 15.00000  # degrees, degrees, degrees
 nominal_const_fwhm = 4.5  # A
 mask_threshold = 10**4
+aspect_ratio = 1.5
+threshold = 20
 
 # read Jenny's fiber datacube
 cube = utl.fits_quickread(test_data)
@@ -53,15 +55,11 @@ ifuset = ifu.IFUspectrum(spectra=spectra, bad_data=bad_data, noise=noise,
 ma_bin = np.pi/2 - np.deg2rad(pa)
 ma_xy = np.pi/2 + np.deg2rad(pa)
 folded_1600 = functools.partial(binning.partition_quadparity_folded,
-                                major_axis=ma_bin, aspect_ratio=2)
+                                major_axis=ma_bin, aspect_ratio=aspect_ratio)
 binning_func = functools.partial(binning.polar_threshold_binning,
-                                 step_size=fiber_radius,
                                  angle_partition_func=folded_1600)
-combine_func = functools.partial(spec.SpectrumSet.collapse, id=0,
-                                 weight_func=spec.SpectrumSet.compute_flux)
-binned = ifuset.s2n_spacial_binning(binning_func=binning_func,
-                                    combine_func=combine_func,
-                                    threshold=20)
+binned = ifuset.s2n_fluxweighted_binning(get_bins=binning_func,
+                                         threshold=threshold)
 grouped_ids, radial_bounds, angular_bounds = binned
 # results
 single_fiber_bins = [l for l in grouped_ids if len(l) == 1]

@@ -1,7 +1,4 @@
-"""
-This module contains functions for the spacial binning of IFU spectra,
-and for the manipulation of sets of bins.
-"""
+""" This module contains functions for the spacial binning of data. """
 
 
 import functools
@@ -62,8 +59,10 @@ def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
 def partition_quadparity_folded(rad_interval, major_axis=None,
                                 aspect_ratio=None):
     """
-    Partition an annulus into angular bins that have parity across
-    both axes.
+    Partition an annulus into angular sections that have parity across
+    both axes, with each section and its mirror across the major-axis
+    together considered one bin. This is equivalent to folding the
+    bins made by partition_quadparity_folded across the major axis.
 
     major_axis - float
         The major axis, as an angle counterclockwise from the
@@ -93,7 +92,88 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
                             threshold=None, step_size=None,
                             angle_partition_func=None):
     """
-    ABSTRACT
+    Bin spacial data radially, according to a threshold score.
+
+    This takes a set of data objects with the following properties:
+    each object has an associated 2D coordinate, any number of objects
+    may be combining into another object of the same type, and any
+    single object may be assigned a numerical score. Objects will be
+    grouped into polar bins (defined by an interval in radius and
+    angle) such that the score of the combined object encompassing
+    each bin exceeds the given threshold.
+
+    The binning algorithm starts at the center, accumulating objects
+    into bins until the threshold is met, and then starting a new bin.
+    The procedure is schematically:
+      0 all objects at the center that pass the threshold on their
+        own are kept unbinned (this anticipates that the score will
+        be increasing outward)
+      1 A trial annulus is chosen with fixed inner radius.
+      2 The objects in the trial annulus are are sub-divided by angle
+        according to the given angle_partition_func.
+      3 If all bins in the trial annulus pass, start over at 1 with a
+        new annulus directly outside the previous one. If not, increase
+        the radius of the annulus and restart at 2.
+      4 The outermost set of bins will likely not pass the threshold,
+        and are not included in the binning.
+
+    Args:
+    collection - non-specific type, required properties given below
+        This is an container that holds all of the data objects to
+        be binned. The size is assumed to be N below.
+    coords - Nx2 arraylike
+        These are 2D Cartesian coordinates associated with the data
+        objects: coords[n, :] are the coordinates of collection[n]
+    ids - length N iterable of integers
+        These are integer id numbers of each object in collection.
+    linear_scale - float
+        This is a linear dimension associated with the spacial size
+        of each object, used to ensure the final bin boundaries do
+        not cut through objects that have some spacial extent.
+    indexing_func - func
+        This is a function which selects a subset of the data from
+        collection based on id numbers. I.e., the call
+        indexing_func(collection, [j, k, l]) will return a container
+        of the same type as collection which holds the three objects
+        with id's j, k, and l.
+    combine_func - func
+        A function which takes a collection as above and returns a new
+        collection containing only one data item that corresponds to
+        the combination of all data in the original collection.
+    score_func - func
+        This function takes a collection as above, and returns a list
+        of scores for each object in the collection.
+    threshold - float
+        The score threshold above which a bin is considered valid.
+    step_size - float
+        The radial step size to take when enlarging bins. By default,
+        each step will be made so as to include in the new bin the
+        fewest possible number of new data objects.
+    angle_partition_func - func
+        A function that accepts as a single argument a radial interval
+        [rmin, rmax] and returns a partition of that annulus into
+        angular bins, each bin consisting of the union of a number of
+        angular intervals.
+        The output format is, for output = angle_partition_func(...):
+          - output[0] is the first bin, output[1] the second, etc.
+          - Each bin entry in output is itself a list of angular
+            intervals: output[j] = [[a0, a1], [a2, a3], ...]
+          - The bin associated with output[j] is the union of all
+            angular intervals in output[j]
+
+    Returns: grouped_ids, radial_bounds, angular_bounds
+    grouped_ids - iterable
+        This has one entry for each bin, with each entry listing the
+        id numbers of the objects in that bin.
+    radial_bounds - Mx2 arraylike
+        The rmin, rmax boundaries of each annular section of bins.
+        The size will be M = (total number of bins) - (number of center
+        bins containing a single object)
+    angular_bounds - length M iterable
+        A list of angular partitions, of size M, with angular_bounds[j]
+        specifying the partitioning of the annulus radial_bounds[j].
+        Each entry angular_bounds[i] has the format returned by
+        the angle_partition_func (see above).
     """
     coords = np.asarray(coords, dtype=float)
     ids = np.asarray(ids, dtype=int)

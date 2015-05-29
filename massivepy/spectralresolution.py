@@ -11,6 +11,35 @@ import massivepy.constants as const
 
 def fit_arcset(wavelengths, arcs, line_centers, fwhm_guess, fit_scale=10):
     """
+    Fit a set of arc spectra, extracting the centers and fwhm of each
+    line. The lines are fit with a Gaussian profile.
+
+    Args:
+    wavelengths - 1d arraylike
+        The wavelength sampling of the arc spectra.
+    arcs - 2d arraylike
+        The arc spectra, shaped (N, M), where M is the length of
+        the above passed wavelength sampling. Each row is a spectrum.
+    line_centers - 1d arraylike
+        The central values of wavelength of the lines to fit, units
+        must match that of passed wavelengths.
+    fwhm_guess - 1d arraylike
+        The initial estimate fwhm of each line, units
+        must match that of passed wavelengths.
+    fit_scale - float, default = 10
+        This scale sets the size of the fitting region used for each
+        line. The region, centered on the line, will be greater than
+        fit_scale times the best-fit Gaussian sigma of the line. If
+        a line's region encompassed another line, then the sum of both
+        lines will be fit in the union of their fit regions.
+
+    Returns: spec_resolution
+    spec_resolution - array of size (N, P, 2)
+        Measured line widths, with N the number of passed spectra and
+        P the number of lines fit. spec_resolution[i, j, 0] give
+        the central wavelength of the jth line in the ith spectrum,
+        and spec_resolution[i, j, 1] gives its FWHM. The units of
+        both match the units of the passed wavelength samples.
     """
     arcs = np.asarray(arcs, dtype=float)
     arcs = (arcs.T/np.max(arcs, axis=1)).T

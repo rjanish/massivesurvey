@@ -1,6 +1,5 @@
 """
-This module handles storage and computations with IFU spectral fields,
-i.e. collections of spectra each associated with a spacial region.
+This module handles storage and computations with IFU spectral fields.
 """
 
 

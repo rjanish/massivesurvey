@@ -1,6 +1,6 @@
 """
-This module handles the storage and common manipulations of spectra
-and collections of spectra.
+This module handles the storage and common calculation using
+collections of spectra.
 """
 
 

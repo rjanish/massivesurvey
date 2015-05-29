@@ -111,10 +111,6 @@ ax.add_artist(patches.Circle((0, 0), radial_bounds[0][0], edgecolor='k',
 ax.plot([-rmax*1.1*np.cos(ma_xy), rmax*1.1*np.cos(ma_xy)],
         [-rmax*1.1*np.sin(ma_xy), rmax*1.1*np.sin(ma_xy)],
         linewidth=1.5, color='r')
-ax.title("{} polar folded binning - s/n = {}, arc/rad = {}"
-         "".format(ngc_name, threshold, aspect_ratio))
-ax.set_xlabel("arcsec")
-ax.set_ylabel("arcsec")
 ax.autoscale_view()
 ax.set_aspect('equal')
 

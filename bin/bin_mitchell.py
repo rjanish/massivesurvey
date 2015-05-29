@@ -186,6 +186,10 @@ for path in cube_paths:
     ax.plot([-rmax*1.1*np.cos(ma_xy), rmax*1.1*np.cos(ma_xy)],
             [-rmax*1.1*np.sin(ma_xy), rmax*1.1*np.sin(ma_xy)],
             linewidth=1.5, color='r')
+    ax.set_title("{} polar folded binning - s/n = {}, Darc/Drad = {}"
+                 "".format(ngc_name, s2n_threshold, aspect_ratio))
+    ax.set_xlabel("arcsec")
+    ax.set_ylabel("arcsec")
     ax.autoscale_view()
     ax.set_aspect('equal')
     plot_path = "{}-binoutlines.pdf".format(output_base)

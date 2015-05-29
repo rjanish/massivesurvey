@@ -1,5 +1,5 @@
 """
-This is a wrapper for ppxf, used to facilitate kinematic fitting.
+This is a wrapper for ppxf, facilitating kinematic fitting.
 """
 
 

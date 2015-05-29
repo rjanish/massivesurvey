@@ -54,10 +54,10 @@ for path in cube_paths:
                                   norm_value=delta_lambda, id=0)
     full_galaxy.comments["Binning"] = ("this spectrum is the coadditon "
                                        "of all fibers in the galaxy")
-    bindesc = "full galaxy bin"
+    bindesc = "fullgalaxybin"
     full_galaxy.name = bindesc
     fibers_in_fullgalaxy = ifuset.spectrumset.ids.copy()
-    output_filename = ("{}_{}.fits"
+    output_filename = ("{}-{}.fits"
                        "".format(ngc_name, re.sub("\s*", "", bindesc)))
     output_path = os.path.join(binned_dir, output_filename)
     full_galaxy.write_to_fits(output_path)

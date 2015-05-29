@@ -65,10 +65,10 @@ grouped_ids, radial_bounds, angular_bounds = binned
 single_fiber_bins = [l for l in grouped_ids if len(l) == 1]
 flat_binned_fibers = [f for l in grouped_ids for f in l]
 unbinned_fibers = [f for f in fiber_ids if f not in flat_binned_fibers]
-print "{} total number of bins".format(len(grouped_ids))
+print "{} total bins".format(len(grouped_ids))
 print "{} single-fiber bins".format(len(single_fiber_bins))
 print "{} un-binned outer fibers".format(len(unbinned_fibers))
-print "multi-fiber bin layout:"
+print "layout of mult-fiber bins:"
 for iter, [(rin, rout), angles] in enumerate(zip(radial_bounds, angular_bounds)):
     print ("  {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
            "".format(iter + 1, rin, rout, len(angles)))

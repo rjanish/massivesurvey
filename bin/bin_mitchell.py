@@ -64,6 +64,8 @@ for path in cube_paths:
     else:
         ngc_num = ngc_match.groups()[0]
     ngc_name = "NGC{}".format(ngc_num)
+    print "\n{}".format(ngc_name)
+    print "  binning..."
     gal_position = target_positions[target_positions.Name == ngc_name]
     gal_pa = gal_position.PA_best.iat[0]
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
@@ -122,13 +124,13 @@ for path in cube_paths:
     flat_binned_fibers = [f for l in grouped_ids for f in l]
     unbinned_fibers = [f for f in fiber_ids if f not in flat_binned_fibers]
     # output
-    print "{} total number of bins".format(len(grouped_ids))
-    print "{} single-fiber bins".format(len(single_fiber_bins))
-    print "{} un-binned outer fibers".format(len(unbinned_fibers))
-    print "multi-fiber bin layout:"
+    print "  {} total number of bins".format(len(grouped_ids))
+    print "  {} single-fiber bins".format(len(single_fiber_bins))
+    print "  {} un-binned outer fibers".format(len(unbinned_fibers))
+    print "  multi-fiber layout:"
     for iter, [(rin, rout), angles] in enumerate(zip(radial_bounds,
                                                      angular_bounds)):
-        print ("  {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
+        print ("   {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
                "".format(iter + 1, rin, rout, len(angles)))
     output_base = os.path.join(binned_dir, "{}-{}".format(ngc_name, bindesc))
     binned_data_path = "{}.fits".format(output_base)

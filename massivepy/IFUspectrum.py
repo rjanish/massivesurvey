@@ -119,6 +119,10 @@ class IFUspectrum(object):
         """
         Convert all data to an astropy HDUList object, which can be
         directly written to a .fits file.
+
+        See the corresponding function for SpectrumSet. This list
+        made by this function will have an addition extension
+        giving the spectra coordinates.
         """
         hdulist = self.spectrumset.to_fits_hdulist()
         coords_header = fits.Header()
@@ -145,6 +149,19 @@ class IFUspectrum(object):
 
 def read_mitchell_datacube(path, name=None):
     """
+    Read a .fits datacube into an IFUspectrum object.
+
+    The format of the .fits is assumed to be that of the MASSIVE
+    convention Mitchell datacubes: six extension, giving the spectra,
+    noise, waves, bad_data mask, spectral resolution, id numbers,
+    and (Ra, Dec) coordinates of each fiber. In each of these arrays,
+    each row holds the data for one fiber and the ordering of fibers
+    is assumed to be consistent between all extensions. The spectral
+    data are assumed to be in cgs flux per angstroms, the
+    wavelength data in angstroms, and coords in Ra, Dec degrees.
+
+    The name of the dataset can be given, otherwise it is taken
+    from the file path.
     """
     path = os.path.normpath(path)
     if name is None:
@@ -154,12 +171,12 @@ def read_mitchell_datacube(path, name=None):
      bad_data, ir, ids, coords] = data  # assumed order
     [spectra_h, noise_h, waves_h,
      bad_data_h, ir_h, ids_h, coords_h] = headers  # assumed order
-    coords_unit = const.angstrom  # Mitchell assumed values
+    coords_unit = const.degree  # Mitchell assumed values
     linear_scale = const.mitchell_fiber_radius.value
     footprint = lambda center: geo.Point(center).buffer(linear_scale)
-    spec_unit = const.flux_per_angstrom
-    waves_unit = const.angstrom
-    # TO DO: remove overwrite in comment concat
+    spec_unit = const.flux_per_angstrom  # Mitchell assumed values
+    waves_unit = const.angstrom  # Mitchell assumed values
+    # TO DO: remove overwrite in comment concatenation
     comments = {}
     comments.update({k:str(v) for k, v in waves_h.iteritems()})
     comments.update({k:str(v) for k, v in spectra_h.iteritems()})

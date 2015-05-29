@@ -10,6 +10,7 @@ import astropy.constants as astro_const
 
 # units
 arcsec = units.arcsec
+degree = units.degree
 cgs_flux = units.erg/(units.second*(units.cm**2))
 angstrom = units.angstrom
 flux_per_angstrom = cgs_flux/units.angstrom

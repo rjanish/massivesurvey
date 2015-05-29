@@ -532,6 +532,8 @@ class SpectrumSet(object):
 
     def crop(self, region_to_keep):
         """
+        Return a new SpectrumSet cropped to include data only in
+        the passed wavelength interval.
         """
         region_to_keep = np.asarray(region_to_keep, dtype=float)
         to_keep = utl.in_linear_interval(self.waves, region_to_keep)
@@ -550,7 +552,12 @@ class SpectrumSet(object):
 
     def to_fits_hdulist(self):
         """
-        Convert to fits hdu list
+        Convert all data to an astropy HDUList object, which can be
+        directly written to a .fits file.
+
+        The each extension will hold of the SpectrumSet's data arrays,
+        in the order: spectra, noise, wavelengths, bad_data, ir, ids.
+        The spectrum comments will be used as .fits header comments.
         """
         baseheader = fits.Header()
         baseheader.append(("dataset", self.name))
@@ -578,6 +585,11 @@ class SpectrumSet(object):
 
     def write_to_fits(self, path):
         """
+        Write all data to a .fits file at the passed location.
+
+        This file will have an extension for each of the SpectrumSet's
+        data arrays, in the order: spectra, noise, wavelengths,
+        bad_data, ir, ids. Comments are used as .fits header comments.
         """
         hdulist = self.to_fits_hdulist()
         hdulist.writeto(path, clobber=True)
@@ -585,6 +597,20 @@ class SpectrumSet(object):
 
 def read_datacube(path, name=None):
     """
+    Read a .fits datacube into a SpectrumSet object.
+
+    The format of the .fits is assumed to be that of the MASSIVE
+    convention Mitchell datacubes: five extensions, giving the
+    spectra, noise, waves, bad_data mask, spectral resolution, and
+    id numbers. If a sixth extension is present, likely containing
+    the (Ra, Dec) coordinates of each fiber, it will be ignored.
+    In each of these arrays, each row holds the data for one fiber and
+    the ordering of fibers is assumed to be consistent between all
+    extensions. The spectral data are assumed to be in cgs flux per
+    angstroms, the wavelength data in angstroms.
+
+    The name of the dataset can be given, otherwise it is taken
+    from the file path.
     """
     path = os.path.normpath(path)
     if name is None:
@@ -592,9 +618,9 @@ def read_datacube(path, name=None):
     data, headers = utl.fits_quickread(path)
     [spectra, noise, waves, bad_data, ir, ids] = data  # assumed order
     [spectra_h, noise_h, waves_h, bad_data_h, ir_h, ids_h] = headers
-    spec_unit = const.flux_per_angstrom
-    waves_unit = const.angstrom
-    # TO DO: remove overwrite in comment concat
+    spec_unit = const.flux_per_angstrom  # Mitchell assumed value
+    waves_unit = const.angstrom  # Mitchell assumed value
+    # TO DO: remove overwrite in comment concatenation
     comments = {}
     comments.update({k:str(v) for k, v in waves_h.iteritems()})
     comments.update({k:str(v) for k, v in spectra_h.iteritems()})

@@ -14,7 +14,7 @@ import massivepy.constants as const
 import utilities as utl
 
 
-test_data = 'data/mitchell-cubes/QnovallfibNGC1600_log.fits'
+test_data = 'data/mitchell-rawcubes/QnovallfibNGC1600_log.fits'
 x, y, pa = 67.9161, -5.0861, 15.00000  # degrees, degrees, degrees
 nominal_const_fwhm = 4.5  # A
 lower_trim = 3650
@@ -53,7 +53,9 @@ delta_lambda = specset.spec_region[1] - specset.spec_region[0]
 flux_normedset = specset.get_normalized(spec.SpectrumSet.compute_flux,
                                         delta_lambda)
 # # test binning
-binned = specset.collapse(id=0, weight_func=spec.SpectrumSet.compute_flux)
+binned = specset.collapse(id=0, weight_func=spec.SpectrumSet.compute_flux,
+                          norm_func=spec.SpectrumSet.compute_flux,
+                          norm_value=delta_lambda)
 delta_lambda = binned.spec_region[1] - binned.spec_region[0]
 binned = binned.get_normalized(norm_func=spec.SpectrumSet.compute_flux,
                                norm_value=delta_lambda)

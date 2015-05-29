@@ -12,7 +12,7 @@ import massivepy.constants as const
 import utilities as utl
 
 
-test_data = 'data/mitchell-cubes/QnovallfibNGC1600_log.fits'
+test_data = 'data/mitchell-rawcubes/QnovallfibNGC1600_log.fits'
 x, y, pa = 67.9161, -5.0861, 15.00000  # degrees, degrees, degrees
 nominal_const_fwhm = 4.5  # A
 mask_threshold = 10**4

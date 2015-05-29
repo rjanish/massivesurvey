@@ -227,9 +227,15 @@ class SpectrumSet(object):
             The new wavelength values on which to sample the spectra.
             Units are assumed to match the previous wavelength units.
         """
+        new_num_samples = new_waves.shape[0]
+        new_spec_shape = (self.num_spectra, new_num_samples)
+        new_spectra = np.zeros(new_spec_shape)
+        new_metaspectra = {}
+        for name in self.metaspectra:
+            new_metaspectra[name] = np.zeros(new_spec_shape)
         for spec_index in xrange(self.num_spectra):
             spec_func = inter.interp1d(self.waves, self.spectra[spec_index])
-            self.spectra[spec_index] = spec_func(new_waves)
+            new_spectra[spec_index] = spec_func(new_waves)
             for name, mspec in self.metaspectra.iteritems():
                 mspec_func = inter.interp1d(self.waves, mspec[spec_index])
                 new_mspec_values = mspec_func(new_waves)
@@ -237,10 +243,12 @@ class SpectrumSet(object):
                     new_mspec_values = new_mspec_values.astype(bool)
                         # re-sampled data is valid only if the nearest
                         # bracketing old-sampling values are both valid
-                self.metaspectra[name][spec_index] = new_mspec_values
+                new_metaspectra[name][spec_index] = new_mspec_values
+        self.spectra = new_spectra
+        self.metaspectra = new_metaspectra
         self.waves = new_waves
-        self.num_samples = new_waves.shape[0]
-        self.spec_region = new_spec_region
+        self.num_samples = new_num_samples
+        self.spec_region = np.asarray([new_waves.min(), new_waves.max()])
         return
 
     def log_resample(self, logscale=None):
@@ -279,7 +287,7 @@ class SpectrumSet(object):
         else:  # fix log-spacing
             log_w = np.arange(log_ends[0], log_ends[1], logscale)
         new_waves = np.exp(log_w)
-        resample(self, new_waves)
+        self.resample(new_waves)
         return logscale
 
     def linear_resample(self, step=None):
@@ -317,7 +325,7 @@ class SpectrumSet(object):
             step = new_waves[1] - new_waves[0]
         else:  # fix step size
             new_waves = np.arange(new_ends[0], new_ends[1], step)
-        resample(self, new_waves)
+        self.resample(new_waves)
         return step
 
     def compute_flux(self, interval=None, ids=None):
@@ -522,6 +530,24 @@ class SpectrumSet(object):
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments)
 
+    def crop(self, region_to_keep):
+        """
+        """
+        region_to_keep = np.asarray(region_to_keep, dtype=float)
+        to_keep = utl.in_linear_interval(self.waves, region_to_keep)
+        updated_comments = self.comments.copy()
+        updated_comments["cropped"] = ("Spectra have been cropped "
+                                       "from original wavelength extent")
+        return SpectrumSet(spectra=self.spectra[:, to_keep],
+                           bad_data=self.metaspectra['bad_data'][:, to_keep],
+                           noise=self.metaspectra['noise'][:, to_keep],
+                           ir=self.metaspectra['ir'][:, to_keep],
+                           spectra_ids=self.ids, spectra_unit=self.spec_unit,
+                           wavelengths=self.waves[to_keep], name=self.name,
+                           wavelength_unit=self.wave_unit,
+                           comments=updated_comments)
+
+
     def to_fits_hdulist(self):
         """
         Convert to fits hdu list
@@ -554,7 +580,7 @@ class SpectrumSet(object):
         """
         """
         hdulist = self.to_fits_hdulist()
-        hdulist.writeto(path)
+        hdulist.writeto(path, clobber=True)
 
 
 def read_datacube(path, name=None):

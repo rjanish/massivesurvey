@@ -114,7 +114,7 @@ class IFUspectrum(object):
         """
         """
         hdulist = self.to_fits_hdulist()
-        hdulist.writeto(path)
+        hdulist.writeto(path, clobber=True)
 
 
 def read_mitchell_datacube(path, name=None):

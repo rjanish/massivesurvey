@@ -5,59 +5,78 @@ import os
 import re
 import argparse
 
+import numpy as np
+
 import utilities as utl
 import massivepy.constants as const
-import massivepy.IFUspectrum as ifu
+import massivepy.templates as temps
 import massivepy.spectrum as spec
+import massivepy.pPXFdriver as driveppxf
 
+
+
+# FIT SETTINGS
+setup_settings = { # from old settings files
+    "name":                     "testrun",
+    "template_lib_name":        'miles-massive',
+    "templates_to_use":         const.fullMILES_1600fullgalaxy_optimized,
+    "mask":                     [[4260.0, 4285.0],
+                                 [4775.0, 4795.0]],  # A
+    "error_simulation_trials":  0}
+fit_settings = { # from old settings files
+    "additive_degree":          0,
+    "multiplicative_degree":    7,
+    "moments_to_fit":           6,
+    "bias":                     0.0,
+    "v_guess":                  0,
+    "sigma_guess":              250,
+    "hn_guess":                 0,
+    "fit_range":                [3900.0, 5300.0]}  # A
 
 # defaults
 datamap = utl.read_dict_file(const.path_to_datamap)
-proc_cube_dir = datamap["proc_mitchell_cubes"]
 binned_dir = datamap["binned_mitchell"]
+results_dir = datamap["ppxf_results"]
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument("cubes", nargs='*', type=str,
-                    help="The processed Michell datacubes to bin, passed as "
-                         "a filename in the proc cube directory")
+parser.add_argument("bin_filebase", nargs='*', type=str,
+                    help="The filename suffix indicating the set of "
+                         "binned spectra to fit, i.e., "
+                         "bin_filebase.fits")
 parser.add_argument("--destination_dir", action="store",
-                    type=str, nargs=1, default=proc_cube_dir,
-                    help="Directory in which to place processed cubes")
+                    type=str, nargs=1, default=results_dir,
+                    help="Directory in which to place fit results")
 args = parser.parse_args()
-cube_paths = [os.path.normpath(os.path.join(proc_cube_dir, p))
-              for p in args.cubes]
-for path in cube_paths:
-    if (not os.path.isfile(path)) or (os.path.splitext(path)[-1] != ".fits"):
+binned_specsets_paths = [os.path.join(binned_dir, "{}.fits".format(p))
+                         for p in args.bin_filebase]
+binned_specsets_paths = map(os.path.normpath, binned_specsets_paths)
+for path in binned_specsets_paths:
+    if not os.path.isfile(path):
         raise ValueError("Invalid raw datacube path {}, "
                          "must be .fits file".format(path))
 dest_dir = os.path.normpath(args.destination_dir)
 if not os.path.isdir(dest_dir):
     raise ValueError("Invalid destination dir {}".format(dest_dir))
 
-for path in cube_paths:
-    # get bin layout
-    ifuset = ifu.read_mitchell_datacube(path)
-    ngc_match = re.search(const.re_ngc, path)
-    if ngc_match is None:
-        raise RuntimeError("No galaxy name found for path {}".format(path))
-    else:
-        ngc_num = ngc_match.groups()[0]
-    ngc_name = "NGC{}".format(ngc_num)
-    # bin
-    delta_lambda = (ifuset.spectrumset.spec_region[1] -
-                    ifuset.spectrumset.spec_region[0])
-    full_galaxy = ifuset.spectrumset.collapse(
-                                  weight_func=spec.SpectrumSet.compute_flux,
-                                  norm_func=spec.SpectrumSet.compute_flux,
-                                  norm_value=delta_lambda, id=0)
-    full_galaxy.comments["Binning"] = ("this spectrum is the coadditon "
-                                       "of all fibers in the galaxy")
-    bindesc = "full galaxy bin"
-    full_galaxy.name = bindesc
-    fibers_in_fullgalaxy = ifuset.spectrumset.ids.copy()
-    output_filename = ("{}_{}.fits"
-                       "".format(ngc_name, re.sub("\s*", "", bindesc)))
-    output_path = os.path.join(binned_dir, output_filename)
-    full_galaxy.write_to_fits(output_path)
+# get templates
+temps_dir = datamap["template_libraries"]
+temp_path = os.path.join(temps_dir, setup_settings["template_lib_name"])
+full_template_library = temps.read_miles_library(temp_path)
+template_library = full_template_library.get_subset(setup_settings["templates_to_use"])
+# set masking
+for path in binned_specsets_paths:
+    specset = spec.read_datacube(path)
+    masked = utl.in_union_of_intervals(specset.waves, setup_settings["mask"])
+    for spec_iter in xrange(specset.num_spectra):
+        specset.metaspectra["bad_data"][spec_iter, :] = (
+            specset.metaspectra["bad_data"][spec_iter, :] | masked)
+
+    # do fits
+    driver = driveppxf.pPXFDriver(spectra=specset,
+                                  templates=template_library,
+                                  fit_settings=fit_settings)
+    results = driver.run_fit()
+    output_path = os.path.join(dest_dir, "ppxf_output_full.txt")
+    np.savetxt(output_path, results)

@@ -83,8 +83,8 @@ class TemplateLibrary(object):
                              "greater than the current resolution")
         fwhm_to_add = np.sqrt(delta_var)
         sigma_to_add = fwhm_to_add/const.gaussian_fwhm_over_sigma
-        self.spectrumset = self.spectrumset.gaussian_convolve(sigma_to_add)
-        return
+        new_specset = self.spectrumset.gaussian_convolve(sigma_to_add)
+        return TemplateLibrary(spectrumset=new_specset, catalog=self.catalog)
 
 
 def miles_number_to_filename(num):

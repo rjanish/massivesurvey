@@ -23,7 +23,7 @@ parser.add_argument("cubes", nargs='*', type=str,
                     help="The processed Michell datacubes to bin, passed as "
                          "a filename in the proc cube directory")
 parser.add_argument("--destination_dir", action="store",
-                    type=str, nargs=1, default=proc_cube_dir,
+                    type=str, nargs=1, default=binned_dir, # TO DO: check this usage below
                     help="Directory in which to place processed cubes")
 args = parser.parse_args()
 cube_paths = [os.path.normpath(os.path.join(proc_cube_dir, p))

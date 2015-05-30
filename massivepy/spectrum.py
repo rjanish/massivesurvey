@@ -230,7 +230,7 @@ class SpectrumSet(object):
         return logscale
 
     def is_log_sampled(self):
-         """ Check if wavelengths are log spaced. Boolean output. """
+        """ Check if wavelengths are log spaced. Boolean output. """
         try:
             self.get_logscale()
             return True
@@ -294,22 +294,20 @@ class SpectrumSet(object):
             If given, spectra will be re-sampled using the passed
             logscale. If not specified, re-sampling will instead
             preserve the number of data points.
-
-        Return: logscale
-        logscale - float
-            The logscale of the now re-sampled spectrum
         """
         if self.is_log_sampled():
             if target_logscale is None:
                 warnings.warn("spectra is already log-spaced - aborting "
-                              "log_resample since no target logscale given")
+                              "log_resample since no target logscale given",
+                               RuntimeWarning)
                 return
             current_logscale = self.get_logscale()
-            logscale_match = np.abolute(target_logscale -
+            logscale_match = np.absolute(target_logscale -
                                         current_logscale) < const.float_tol
             if logscale_match:
                 warnings.warn("spectra already has desired "
-                              "logscale, aborting log_resample")
+                              "logscale, aborting log_resample",
+                               RuntimeWarning)
                 return
         # re-sampling is required
         inward_scaling = 1 + np.array([1, -1])*const.float_tol
@@ -325,43 +323,52 @@ class SpectrumSet(object):
         self.resample(new_waves)
         return
 
-    def linear_resample(self, step=None):
+    def linear_resample(self, target_wavescale=None):
         """
         Re-sample spectra to have linear spacing.
 
-        The re-sampling can be done either with a given step size, or
+        The re-sampling can be done either with a given wavescale, or
         by preserving the number of sample points. The spectral region
         will be preserved in either case (save for a small inward
         shift due to roundoff).
 
-        The step used here is defined to be:
-        $ \lambda_{n + 1} - \lambda{n} = step $
+        The wavescale used here is defined to be:
+        $ \lambda_{n + 1} - \lambda{n} = wavescale $
 
         New spectra and metadata values are computed by resample.
         
         Args:
-        step - float, default=None
+        target_wavescale - float, default=None
             If given, spectra will be re-sampled using the passed
-            step. If not specified, re-sampling will instead
+            wavescale. If not specified, re-sampling will instead
             preserve the number of data points.
-
-        Return: step
-        step - float
-            The step of the now re-sampled spectrum
         """
         if self.is_linear_sampled():
-            raise ValueError("Spectrum is already linear-sampled.")
+            if target_wavescale is None:
+                warnings.warn("spectra is already linear-spaced - "
+                              "aborting linear_resample since no "
+                              "target wavescale given",
+                              RuntimeWarning)
+                return
+            current_wavescale = self.get_wavescale()
+            wavescale_match = np.abolute(target_wavescale -
+                                         current_wavesscale) < const.float_tol
+            if wavescale_match:
+                warnings.warn("spectra already has desired "
+                              "wavescale, aborting linear_resample",
+                              RuntimeWarning)
+                return
+        # re-sampling is required
         inward_scaling = 1 + np.array([1, -1])*const.float_tol
         new_ends = self.spec_region*inward_scaling
             # prevents unintended extrapolation due to roundoff
-        if step is None:  # preserve sample number
+        if target_wavescale is None:  # preserve sample number
             new_waves = np.linspace(new_ends[0], new_ends[1],
                                     self.num_samples)
-            step = new_waves[1] - new_waves[0]
+            target_wavescale = new_waves[1] - new_waves[0]
         else:  # fix step size
-            new_waves = np.arange(new_ends[0], new_ends[1], step)
+            new_waves = np.arange(new_ends[0], new_ends[1], target_wavescale)
         self.resample(new_waves)
-        return step
 
     def compute_flux(self, interval=None, ids=None):
         """

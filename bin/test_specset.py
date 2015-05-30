@@ -60,9 +60,34 @@ delta_lambda = binned.spec_region[1] - binned.spec_region[0]
 binned = binned.get_normalized(norm_func=spec.SpectrumSet.compute_flux,
                                norm_value=delta_lambda)
 
-print 's2n all fibers'
 s2n_fibers = specset.compute_mean_s2n()
-print 's2n done'
-print 's2n combined'
 s2n_binned = binned.compute_mean_s2n()
-print 's2n combined'
+
+print "log:", specset.is_log_sampled()
+print "linear:", specset.is_linear_sampled()
+print "to linear"
+specset.linear_resample()
+print "now linear"
+print "lin scale", specset.get_wavescale()
+print "log re-sampling:"
+print "num points", specset.waves.shape
+specset.log_resample()
+print "now log"
+print "num points", specset.waves.shape
+print "try to log again"
+specset.log_resample()
+print "try with halved step"
+current_logscale = specset.get_logscale()
+specset.log_resample(current_logscale/2.0)
+print "num points", specset.waves.shape
+print "back to linear"
+specset.linear_resample()
+print "now linear"
+try:
+    lin = specset.get_wavescale()
+except Exception, msg:
+    print msg
+print "try to linear again"
+specset.linear_resample()
+print "num points", specset.waves.shape
+print "lin scale", specset.get_wavescale()

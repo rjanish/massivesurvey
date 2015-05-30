@@ -200,18 +200,42 @@ class SpectrumSet(object):
                                  mask=mask, fill_value=np.nan)
         return masked
 
+    def get_wavescale(self):
+        """ Return the wavelength step, whining if not linear spaced """
+        delta = self.waves[1:] - self.waves[:-1]
+        wavescale = delta[0]
+        residual = np.absolute(delta - wavescale).max()
+        is_linear_sampled = residual < const.float_tol
+        if not is_linear_sampled:
+            raise ValueError("spectra are not linear-sampled")
+        return wavescale
+
     def is_linear_sampled(self):
         """ Check if wavelengths are linear spaced. Boolean output. """
-        delta = self.waves[1:] - self.waves[:-1]
-        residual = np.absolute(delta - delta[0]).max()
-        return residual < const.float_tol
+        try:
+            self.get_wavescale()
+            return True
+        except ValueError:
+            return False
 
-    def is_log_sampled(self):
-        """ Check if wavelengths are log spaced. Boolean output. """
+    def get_logscale(self):
+        """ Return the log-wavelength step, whining if not log spaced """
         log_waves = np.log(self.waves)
         delta = log_waves[1:] - log_waves[:-1]
-        residual = np.absolute(delta - delta[0]).max()
-        return residual < const.float_tol
+        logscale = delta[0]
+        residual = np.absolute(delta - logscale).max()
+        is_log_sampled = residual < const.float_tol
+        if not is_log_sampled:
+            raise ValueError("spectra are not log-sampled")
+        return logscale
+
+    def is_log_sampled(self):
+         """ Check if wavelengths are log spaced. Boolean output. """
+        try:
+            self.get_logscale()
+            return True
+        except ValueError:
+            return False
 
     def resample(self, new_waves):
         """
@@ -251,7 +275,7 @@ class SpectrumSet(object):
         self.spec_region = np.asarray([new_waves.min(), new_waves.max()])
         return
 
-    def log_resample(self, logscale=None):
+    def log_resample(self, target_logscale=None):
         """
         Re-sample spectra to have logarithmic spacing.
 
@@ -266,7 +290,7 @@ class SpectrumSet(object):
         New spectra and metadata values are computed by resample.
 
         Args:
-        logscale - float, default=None
+        target_logscale - float, default=None
             If given, spectra will be re-sampled using the passed
             logscale. If not specified, re-sampling will instead
             preserve the number of data points.
@@ -276,19 +300,30 @@ class SpectrumSet(object):
             The logscale of the now re-sampled spectrum
         """
         if self.is_log_sampled():
-            raise ValueError("Spectrum is already log-sampled.")
+            if target_logscale is None:
+                warnings.warn("spectra is already log-spaced - aborting "
+                              "log_resample since no target logscale given")
+                return
+            current_logscale = self.get_logscale()
+            logscale_match = np.abolute(target_logscale -
+                                        current_logscale) < const.float_tol
+            if logscale_match:
+                warnings.warn("spectra already has desired "
+                              "logscale, aborting log_resample")
+                return
+        # re-sampling is required
         inward_scaling = 1 + np.array([1, -1])*const.float_tol
         new_spec_region = self.spec_region*inward_scaling
             # prevents unintended extrapolation due to roundoff
         log_ends = np.log(new_spec_region)
-        if logscale is None:  # preserve sample number
+        if target_logscale is None:  # preserve sample number
             log_w = np.linspace(log_ends[0], log_ends[1], self.num_samples)
-            logscale = log_w[1] - log_w[0]
+            target_logscale = log_w[1] - log_w[0]
         else:  # fix log-spacing
-            log_w = np.arange(log_ends[0], log_ends[1], logscale)
+            log_w = np.arange(log_ends[0], log_ends[1], target_logscale)
         new_waves = np.exp(log_w)
         self.resample(new_waves)
-        return logscale
+        return
 
     def linear_resample(self, step=None):
         """

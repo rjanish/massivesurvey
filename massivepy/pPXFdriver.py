@@ -30,11 +30,12 @@ class pPXFDriver(object):
     exact record of the fit, and I/O methods are provided to simplify
     recording of individual results.
     """
-    REQUIRED_SETTINGS = ["additive_degree", "multiplicative_degree",
-                         "moments_to_fit", "bias", "v_guess", "sigma_guess",
-                         "hn_guess", "fit_range"]
+    PPXF_REQUIRED_INPUTS = ["add_deg":int, "mul_deg":int,
+                            "num_moments":int, "bias":float,]
+        # These are input parameters and types needed by pPXF's caller
 
-    def __init__(self, spectra=None, templates=None, **kwargs):
+    def __init__(self, spectra=None, templates=None,
+                 fit_range=None, initial_gh=None, **kwargs):
         """
         Args:
         spectra - SpectraSet object
@@ -45,6 +46,10 @@ class pPXFDriver(object):
         """
         self.spectra = copy.deepcopy(spectra)
         self.templates = copy.deepcopy(templates)
+        self.fit_range = np.asarray(fit_range, dtype=float)
+        if self.fit_range.shape != (2,):
+            rasie ValueError("Invalid fit range shape {}"
+                             "".format(self.fit_range.shape))
         if "settings" in kwargs:
             self.settings = dict(settings)
         else:
@@ -53,18 +58,26 @@ class pPXFDriver(object):
             if setting not in self.settings:
                 raise ValueError("{} must be specified to fit spectra"
                                  "".format(setting))
+        self.settings = [setting:PPXF_REQUIRED_INPUTS[setting](value)
+                         for setting, value in self.settings.iteritems()]
+        self.initial_gh = np.asarray(initial_gh, dtype=float)
+        if self.initial_gh.shape != (self.settings["num_moments"],):
+            rasie ValueError("Invalid starting gh parameters shape {}, "
+                             "must match number of moments to fit {}"
+                             "".format(self.initial_gh.shape,
+                                       self.settings["num_moments"]))
         # prepare copied spectra
         try:
             self.spectra.log_resample()
         except ValueError, msg:
             print "skipping spectra log_resample ({})".format(msg)
         self.to_fit = utl.in_linear_interval(self.spectra.waves,
-                                             self.settings["fit_range"])
-        self.target_flux = (self.settings["fit_range"][1] -
-                            self.settings["fit_range"][0])
-            # this sets numerical spectral values near 1
+                                             self.fit_range)
+        self.target_flux = self.fit_range[1] - self.fit_range[0]
+            # normalizing the flux to equal the numerical wavelength
+            # range sets the numerical spectral values near 1
         self.get_flux = functools.partial(spec.SpectrumSet.compute_flux,
-                                          interval=self.settings["fit_range"])
+                                          interval=self.fit_range)
             # this computes the flux of a SpectrumSet only within the
             # fitting range - useful for normalization of templates
         self.get_flux.__name__ = "compute_flux_of_fitting_region"
@@ -72,26 +85,18 @@ class pPXFDriver(object):
                                                    norm_value=target_flux)
 
 
+
+
     def run_fit(self):
         """
         """
-        add_deg = int(self.settings["additive_degree"])
-        mul_deg = int(self.settings["multiplicative_degree"])
-        num_moments = int(self.settings["moments_to_fit"])
-        bias = float(self.settings["bias"])
-        v_guess = float(self.settings["v_guess"])
-        sigma_guess = float(self.settings["sigma_guess"])
-        hn_guess = float(self.settings["hn_guess"])
-        fit_range = np.asarray(self.settings["fit_range"])
-        guess = ([v_guess, sigma_guess] +
-                 [hn_guess]*int(num_moments - 2))
-        results = np.zeros((self.spectra.num_spectra, num_moments + 2))
-        for bin_iter, bin_num in enumerate(self.spectra.ids):
-            print "fitting bin {}".format(bin_num)
-            single_spec = self.spectra.get_subset([bin_num])
-            print "cropping to {}".format(fit_range)
-            single_spec = single_spec.crop(fit_range)
-            print single_spec.waves.min(), single_spec.waves.max()
+        for spec_iter, spec_id in enumerate(self.spectra.ids):
+            target_spec = self.spectra.get_subset([bin_num])
+            target_spec = target_spec.crop(self.fit_range)
+            exact_fit_range = utl.min_max(target_spec.waves)
+
+            matched_library = self.prepare_library(target_spec)
+
             # construct matched-resolution library
             spec_ir = self.spectra.metaspectra["ir"][0, :]
             spec_waves = self.spectra.waves
@@ -105,10 +110,10 @@ class pPXFDriver(object):
             ir_to_match = np.asarray([single_ir_to_match,]*num_temps)
             matched_library = self.templates.match_resolution(ir_to_match)
             # resample
-            logscale = np.log(single_spec.waves[1]/single_spec.waves[0])
+            logscale = np.log(target_spec.waves[1]/target_spec.waves[0])
             matched_library.spectrumset.log_resample(logscale)
             # norm
-            [spec_flux] = single_spec.compute_flux()
+            [spec_flux] = target_spec.compute_flux()
             fitregion_flux = functools.partial(spec.SpectrumSet.compute_flux,
                                                interval=fit_range)
             fitregion_flux.__name__ = "compute_flux_of_fitting_region"
@@ -118,28 +123,16 @@ class pPXFDriver(object):
             matched_library.spectrumset = matched_library.spectrumset.get_normalized(
                 norm_func=fitregion_flux, norm_value=spec_flux)
 
-              # DEBUG
-            test_output = "results-ppxf/matched_lib_bin{:02d}.fits".format(bin_num)
-            matched_library.spectrumset.write_to_fits(test_output)
-            print "lib status test:"
-            print "spec flux", single_spec.compute_flux()
-            print "tlib flux", matched_library.spectrumset.compute_flux(interval=fit_range)
-            print "spec samples", single_spec.is_log_sampled(), np.log(single_spec.waves[1]/single_spec.waves[0])
-            print "tlib samples", matched_library.spectrumset.is_log_sampled(), np.log(matched_library.spectrumset.waves[1]/matched_library.spectrumset.waves[0])
-            print "spec ir", single_ir_to_match
-            print "tlib ir", matched_library.spectrumset.metaspectra["ir"][0, :]
-            print "tlib ir std", matched_library.spectrumset.metaspectra["ir"].std(axis=0).max()
-              # DEBUG
-
             # do fit
-            log_temp_initial = np.log(matched_library.spectrumset.waves.min())
-            log_spec_initial = np.log(single_spec.waves.min())
+            template_range = utl.min_max(matched_library.spectrumset.waves)
+            log_temp_initial = np.log(template_range[0])
+            log_spec_initial = np.log(exact_fit_range[0])
             velocity_offset = (log_temp_initial - log_spec_initial)*const.c_kms
             velscale = logscale*const.c_kms
-            good_pixels_indicies = np.nonzero(~single_spec.metaspectra["bad_data"][0])[0]
+            good_pixels_indicies = np.nonzero(~target_spec.metaspectra["bad_data"][0])[0]
             ppxf_fitter = ppxf.ppxf(matched_library.spectrumset.spectra.T, # templates in cols
-                               single_spec.spectra[0],
-                               single_spec.metaspectra["noise"][0],
+                               target_spec.spectra[0],
+                               target_spec.metaspectra["noise"][0],
                                velscale, guess,
                                goodpixels=good_pixels_indicies,
                                bias=bias, moments=num_moments,

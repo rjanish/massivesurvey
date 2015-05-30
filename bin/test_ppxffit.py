@@ -16,22 +16,19 @@ import massivepy.pPXFdriver as driveppxf
 
 
 # FIT SETTINGS
-setup_settings = { # from old settings files
+setup_settings = {
     "name":                     "testrun",
     "template_lib_name":        'miles-massive',
     "templates_to_use":         const.fullMILES_1600fullgalaxy_optimized,
     "mask":                     [[4260.0, 4285.0],
                                  [4775.0, 4795.0]],  # A
     "error_simulation_trials":  0}
-fit_settings = { # from old settings files
-    "additive_degree":          0,
-    "multiplicative_degree":    7,
-    "moments_to_fit":           6,
-    "bias":                     0.0,
-    "v_guess":                  0,
-    "sigma_guess":              250,
-    "hn_guess":                 0,
-    "fit_range":                [3900.0, 5300.0]}  # A
+gh_init = [0, 250, 0, 0, 0, 0]
+fit_range = [3900.0, 5300.0]
+fit_settings = {"add_deg":     0,
+                "mul_deg":     7,
+                "num_moments": 6,
+                "bias":        0.0}  # A
 
 # defaults
 datamap = utl.read_dict_file(const.path_to_datamap)
@@ -76,7 +73,7 @@ for path in binned_specsets_paths:
     # do fits
     driver = driveppxf.pPXFDriver(spectra=specset,
                                   templates=template_library,
-                                  fit_settings=fit_settings)
+                                  fit_range=fit_range,
+                                  initial_gh=gh_init,
+                                  **fit_settings)
     results = driver.run_fit()
-    output_path = os.path.join(dest_dir, "ppxf_output_full.txt")
-    np.savetxt(output_path, results)

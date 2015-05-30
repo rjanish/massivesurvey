@@ -256,18 +256,18 @@ class SpectrumSet(object):
         new_spectra = np.zeros(new_spec_shape)
         new_metaspectra = {}
         for name in self.metaspectra:
-            new_metaspectra[name] = np.zeros(new_spec_shape)
+            if name == 'bad_data':
+                new_metaspectra[name] = np.zeros(new_spec_shape, dtype=bool)
+            else:
+                new_metaspectra[name] = np.zeros(new_spec_shape, dtype=float)
         for spec_index in xrange(self.num_spectra):
             spec_func = inter.interp1d(self.waves, self.spectra[spec_index])
             new_spectra[spec_index] = spec_func(new_waves)
             for name, mspec in self.metaspectra.iteritems():
                 mspec_func = inter.interp1d(self.waves, mspec[spec_index])
                 new_mspec_values = mspec_func(new_waves)
-                if name == 'bad_data':
-                    new_mspec_values = new_mspec_values.astype(bool)
-                        # re-sampled data is valid only if the nearest
-                        # bracketing old-sampling values are both valid
                 new_metaspectra[name][spec_index] = new_mspec_values
+                    # this silently casts 'bad_data' values to bool
         self.spectra = new_spectra
         self.metaspectra = new_metaspectra
         self.waves = new_waves

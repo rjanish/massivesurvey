@@ -45,7 +45,7 @@ class TemplateLibrary(object):
         if not index_matches:
             raise ValueError("Invalid catalog index - does "
                              "not match the given spectral ids")
-
+            
     def get_subset(self, ids):
         """
         Extract subset of the library with the passed spectrum ids. A

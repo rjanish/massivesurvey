@@ -71,7 +71,7 @@ directories on the PYTHONPATH):
 
 Require public python scripts (these are not packages, but collections of
 scripts - the directories that hold each such collection must itself be
-on the PYTHONPATH:
+on the PYTHONPATH):
 - ppxf
 - mpfit
 

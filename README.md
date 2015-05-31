@@ -24,12 +24,11 @@ As much as possible, the software tries to be agnostic about the lay-out of dire
 give paths to the locations of important dataset. But, **the location of the configuration files is hard-wired**. The directory structure is assumed to contain the following:
 
 massive/
+- etc/
+..- datamap.txt
 
-|-- etc/
-
-|   |-- datamap.txt
-
-Analysis scripts are run from the top-level directory, here called *massive* though any name could be used.  The directory etc/ contains the configuration
+Analysis scripts are run from the top-level directory, here called *massive*
+though any name could be used.  The directory etc/ contains the configuration
 files, and its name **is** assumed by the software. The module
 massivepy.constants contains hard-coded paths to the conifg files in etc/,
 specified relative to the top-level directory (massive/). To locate data,
@@ -42,7 +41,8 @@ The config files are *dictionary files*, as read by the function *read_dict_file
 
 The file etc/datamap.txt describes the locations of mostly-static data, and
 should include the entries:
-- template_libraries - points to the directory containing stellar template libraries
+- template_libraries - points to the directory containing stellar template
+libraries
 - raw_mitchell_cubes - points to the directory containing raw Mitchell IFU
 datacubes (i.e., the datacubes results from Jenny Greene's processing of
 Vaccine output)

@@ -71,7 +71,7 @@ Require public python scripts:
 - ppxf
 - mpfit
 
-## Running Analysis
+## Usage
 
 Analysis scripts are found in bin/, and should behave as proper unix
 command-line programs. The calculations performed and usage of each script

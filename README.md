@@ -23,11 +23,9 @@ command-line manual, viewable by running: $ python -h *path_to_script.py*.
 As much as possible, the software tries to be agnostic about the lay-out of directories and data. This is achieved by a set of configuration files that
 give paths to the locations of important dataset. But, **the location of the configuration files is hard-wired**. The directory structure is assumed to contain the following:
 
-  massive/
-
-    etc/
-
-      datamap.txt
+massive/
+|-- etc/
+|   |-- datamap.txt
 
 Analysis scripts are run from the top-level directory, here called *massive* though any name could be used.  The directory etc/ contains the configuration
 files, and its name **is** assumed by the software. The module
@@ -43,10 +41,15 @@ The config files are *dictionary files*, as read by the function *read_dict_file
 The file etc/datamap.txt describes the locations of mostly-static data, and
 should include the entries:
 - template_libraries - points to the directory containing stellar template libraries
-- raw_mitchell_cubes - points to the directory containing raw Mitchell IFU datacubes (i.e., the datacubes results from Jenny Greene's processing of Vaccine output)
-proc_mitchell_cubes - points to the directory containing Mitchell IFU datacubes processed for MASSIVE analysis
-target_positions - points to the file containing galaxy center coordinates and position angles
-binned_mitchell -  points to the directory containing binned Mitchell IFU data
+- raw_mitchell_cubes - points to the directory containing raw Mitchell IFU
+datacubes (i.e., the datacubes results from Jenny Greene's processing of
+Vaccine output)
+- proc_mitchell_cubes - points to the directory containing Mitchell IFU
+datacubes processed for MASSIVE analysis
+- target_positions - points to the file containing galaxy center coordinates
+and position angles
+- binned_mitchell -  points to the directory containing binned Mitchell IFU
+data
 
 ### Other Software
 Required third-party public python packages:

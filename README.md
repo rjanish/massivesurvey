@@ -22,10 +22,9 @@ command-line manual, viewable by running: $ python -h *path_to_script.py*.
 ### Directory Structure
 As much as possible, the software tries to be agnostic about the lay-out of directories and data. This is achieved by a set of configuration files that
 give paths to the locations of important dataset. But, **the location of the configuration files is hard-wired**. The directory structure is assumed to contain the following:
-
-massive/
-- etc/
-  - datamap.txt
+- massive/
+  - etc/
+    - datamap.txt
 
 Analysis scripts are run from the top-level directory, here called *massive*
 though any name could be used.  The directory etc/ contains the configuration

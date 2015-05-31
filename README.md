@@ -53,7 +53,8 @@ and position angles
 data
 
 ### Other Software
-Required third-party public python packages:
+Required third-party public python packages (these packages need to reside
+in directories on the PYTHONPATH):
 - numpy
 - scipy
 - pandas
@@ -62,12 +63,15 @@ Required third-party public python packages:
 - descartes
 - astropy
 
-Required private python packages:
+Required private python packages (these packages need to reside in
+directories on the PYTHONPATH):
 - utilities
 - plotting
 - fitting
 
-Require public python scripts:
+Require public python scripts (these are not packages, but collections of
+scripts - the directories that hold each such collection must itself be
+on the PYTHONPATH:
 - ppxf
 - mpfit
 

@@ -25,7 +25,7 @@ give paths to the locations of important dataset. But, **the location of the con
 
 massive/
 - etc/
-..- datamap.txt
+  - datamap.txt
 
 Analysis scripts are run from the top-level directory, here called *massive*
 though any name could be used.  The directory etc/ contains the configuration

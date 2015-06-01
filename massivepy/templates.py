@@ -77,8 +77,8 @@ class TemplateLibrary(object):
             warnings.warn("Templates already have the target spectral "
                           "resolution, skipping convolution", RuntimeWarning)
             return
-        decrease_fwhm = np.any(delta_var < 0.0)
-        if decrease_fwhm:
+        attempted_decrease = np.any(delta_var < 0.0)
+        if attempted_decrease:
             raise ValueError("Invalid target resolution - must be "
                              "greater than the current resolution")
         fwhm_to_add = np.sqrt(delta_var)

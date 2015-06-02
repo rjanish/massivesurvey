@@ -36,7 +36,7 @@ needed entries from the config files in etc/.  The contents and format of
 these config files is also assumed by the software, and is detailed below.
 
 ### Config Files
-The config files are *dictionary files*, as read by the function *read_dict_file* in the python packing *utilities*.
+The config files are dictionary files, as read by the function read_dict_file in the python package utilities.
 
 The file etc/datamap.txt describes the locations of mostly-static data, and
 should include the entries:

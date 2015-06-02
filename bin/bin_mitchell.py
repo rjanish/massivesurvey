@@ -1,4 +1,9 @@
-""" construct polar, s/n threshold binning of Mitchell fibers """
+"""
+Construct polar, S/N threshold binning of Mitchell IFU fibers.
+
+output:
+  One binned datacube per input unbinned datacube
+"""
 
 
 import os
@@ -27,21 +32,24 @@ datamap = utl.read_dict_file(const.path_to_datamap)
 proc_cube_dir = datamap["proc_mitchell_cubes"]
 binned_dir = datamap["binned_mitchell"]
 target_positions = pd.read_csv(datamap["target_positions"],
-                               comment='#', sep="[ \t]+")
+                               comment='#', sep="[ \t]+",
+                               engine='python')
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("cubes", nargs='*', type=str,
-                    help="The processed Michell datacubes to bin, passed as "
-                         "a filename in the proc cube directory")
+                    help="The processed Michell datacubes to bin, "
+                         "passed as paths from the processed "
+                         "Mitchell datacube directory")
 parser.add_argument("--destination_dir", action="store",
                     type=str, nargs=1, default=proc_cube_dir,
-                    help="Directory in which to place processed cubes")
+                    help="Directory in which to place binned datacubes")
 parser.add_argument("-s2n", action="store", type=float,
-                    help="The s2n threshold to use in binning")
+                    help="The s2n threshold to use for binning")
 parser.add_argument("-ar", action="store", type=float,
-                    help="The target aspect ratio (arc_length/delta_radius)")
+                    help="The target bin aspect ratio "
+                         "(arc_length/delta_radius)")
 args = parser.parse_args()
 cube_paths = [os.path.normpath(os.path.join(proc_cube_dir, p))
               for p in args.cubes]

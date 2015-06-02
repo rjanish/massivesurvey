@@ -14,6 +14,10 @@ The changes are:
     listed, though the spectrum file m0221V exists. It must be a typo,
     which is corrected in the new index: '022.' -> '0221'
 These changes are hard-coded into the first few lines of this script.
+
+output:
+  processed MILES library, as a directory containing a catalog file, a
+  library README, and a subdirectory of template spectra
 """
 
 
@@ -69,7 +73,8 @@ NEW_SPECTRA_SUBDIR = 'spectra' # location of raw MILES spectra
 parser = argparse.ArgumentParser(description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("new_libname", type=str,
-                    help="name of the new processed library")
+                    help="name of the new processed library, will also be "
+                         "used as name of the new library's directory")
 args = parser.parse_args()
 new_libname = args.new_libname
 # get raw MILES library locations

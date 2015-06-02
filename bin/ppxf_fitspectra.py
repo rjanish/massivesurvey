@@ -1,5 +1,14 @@
-""" bin all Mitchell fibers into full-galaxy bin"""
+"""
+This is a temporary testing script!
 
+This script accepts spectral datacubes and fits each spectrum therein
+using pPXF. The fit settings are currently hardcoded in the first few
+lines.
+
+output:
+    One file per input spectra datacube, contaminating the best-fit
+    Gauss-Hermite kinematic parameters of the input spectra.
+"""
 
 import os
 import re
@@ -36,18 +45,17 @@ fit_settings = { # from old settings files
 # defaults
 datamap = utl.read_dict_file(const.path_to_datamap)
 binned_dir = datamap["binned_mitchell"]
-results_dir = datamap["ppxf_results"]
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument("bin_filebase", nargs='*', type=str,
                     help="The filename suffix indicating the set of "
-                         "binned spectra to fit, i.e., "
-                         "bin_filebase.fits")
+                         "binned spectra to fit, e.g. passing 'ngc5557' "
+                         "will fit the datacube ngc5557.fits. Files are "
+                         "searched for in the binned Mitchell directory.")
 parser.add_argument("--destination_dir", action="store",
-                    type=str, nargs=1, default=results_dir,
-                    help="Directory in which to place fit results")
+                    help="Directory in which to place the fit results.")
 args = parser.parse_args()
 binned_specsets_paths = [os.path.join(binned_dir, "{}.fits".format(p))
                          for p in args.bin_filebase]

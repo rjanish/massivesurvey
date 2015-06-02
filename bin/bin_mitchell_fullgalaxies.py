@@ -1,9 +1,9 @@
 """
-Combines all fibers in an unbinned Mitchell datacube into a single spectrum.
+Combines all fibers in an unbinned Mitchell datacube into one spectrum
 
-0utput:
-  One binned datacube per input unbinned datacube, with the output datacubes
-  containing 1 binned spectrum each.
+output:
+  One binned datacube per input unbinned datacube, with the output
+  datacubes containing 1 binned spectrum each.
 """
 
 
@@ -25,11 +25,12 @@ binned_dir = datamap["binned_mitchell"]
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument("cubes", nargs='*', type=str,
-                    help="The processed Michell datacube to bin, passed as "
-                         "a filename in the proc cube directory")
+parser.add_argument("cubes", nargs='*',
+                    help="The processed Michell datacubes to bin, "
+                         "passed as paths from the processed "
+                         "Mitchell datacube directory")
 parser.add_argument("--destination_dir", action="store",
-                    type=str, nargs=1, default=binned_dir, # TO DO: check this usage below
+                    default=binned_dir, # TO DO: check this usage below
                     help="Directory in which to place binned spectrum")
 args = parser.parse_args()
 cube_paths = [os.path.normpath(os.path.join(proc_cube_dir, p))

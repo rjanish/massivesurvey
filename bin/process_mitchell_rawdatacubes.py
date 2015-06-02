@@ -2,9 +2,13 @@
 Process the raw Mitchell datacubes into a format more accessible
 for binning and fitting.
 
-The arc frames will be fit by Gaussian line profiles and replaced with
-samples of fwhm(lambda) for each fiber, and the (RA, Dec) coordinates
-will be transformed into projected Cartesian arcseconds.
+The changes are:
+ - Coordinates converted from (RA, DEC) to projected Cartesian arcsec
+ - Arc frames are fit by Gaussian line profiles and replaced with the
+   resulting samples of fwhm(lambda) for each fiber
+
+output:
+    one processed data for each input raw datacube
 """
 
 
@@ -27,7 +31,8 @@ datamap = utl.read_dict_file(const.path_to_datamap)
 raw_cube_dir = datamap["raw_mitchell_cubes"]
 proc_cube_dir = datamap["proc_mitchell_cubes"]
 target_positions = pd.read_csv(datamap["target_positions"],
-                               comment='#', sep="[ \t]+")
+                               comment='#', sep="[ \t]+",
+                               engine='python')
 output_filename = lambda gal_name: "{}_mitchellcube.fits".format(gal_name)
 
 # get cmd line arguments
@@ -37,15 +42,15 @@ parser.add_argument("cubes", nargs='*', type=str,
                     help="The raw Michell datacubes to process, passed as "
                          "either a path to the cube or a galaxy name. Paths "
                          "are matched first in the current directory and "
-                         "then in the MASSIVE Mitchell cube storage dir, "
+                         "then in the MASSIVE Mitchell raw datacube dir, "
                          "while for passed galaxy names matching cubes are "
-                         "searched for only in the cube storage directory.")
+                         "searched for only in the raw datacube directory.")
 parser.add_argument("--all", action="store_true",
                     help="Process all raw Michell datacubes located in "
-                         "the MASSIVE Mitchell cube storage directory")
+                         "the MASSIVE Mitchell raw datacube directory")
 parser.add_argument("--destination_dir", action="store",
                     type=str, nargs=1, default=proc_cube_dir,
-                    help="Directory in which to place processed cubes")
+                    help="Directory in which to place processed datacubes")
 args = parser.parse_args()
 if args.all:
     cube_paths = utl.re_filesearch(r".*\.fits", raw_cube_dir)[0]

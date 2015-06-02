@@ -15,7 +15,7 @@ Calculations are done by executing the scripts found in bin/. These scripts
 are indented to be small, a few hundred lines, and execute only one logical
 piece of analysis. They will handle I/O of data and the logging of the analysis, while making calls to massivepy for significant calculation. The
 purpose and usage of each of these scripts is described in its docstring and
-command-line manual, viewable by running: $ python -h *path_to_script.py*.
+command-line manual, viewable by running: $ python *path_to_script.py* -h.
 
 ## Requirements
 
@@ -79,6 +79,6 @@ on the PYTHONPATH):
 
 Analysis scripts are found in bin/, and should behave as proper unix
 command-line programs. The calculations performed and usage of each script
-is detailed in its help menu: $ python -h *path_to_script.py*.
+is detailed in its help menu: $ python *path_to_script.py* -h.
 
 The scripts in bin/ are indented to be run from the top-level directory (see above), regardless of the actual location of bin/.

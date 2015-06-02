@@ -86,12 +86,12 @@ class pPXFDriver(object):
         """
         """
         # match spectral resolution
-        spec_ir_test = target_spec.test_ir[0]
-        spec_ir_inerp_func = utl.interp1d_constextrap(spec_ir_test[:, 0],
-                                                      spec_ir_test[:, 1])
-        # spec_waves = target_spec.waves
-        # spec_ir = target_spec.metaspectra["ir"][0]
-        # spec_ir_inerp_func = utl.interp1d_constextrap(spec_waves, spec_ir)
+        # spec_ir_test = target_spec.test_ir[0]
+        # spec_ir_inerp_func = utl.interp1d_constextrap(spec_ir_test[:, 0],
+        #                                               spec_ir_test[:, 1])
+        spec_waves = target_spec.waves
+        spec_ir = target_spec.metaspectra["ir"][0]
+        spec_ir_inerp_func = utl.interp1d_constextrap(spec_waves, spec_ir)
             # use to get ir(template_waves); this will require some
             # extrapolation beyond the spectra wavelength range, which
             # the above function will do as a constant
@@ -104,9 +104,9 @@ class pPXFDriver(object):
         logscale = target_spec.get_logscale()
         matched_library.spectrumset.log_resample(logscale)
         # norm
-        matched_library.spectrumset = (
-            matched_library.spectrumset.get_normalized(
-                norm_func=self.get_flux, norm_value=self.target_flux))
+        # matched_library.spectrumset = (
+            # matched_library.spectrumset.get_normalized(
+                # norm_func=self.get_flux, norm_value=self.target_flux))
         return matched_library
 
     def get_old_library(self, target_spec):
@@ -135,15 +135,13 @@ class pPXFDriver(object):
         output = []
         for spec_iter, target_id in enumerate(self.spectra.ids):
             target_spec = self.spectra.get_subset([target_id])
-            # target_spec = target_spec.crop(self.fit_range) # testing
+            target_spec = target_spec.crop(self.fit_range) # testing
             exact_fit_range = utl.min_max(target_spec.waves)
-            # matched_library = self.prepare_library(target_spec)
-            matched_library = self.get_old_library(target_spec)
+            matched_library = self.prepare_library(target_spec)
+            # matched_library = self.get_old_library(target_spec)
             template_range = utl.min_max(matched_library.spectrumset.waves)
             log_temp_start = np.log(template_range[0])
-            print "temp", log_temp_start, template_range[0]
             log_spec_start = np.log(exact_fit_range[0])
-            print "spec", log_spec_start, exact_fit_range[0]
             velocity_offset = (log_temp_start - log_spec_start)*const.c_kms
             logscale = target_spec.get_logscale()
             velscale = logscale*const.c_kms
@@ -153,11 +151,8 @@ class pPXFDriver(object):
                 # an array containing integer indices where the input is True
             library_spectra_cols = matched_library.spectrumset.spectra.T
                 # pPXF requires library spectra in columns of input array
-            matched_library.spectrumset.write_to_fits("results-ppxf/temps_oldlibcopies-{}.fits".format(target_id))
-            target_spec.write_to_fits("results-ppxf/specs_oldlibs-{}.fits".format(target_id))
-            print self.ppxf_kwargs
-            print "velscale", velscale
-            print "vsyst", velocity_offset
+            # matched_library.spectrumset.write_to_fits("results-ppxf/temps_{}-{}.fits".format(self.spectra.name, target_id))
+            # target_spec.write_to_fits("results-ppxf/specs_{}-{}.fits".format(self.spectra.name, target_id))
             raw_output = ppxf.ppxf(library_spectra_cols,
                                    target_spec.spectra[0],
                                    target_spec.metaspectra["noise"][0],

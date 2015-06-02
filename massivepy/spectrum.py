@@ -186,7 +186,7 @@ class SpectrumSet(object):
                              wavelengths=self.waves,
                              spectra_unit=self.spec_unit,
                              wavelength_unit=self.wave_unit,
-                             comments=self.comments,
+                             comments=self.comments, name=self.name,
                              test_ir=self.test_ir[index, ...])
         if get_selector:
             return subset, index
@@ -316,11 +316,13 @@ class SpectrumSet(object):
                 return
         # re-sampling is required
         inward_scaling = 1 + np.array([1, -1])*const.float_tol
+        # scale before log
         new_spec_region = self.spec_region*inward_scaling
             # prevents unintended extrapolation due to roundoff
         log_ends = np.log(new_spec_region)
-        # new_spec_region = self.spec_region
-        # log_ends = np.log(new_spec_region)
+        # scale after log
+        # log_ends = np.log(self.spec_region)*inward_scaling
+        # new_spec_region = np.exp(log_ends)
         if target_logscale is None:  # preserve sample number
             log_w = np.linspace(log_ends[0], log_ends[1], self.num_samples)
             target_logscale = log_w[1] - log_w[0]
@@ -471,7 +473,7 @@ class SpectrumSet(object):
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
                            comments=extened_comments,
-                           test_ir=self.test_ir)
+                           test_ir=self.test_ir, name=self.name)
 
     def collapse(self, weight_func=None, id=None,
                  norm_func=None, norm_value=None):
@@ -511,7 +513,7 @@ class SpectrumSet(object):
                            wavelengths=self.waves, comments=extened_comments,
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
-                           test_ir=self.test_ir)
+                           test_ir=self.test_ir, name=self.name)
 
     def gaussian_convolve(self, std, crop_factor=5):
         """

@@ -25,23 +25,22 @@ import massivepy.pPXFdriver as driveppxf
 
 
 # FIT SETTINGS
+bins_to_fit  = [1, 4, 31, 49]
+# bins_to_fit = 1 + np.arange(56)  # all bins
 setup_settings = { # from old settings files
-    "name":                     "testrun",
+    "name":                     "testrgitun",
     "template_lib_name":        'miles-massive',
     "templates_to_use":         const.fullMILES_1600fullgalaxy_optimized,
     "mask":                     [[4260.0, 4285.0],
                                  [4775.0, 4795.0]],  # A
     "error_simulation_trials":  0}
-fit_settings = { # from old settings files
-    "additive_degree":          0,
-    "multiplicative_degree":    7,
-    "moments_to_fit":           6,
-    "bias":                     0.0,
-    "v_guess":                  0,
-    "sigma_guess":              250,
-    "hn_guess":                 0,
-    "fit_range":                [3900.0, 5300.0]}  # A
-
+gh_init = [0, 250, 0, 0, 0, 0]
+fit_range = [3900.0, 5300.0]
+range_masks = [3900, 5300]
+fit_settings = {"add_deg":     0,
+                "mul_deg":     7,
+                "num_moments": 6,
+                "bias":        0.0}  # A
 # defaults
 datamap = utl.read_dict_file(const.path_to_datamap)
 binned_dir = datamap["binned_mitchell"]
@@ -62,7 +61,7 @@ binned_specsets_paths = [os.path.join(binned_dir, "{}.fits".format(p))
 binned_specsets_paths = map(os.path.normpath, binned_specsets_paths)
 for path in binned_specsets_paths:
     if not os.path.isfile(path):
-        raise ValueError("Invalid raw datacube path {}, "
+        raise ValueError("Invalid datacube path {}, "
                          "must be .fits file".format(path))
 dest_dir = os.path.normpath(args.destination_dir)
 if not os.path.isdir(dest_dir):
@@ -80,11 +79,19 @@ for path in binned_specsets_paths:
     for spec_iter in xrange(specset.num_spectra):
         specset.metaspectra["bad_data"][spec_iter, :] = (
             specset.metaspectra["bad_data"][spec_iter, :] | masked)
-
+    specset_to_fit = specset.get_subset(bins_to_fit)
     # do fits
-    driver = driveppxf.pPXFDriver(spectra=specset,
+    driver = driveppxf.pPXFDriver(spectra=specset_to_fit,
                                   templates=template_library,
-                                  fit_settings=fit_settings)
+                                  fit_range=fit_range,
+                                  initial_gh=gh_init,
+                                  **fit_settings)
     results = driver.run_fit()
-    output_path = os.path.join(dest_dir, "ppxf_output_full.txt")
-    np.savetxt(output_path, results)
+    results, ids = driver.run_fit()
+    target_base = os.path.basename(path)
+    results_path = os.path.join(dest_dir,
+                               "{}-gh_params.txt".format(target_base))
+    ids_path = os.path.join(dest_dir,
+                            "{}-ids.txt".format(target_base))
+    np.savetxt(results_path, results)
+    np.savetxt(ids_path, ids)

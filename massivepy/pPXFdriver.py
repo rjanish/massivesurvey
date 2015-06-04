@@ -44,10 +44,10 @@ class pPXFDriver(object):
         """
         self.spectra = copy.deepcopy(spectra)
         self.templates = copy.deepcopy(templates)
-        self.fit_range = np.asarray(fit_range, dtype=float)
-        if self.fit_range.shape != (2,):
+        self.nominal_fit_range = np.asarray(fit_range, dtype=float)
+        if self.nominal_fit_range.shape != (2,):
             raise ValueError("Invalid fit range shape {}"
-                             "".format(self.fit_range.shape))
+                             "".format(self.nominal_fit_range.shape))
         for setting in self.PPXF_REQUIRED_INPUTS:
             if setting not in ppxf_kwargs:
                 raise ValueError("{} must be specified to fit spectra"
@@ -69,7 +69,9 @@ class pPXFDriver(object):
         except ValueError, msg:
             print "skipping spectra log_resample ({})".format(msg)
         self.to_fit = utl.in_linear_interval(self.spectra.waves,
-                                             self.fit_range)
+                                             self.nominal_fit_range)
+        self.spectra = self.spectra.crop(self.nominal_fit_range)
+        self.exact_fit_range = utl.min_max(self.spectra.waves)
         self.spectra = self.spectra.get_normalized(
             norm_func=spec.SpectrumSet.compute_spectrum_median,
             norm_value=1.0)
@@ -104,13 +106,10 @@ class pPXFDriver(object):
         output = []
         for spec_iter, target_id in enumerate(self.spectra.ids):
             target_spec = self.spectra.get_subset([target_id])
-            target_spec = target_spec.crop(self.fit_range) # testing
-            exact_fit_range = utl.min_max(target_spec.waves)
             matched_library = self.prepare_library(target_spec)
-            # matched_library = self.get_old_library(target_spec)
             template_range = utl.min_max(matched_library.spectrumset.waves)
             log_temp_start = np.log(template_range[0])
-            log_spec_start = np.log(exact_fit_range[0])
+            log_spec_start = np.log(self.exact_fit_range[0])
             velocity_offset = (log_temp_start - log_spec_start)*const.c_kms
             logscale = target_spec.get_logscale()
             velscale = logscale*const.c_kms
@@ -120,8 +119,6 @@ class pPXFDriver(object):
                 # an array containing integer indices where the input is True
             library_spectra_cols = matched_library.spectrumset.spectra.T
                 # pPXF requires library spectra in columns of input array
-            # matched_library.spectrumset.write_to_fits("results-ppxf/temps_{}-{}.fits".format(self.spectra.name, target_id))
-            # target_spec.write_to_fits("results-ppxf/specs_{}-{}.fits".format(self.spectra.name, target_id))
             raw_output = ppxf.ppxf(library_spectra_cols,
                                    target_spec.spectra[0],
                                    target_spec.metaspectra["noise"][0],
@@ -129,6 +126,5 @@ class pPXFDriver(object):
                                    goodpixels=good_pix_indices,
                                    vsyst=velocity_offset, plot=False,
                                    quiet=True, **self.ppxf_kwargs)
-            output.append(raw_output.sol)
-        return np.asarray(output), self.spectra.ids.copy()
+        return
 

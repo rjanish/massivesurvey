@@ -1,9 +1,9 @@
 
 #Locations of raw MILES information, as obtained from their website
 #Path to the folder containing all (and only!) raw miles spectra, e.g. m0001V
-path_milesraw_spectra	../raw-miles/MILES_library_v9.1/
+path_milesraw_spectra	../all_my_input/raw-miles/MILES_library_v9.1/
 #Path to index file (also downloaded from miles website)
-path_milesraw_index	../raw-miles/paramsMILES_v9.1.txt
+path_milesraw_index	../all_my_input/raw-miles/paramsMILES_v9.1.txt
 #Value of ir
 library_fwhm		2.5		
 

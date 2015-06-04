@@ -96,7 +96,6 @@ class pPXFDriver(object):
             matched_library.spectrumset.get_normalized(
                 norm_func=spec.SpectrumSet.compute_spectrum_median,
                 norm_value=1.0))
-
         return matched_library
 
     def run_fit(self):

@@ -77,10 +77,6 @@ class pPXFDriver(object):
     def prepare_library(self, target_spec):
         """
         """
-        # match spectral resolution
-        # spec_ir_test = target_spec.test_ir[0]
-        # spec_ir_inerp_func = utl.interp1d_constextrap(spec_ir_test[:, 0],
-        #                                               spec_ir_test[:, 1])
         spec_waves = target_spec.waves
         spec_ir = target_spec.metaspectra["ir"][0]
         spec_ir_inerp_func = utl.interp1d_constextrap(spec_waves, spec_ir)
@@ -96,9 +92,11 @@ class pPXFDriver(object):
         logscale = target_spec.get_logscale()
         matched_library.spectrumset.log_resample(logscale)
         # norm
-        # matched_library.spectrumset = (
-            # matched_library.spectrumset.get_normalized(
-                # norm_func=self.get_flux, norm_value=self.target_flux))
+        matched_library.spectrumset = (
+            matched_library.spectrumset.get_normalized(
+                norm_func=spec.SpectrumSet.compute_spectrum_median,
+                norm_value=1.0))
+
         return matched_library
 
     def run_fit(self):

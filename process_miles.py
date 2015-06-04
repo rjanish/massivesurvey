@@ -15,9 +15,13 @@ The changes are:
     which is corrected in the new index: '022.' -> '0221'
 These changes are hard-coded into the first few lines of this script.
 
+input:
+  takes one command line argument, a path to the input parameter text file
+  process_miles_params_example.txt is an example
+
 output:
   processed MILES library, as a directory containing a catalog file, a
-  library README, and a subdirectory of template spectra
+  library ir file, and a subdirectory of template spectra
 """
 
 
@@ -33,15 +37,6 @@ import massivepy.templates as temps
 import massivepy.constants as const
 
 
-# defaults
-DATAPATHS_PATH = const.path_to_datamap
-    # file specifying locations of MASSIVE static data
-TEMPLATE_LIBS_KEY = 'template_libraries'  # Entry needed from DATAPATHS_PATH
-
-MILESRAW_LIBNAME = 'miles-raw'  # directory where MILES has been downloaded
-MILESRAW_INDEX_FILENAME = 'paramsMILES_v9.1.txt'  # raw MILES template index
-MILESRAW_SPECTRA_SUBDIR = 'spectra' # location of raw MILES spectra
-MILESRAW_README_FILENAME = 'README.txt' # location of raw MILES spectra
 BAD_MILES_TEMPLATES = [790]  # MILES stars to omit
 MILESRAW_ID_MAP = {'022.':'0221'}  # correction of raw MILES index typo
 MILESRAW_INDEX_PATTERN = (r"^(?P<object_name>.+?)\s+"
@@ -66,37 +61,35 @@ INDEX_CONVERSIONS = {"object_name":lambda s: utl.safe_str(s),
                      "z":lambda s: utl.safe_float(s),
                      "libs":lambda s: utl.safe_str(re.sub(r'\s+', '', s))}
     # conversions to be applied to each column of raw MILES index file
-NEW_INDEX_FILENAME = 'catalog.txt' # new template index
-NEW_SPECTRA_SUBDIR = 'spectra' # location of raw MILES spectra
 
-# parse destination name
+# parse arguments (location of input param file)
 parser = argparse.ArgumentParser(description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument("new_libname", type=str,
-                    help="name of the new processed library, will also be "
-                         "used as name of the new library's directory")
+parser.add_argument("paramfile", type=str,
+                    help="path to input parameter file for this script")
 args = parser.parse_args()
-new_libname = args.new_libname
-# get raw MILES library locations
-data_paths = utl.read_dict_file(DATAPATHS_PATH)
-template_libs_path = data_paths[TEMPLATE_LIBS_KEY]
-libraries = [name for name in os.listdir(template_libs_path)
-             if os.path.isdir(os.path.join(template_libs_path, name))]
-path_milesraw = os.path.join(template_libs_path, MILESRAW_LIBNAME)
-path_milesraw_spectra = os.path.join(path_milesraw, MILESRAW_SPECTRA_SUBDIR)
-path_milesraw_index = os.path.join(path_milesraw, MILESRAW_INDEX_FILENAME)
-# prune raw MILES into new library
-# if new_libname in libraries:
-#     raise ValueError("library name {} already in use".format(new_libname))
-path_new = os.path.join(template_libs_path, new_libname)
-path_new_spectra = os.path.join(path_new, NEW_SPECTRA_SUBDIR)
-path_new_index = os.path.join(path_new, NEW_INDEX_FILENAME)
+paramfile_path = args.paramfile
+
+# parse input parameter file
+input_params = utl.read_dict_file(paramfile_path)
+path_milesraw_spectra = input_params['path_milesraw_spectra']
+path_milesraw_index = input_params['path_milesraw_index']
+library_fwhm = input_params['library_fwhm']
+path_new = input_params['path_new']
+path_new_spectra = os.path.join(path_new, input_params['new_spectra_subdir'])
+path_new_index = os.path.join(path_new, input_params['new_index_filename'])
+path_new_ir = os.path.join(path_new, input_params['new_ir_filename'])
+
+# make new library
 print "making new library at {} ...".format(path_new)
 os.mkdir(path_new)
 os.mkdir(path_new_spectra)
 old_spectra = utl.re_filesearch(".*", dir=path_milesraw_spectra)[0]
 for old_template_path in old_spectra:
     old_template_filename = os.path.split(old_template_path)[1]
+    #Skip hidden files (e.g. .DS_Store)
+    if old_template_filename[0] == '.':
+        continue
     old_template_id = temps.miles_filename_to_number(old_template_filename)
     if old_template_id in BAD_MILES_TEMPLATES:
         print "omitting template {}".format(old_template_id)
@@ -132,9 +125,6 @@ new_index = pd.DataFrame(template_props, index=miles_ids)
 new_index.sort(axis=0, inplace=True)
 new_index.to_csv(path_new_index, index=False)
 print "saved new index at {}".format(path_new_index)
-path_milesraw_readme = os.path.join(path_milesraw, MILESRAW_README_FILENAME)
-path_new_readme = os.path.join(path_new,
-                               MILESRAW_README_FILENAME + "-OUTDATED")
-shutil.copy(path_milesraw_readme, path_new_readme)
-print "README copied to {}".format(path_new_readme)
-print "README is outdated - must update by hand!"
+with open(path_new_ir, "w") as text_file:
+    text_file.write("library_fwhm\t{}".format(library_fwhm))
+print "saved ir in file at {}".format(path_new_ir)

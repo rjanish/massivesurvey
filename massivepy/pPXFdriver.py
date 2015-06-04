@@ -100,6 +100,10 @@ class pPXFDriver(object):
                 norm_value=1.0))
         return matched_library
 
+    def normalize_output(self, ppxf_fitter):
+        """
+        """
+
     def run_fit(self):
         """
         """
@@ -119,12 +123,13 @@ class pPXFDriver(object):
                 # an array containing integer indices where the input is True
             library_spectra_cols = matched_library.spectrumset.spectra.T
                 # pPXF requires library spectra in columns of input array
-            raw_output = ppxf.ppxf(library_spectra_cols,
+            raw_fitter = ppxf.ppxf(library_spectra_cols,
                                    target_spec.spectra[0],
                                    target_spec.metaspectra["noise"][0],
                                    velscale, self.initial_gh,
                                    goodpixels=good_pix_indices,
                                    vsyst=velocity_offset, plot=False,
                                    quiet=True, **self.ppxf_kwargs)
-        return
+            self.results = self.normalize_output(raw_fitter)
+        return self.results
 

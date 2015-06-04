@@ -87,11 +87,3 @@ for path in binned_specsets_paths:
                                   initial_gh=gh_init,
                                   **fit_settings)
     results = driver.run_fit()
-    results, ids = driver.run_fit()
-    target_base = os.path.basename(path)
-    results_path = os.path.join(dest_dir,
-                               "{}-gh_params.txt".format(target_base))
-    ids_path = os.path.join(dest_dir,
-                            "{}-ids.txt".format(target_base))
-    np.savetxt(results_path, results)
-    np.savetxt(ids_path, ids)

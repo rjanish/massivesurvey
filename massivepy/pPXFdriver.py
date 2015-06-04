@@ -103,6 +103,35 @@ class pPXFDriver(object):
     def normalize_output(self, ppxf_fitter):
         """
         """
+        # all outputs:
+        # results.bestfit
+        # results.goodpixels
+        # results.quiet
+        # results.bias
+        # results.lam
+        # results.reddening
+        # results.chi2
+        # results.mdegree
+        # results.reg_dim
+        # results.clean
+        # results.moments
+        # results.regul
+        # results.component
+        # results.mpolyweights
+        # results.sky
+        # results.degree
+        # results.ncomp
+        # results.sol
+        # results.error
+        # results.noise
+        # results.star
+        # results.factor
+        # results.oversample
+        # results.vsyst
+        # results.galaxy
+        # results.polyweights
+        # results.weights
+        return ppxf_fitter
 
     def run_fit(self):
         """

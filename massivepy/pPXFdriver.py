@@ -101,26 +101,6 @@ class pPXFDriver(object):
                 # norm_func=self.get_flux, norm_value=self.target_flux))
         return matched_library
 
-    def get_old_library(self, target_spec):
-        bin_number = target_spec.ids[0]
-        base = ("bin-spectra-check-20150522/results/ngc1600/results-updated"
-                "/ngc1600mitchell_updated-bin{:02d}-3900.0_5300.0"
-                "".format(int(bin_number)))
-        template_path = "{}-templates.txt".format(base)
-        templates = np.loadtxt(template_path).T
-        tempwave_path = "{}-templates_waves.txt".format(base)
-        templates_waves = np.loadtxt(tempwave_path)
-        return temp.TemplateLibrary(
-            spectra=templates, bad_data=np.zeros(templates.shape, dtype=bool),
-            noise=np.zeros(templates.shape),
-            ir=4.5*np.ones(templates.shape), # this is actually matched to Mitchell data
-            spectra_ids=np.arange(templates.shape[0]),
-            wavelengths=templates_waves,
-            spectra_unit=const.flux_per_angstrom,
-            wavelength_unit=const.angstrom,
-            name='old-library', test_ir=None,
-            catalog=np.arange(templates.shape[0]))
-
     def run_fit(self):
         """
         """

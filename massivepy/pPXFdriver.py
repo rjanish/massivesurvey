@@ -70,17 +70,9 @@ class pPXFDriver(object):
             print "skipping spectra log_resample ({})".format(msg)
         self.to_fit = utl.in_linear_interval(self.spectra.waves,
                                              self.fit_range)
-        self.target_flux = self.fit_range[1] - self.fit_range[0]
-            # normalizing the flux to equal the numerical wavelength
-            # range sets the numerical spectral values near 1
-        self.get_flux = functools.partial(spec.SpectrumSet.compute_flux,
-                                          interval=self.fit_range)
-            # this computes the flux of a SpectrumSet only within the
-            # fitting range - useful for normalization of templates
-        self.get_flux.__name__ = "compute_flux_of_fitting_region"
-        self.spectra = (
-            self.spectra.get_normalized(
-                norm_func=self.get_flux, norm_value=self.target_flux))
+        self.spectra = self.spectra.get_normalized(
+            norm_func=spec.SpectrumSet.compute_spectrum_median,
+            norm_value=1.0)
 
     def prepare_library(self, target_spec):
         """

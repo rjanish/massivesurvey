@@ -1,0 +1,18 @@
+
+#Locations of raw MILES information, as obtained from their website
+#Path to the folder containing all (and only!) raw miles spectra, e.g. m0001V
+path_milesraw_spectra	../raw-miles/MILES_library_v9.1/
+#Path to index file (also downloaded from miles website)
+path_milesraw_index	../raw-miles/paramsMILES_v9.1.txt
+#Value of ir
+library_fwhm		2.5		
+
+#Locations and names of output
+#Desired path to folder for all of this script's output (folder should not exist yet)
+path_new		../all_my_output/miles-processed/
+#Name of subfolder for spectra
+new_spectra_subdir	spectra
+#Name of new index file
+new_index_filename	catalog.txt
+#Name of file storing library_fwhm
+new_ir_filename		ir.txt

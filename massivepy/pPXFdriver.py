@@ -101,11 +101,11 @@ class pPXFDriver(object):
                 norm_value=1.0))
         return matched_library
 
-    def normalize_output(self, ppxf_fitter):
+    def process_pPXF_results(self, ppxf_fitter):
         """
         """
-        results, called_with = {}, {}
         # save copy of pPXF inputs
+        raw_inputs = {}
         raw_inputs["pixels_used"] = ppxf_fitter.goodpixels
         raw_inputs["bias"] = ppxf_fitter.bias
         raw_inputs["lam"] = ppxf_fitter.lam
@@ -122,6 +122,7 @@ class pPXFDriver(object):
         raw_inputs["vsyst"] = ppxf_fitter.vsyst
         raw_inputs["spectrum"] = ppxf_fitter.galaxy
         # save simple outputs
+        raw_outputs = {}
         raw_outputs["best_model"] = ppxf_fitter.bestfit
         raw_outputs["reddening"] = ppxf_fitter.reddening
         raw_outputs["chisq_dof"] = ppxf_fitter.chi2
@@ -129,9 +130,8 @@ class pPXFDriver(object):
         raw_outputs["num_kin_components"] = ppxf_fitter.ncomp
         raw_outputs["gh_parameters"] = ppxf_fitter.sol
         raw_outputs["sampling_factor"] = ppxf_fitter.factor
-        error_scale = np.sqrt(ppxf_fitter.chi2)
-        raw_outputs["scaled_lsq_errors"] = ppxf_fitter.error*error_scale
-            # scale leastsq error estimate to account poor fits
+        raw_outputs["unscaled_lsq_errors"] = ppxf_fitter.error
+            # error estimate from least-squares cov matrix
         raw_outputs["add_weights"] = ppxf_fitter.polyweights
         raw_outputs["template_weights"] = ppxf_fitter.weights
         try:
@@ -140,8 +140,17 @@ class pPXFDriver(object):
                 # constant term is always 1, but not returned by pPXF
         except AttributeError:
             raw_outputs["mul_weights"] = np.asarray([1])
-                # no mult poly specified in the fit, still had constant 1
-        # construct other outputs
+                # if no mult poly specified in the fit, then pPXF still uses
+                # a constant term of 1, but returns no output mult polynomial
+        # constructible  outputs
+        scaled_outputs = {}
+        error_scale = np.sqrt(raw_outputs["chisq_dof"])
+        scaled_outputs["scaled_lsq_errors"] = ppxf_fitter.error*error_scale
+            # error estimate from least-squares cov matrix, scaled by
+            # root-chisq to account for residuals in poorly-fit data
+            
+
+        error_scale = np.sqrt(ppxf_fitter.chi2)
         poly_args = np.linspace(-1, 1, raw_inputs["spectrum"].shape[0])
             # pPXF evaluates polynomials by mapping the fit log-lambda
             # interval linearly onto the Legendre interval [-1, 1]

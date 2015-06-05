@@ -1,0 +1,9 @@
+
+#Input
+#The processed data cube, which was the output of process_mitchell_rawdatacubes
+#Todo (probably): this will become a combo of raw data cube + output of process script.
+proc_mitchell_cube	../all_my_output/NGC1600_mitchellcube.fits
+
+#Output
+#Folder to put output in. (It will be named automatically.) (Folder should already exist.)
+destination_dir		../all_my_output/

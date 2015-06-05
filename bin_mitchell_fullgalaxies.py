@@ -1,9 +1,14 @@
 """
 Combines all fibers in an unbinned Mitchell datacube into one spectrum
 
+input:
+  takes one command line argument, a path to the input parameter text file
+  bin_mitchell_fullgalaxies_params_example.txt is an example
+  can take multiple parameter files if you want to process multiple galaxies
+  (give one param file per galaxy)
+
 output:
-  One binned datacube per input unbinned datacube, with the output
-  datacubes containing 1 binned spectrum each.
+  One binned datacube per galaxy, containing 1 binned spectrum each.
 """
 
 

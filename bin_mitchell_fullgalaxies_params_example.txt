@@ -1,0 +1,10 @@
+
+#Input
+#The processed data cube, which was the output of process_mitchell_rawdatacubes.py
+#Todo (probably): if we change output format of process_mitchell_rawdatacubes.py
+# then we will need to change this and how it's read in the script
+proc_mitchell_cube	../all_my_output/NGC1600_mitchellcube.fits
+
+#Output
+#Folder to put output in. (Folder should already exist.)
+destination_dir		../all_my_output/

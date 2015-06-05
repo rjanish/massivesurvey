@@ -103,35 +103,37 @@ class pPXFDriver(object):
     def normalize_output(self, ppxf_fitter):
         """
         """
-        # all outputs:
-        # results.bestfit
-        # results.goodpixels
-        # results.quiet
-        # results.bias
-        # results.lam
-        # results.reddening
-        # results.chi2
-        # results.mdegree
-        # results.reg_dim
-        # results.clean
-        # results.moments
-        # results.regul
-        # results.component
-        # results.mpolyweights
-        # results.sky
-        # results.degree
-        # results.ncomp
-        # results.sol
-        # results.error
-        # results.noise
-        # results.star
-        # results.factor
-        # results.oversample
-        # results.vsyst
-        # results.galaxy
-        # results.polyweights
-        # results.weights
-        return ppxf_fitter
+        results, called_with = {}, {}
+        called_with["pixels_used"] = ppxf_fitter.goodpixels
+        called_with["bias"] = ppxf_fitter.bias
+        called_with["lam"] = ppxf_fitter.lam
+        called_with["mul_deg"] = ppxf_fitter.mdegree
+        called_with["reg_dim"] = ppxf_fitter.reg_dim
+        called_with["clean"] = ppxf_fitter.clean
+        called_with["num_moments"] = ppxf_fitter.moments
+        called_with["regul"] = ppxf_fitter.regul
+        called_with["sky_template"] = ppxf_fitter.sky
+        called_with["add_deg"] = ppxf_fitter.degree
+        called_with["noise"] = ppxf_fitter.noise
+        called_with["templates"] = ppxf_fitter.star.T
+        called_with["oversample"] = ppxf_fitter.oversample
+        called_with["vsyst"] = ppxf_fitter.vsyst
+        called_with["spectrum"] = ppxf_fitter.galaxy
+        results["best_model"] = ppxf_fitter.bestfit
+        results["reddening"] = ppxf_fitter.reddening
+        results["chisq_dof"] = ppxf_fitter.chi2
+        results["kin_component"] = ppxf_fitter.component
+        results["mul_weights"] = np.concatenate(
+            ([1], ppxf_fitter.mpolyweights))
+            # constant term is always 1, but not returned by pPXF
+        results["num_kin_components"] = ppxf_fitter.ncomp
+        results["gh_parameters"] = ppxf_fitter.sol
+        results["sampling_factor"] = ppxf_fitter.factor
+        results["add_weights"] = ppxf_fitter.polyweights
+        results["template_weights"] = ppxf_fitter.weights
+        results["lsq_error"] = ppxf_fitter.error*np.sqrt(ppxf_fitter.chi2)
+            # scale leastsq error estimate for poor fits
+        return results, called_with
 
     def run_fit(self):
         """
@@ -160,5 +162,5 @@ class pPXFDriver(object):
                                    vsyst=velocity_offset, plot=False,
                                    quiet=True, **self.ppxf_kwargs)
             self.results = self.normalize_output(raw_fitter)
-        return self.results
+        return raw_fitter
 

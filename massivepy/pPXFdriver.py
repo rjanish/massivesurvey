@@ -14,6 +14,7 @@ import utilities as utl
 import massivepy.constants as const
 import massivepy.spectrum as spec
 import massivepy.templates as temp
+import massivepy.gausshermite as gh
 
 
 class pPXFDriver(object):
@@ -104,36 +105,70 @@ class pPXFDriver(object):
         """
         """
         results, called_with = {}, {}
-        called_with["pixels_used"] = ppxf_fitter.goodpixels
-        called_with["bias"] = ppxf_fitter.bias
-        called_with["lam"] = ppxf_fitter.lam
-        called_with["mul_deg"] = ppxf_fitter.mdegree
-        called_with["reg_dim"] = ppxf_fitter.reg_dim
-        called_with["clean"] = ppxf_fitter.clean
-        called_with["num_moments"] = ppxf_fitter.moments
-        called_with["regul"] = ppxf_fitter.regul
-        called_with["sky_template"] = ppxf_fitter.sky
-        called_with["add_deg"] = ppxf_fitter.degree
-        called_with["noise"] = ppxf_fitter.noise
-        called_with["templates"] = ppxf_fitter.star.T
-        called_with["oversample"] = ppxf_fitter.oversample
-        called_with["vsyst"] = ppxf_fitter.vsyst
-        called_with["spectrum"] = ppxf_fitter.galaxy
-        results["best_model"] = ppxf_fitter.bestfit
-        results["reddening"] = ppxf_fitter.reddening
-        results["chisq_dof"] = ppxf_fitter.chi2
-        results["kin_component"] = ppxf_fitter.component
-        results["mul_weights"] = np.concatenate(
-            ([1], ppxf_fitter.mpolyweights))
-            # constant term is always 1, but not returned by pPXF
-        results["num_kin_components"] = ppxf_fitter.ncomp
-        results["gh_parameters"] = ppxf_fitter.sol
-        results["sampling_factor"] = ppxf_fitter.factor
-        results["add_weights"] = ppxf_fitter.polyweights
-        results["template_weights"] = ppxf_fitter.weights
-        results["lsq_error"] = ppxf_fitter.error*np.sqrt(ppxf_fitter.chi2)
-            # scale leastsq error estimate for poor fits
-        return results, called_with
+        # save copy of pPXF inputs
+        raw_inputs["pixels_used"] = ppxf_fitter.goodpixels
+        raw_inputs["bias"] = ppxf_fitter.bias
+        raw_inputs["lam"] = ppxf_fitter.lam
+        raw_inputs["mul_deg"] = ppxf_fitter.mdegree
+        raw_inputs["reg_dim"] = ppxf_fitter.reg_dim
+        raw_inputs["clean"] = ppxf_fitter.clean
+        raw_inputs["num_moments"] = ppxf_fitter.moments
+        raw_inputs["regul"] = ppxf_fitter.regul
+        raw_inputs["sky_template"] = ppxf_fitter.sky
+        raw_inputs["add_deg"] = ppxf_fitter.degree
+        raw_inputs["noise"] = ppxf_fitter.noise
+        raw_inputs["templates"] = ppxf_fitter.star.T
+        raw_inputs["oversample"] = ppxf_fitter.oversample
+        raw_inputs["vsyst"] = ppxf_fitter.vsyst
+        raw_inputs["spectrum"] = ppxf_fitter.galaxy
+        # save simple outputs
+        raw_outputs["best_model"] = ppxf_fitter.bestfit
+        raw_outputs["reddening"] = ppxf_fitter.reddening
+        raw_outputs["chisq_dof"] = ppxf_fitter.chi2
+        raw_outputs["kin_component"] = ppxf_fitter.component
+        raw_outputs["num_kin_components"] = ppxf_fitter.ncomp
+        raw_outputs["gh_parameters"] = ppxf_fitter.sol
+        raw_outputs["sampling_factor"] = ppxf_fitter.factor
+        error_scale = np.sqrt(ppxf_fitter.chi2)
+        raw_outputs["scaled_lsq_errors"] = ppxf_fitter.error*error_scale
+            # scale leastsq error estimate to account poor fits
+        raw_outputs["add_weights"] = ppxf_fitter.polyweights
+        raw_outputs["template_weights"] = ppxf_fitter.weights
+        try:
+            raw_outputs["mul_weights"] = (
+                np.concatenate(([1], ppxf_fitter.mpolyweights)))
+                # constant term is always 1, but not returned by pPXF
+        except AttributeError:
+            raw_outputs["mul_weights"] = np.asarray([1])
+                # no mult poly specified in the fit, still had constant 1
+        # construct other outputs
+        poly_args = np.linspace(-1, 1, raw_inputs["spectrum"].shape[0])
+            # pPXF evaluates polynomials by mapping the fit log-lambda
+            # interval linearly onto the Legendre interval [-1, 1]
+        mult_continuum = (
+            np.polynomial.legendre.legval(poly_args,
+                                          raw_outputs["mul_weights"]))
+        bf_v, bf_sigma = raw_outputs["gh_parameters"][:2]
+        vel_edges = raw_inputs["vsyst"] + bf_v + 10*bf_sigma
+        num_steps = int(vel_edges/velscale)
+        kernel_size = 2*num_steps + 2
+        edge = velscale*num_steps
+        vel_samples = np.arange(-edge, edge, kernel_size)
+        losvd = gh.unnormalized_gausshermite_pdf(vel_samples,
+                                                 raw_outputs["gh_parameters"])
+        smoothed_temps = np.zeros(raw_inputs["templates"].shape)
+        model_temps = np.zeros(raw_inputs["templates"].shape)
+        for temp_iter, temp in enumerate(raw_inputs["templates"]):
+            convolved = signal.fftconvolve(temp, losvd, mode='same')
+            smoothed_temps[temp_iter, :] = convolved
+            model_temps[temp_iter, :] = convolved*mult_continuum
+
+
+
+
+
+
+        return
 
     def run_fit(self):
         """
@@ -161,6 +196,6 @@ class pPXFDriver(object):
                                    goodpixels=good_pix_indices,
                                    vsyst=velocity_offset, plot=False,
                                    quiet=True, **self.ppxf_kwargs)
-            self.results = self.normalize_output(raw_fitter)
+            # self.results = self.normalize_output(raw_fitter)
         return raw_fitter
 

@@ -1,8 +1,15 @@
 """
 Construct polar, S/N threshold binning of Mitchell IFU fibers.
 
+input:
+  takes one command line argument, a path to the input parameter text file
+  bin_mitchell_params_example.txt is an example
+  can take multiple parameter files if you want to process multiple galaxies
+  (give one param file per galaxy)
+
 output:
-  One binned datacube per input unbinned datacube
+  One binned datacube per galaxy. (One file contains all bins.)
+  A bunch of other stuff that will be cleaned up at some point
 """
 
 
@@ -27,48 +34,38 @@ import massivepy.binning as binning
 import plotting.geo_utils as geo_utils
 
 
-# defaults
-datamap = utl.read_dict_file(const.path_to_datamap)
-proc_cube_dir = datamap["proc_mitchell_cubes"]
-binned_dir = datamap["binned_mitchell"]
-target_positions = pd.read_csv(datamap["target_positions"],
-                               comment='#', sep="[ \t]+",
-                               engine='python')
-
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument("cubes", nargs='*', type=str,
-                    help="The processed Michell datacubes to bin, "
-                         "passed as paths from the processed "
-                         "Mitchell datacube directory")
-parser.add_argument("--destination_dir", action="store",
-                    type=str, nargs=1, default=proc_cube_dir,
-                    help="Directory in which to place binned datacubes")
-parser.add_argument("-s2n", action="store", type=float,
-                    help="The s2n threshold to use for binning")
-parser.add_argument("-ar", action="store", type=float,
-                    help="The target bin aspect ratio "
-                         "(arc_length/delta_radius)")
+parser.add_argument("paramfiles", nargs='*', type=str,
+                    help="path(s) to input parameter file(s)")
 args = parser.parse_args()
-cube_paths = [os.path.normpath(os.path.join(proc_cube_dir, p))
-              for p in args.cubes]
-for path in cube_paths:
-    if (not os.path.isfile(path)) or (os.path.splitext(path)[-1] != ".fits"):
-        raise ValueError("Invalid raw datacube path {}, "
-                         "must be .fits file".format(path))
-dest_dir = os.path.normpath(args.destination_dir)
-if not os.path.isdir(dest_dir):
-    raise ValueError("Invalid destination dir {}".format(dest_dir))
-aspect_ratio = float(args.ar)
-s2n_threshold = float(args.s2n)
+all_paramfile_paths = args.paramfiles
 
-for path in cube_paths:
+
+for paramfile_path in all_paramfile_paths:
+    # parse input parameter file
+    input_params = utl.read_dict_file(paramfile_path)
+    proc_cube_path = input_params['proc_mitchell_cube']
+    if ((not os.path.isfile(proc_cube_path)) 
+        or (os.path.splitext(proc_cube_path)[-1] != ".fits")):
+        raise ValueError("Invalid raw datacube path {}, "
+                         "must be .fits file".format(proc_cube_path))
+    aspect_ratio = input_params['aspect_ratio']
+    s2n_threshold = input_params['s2n_threshold']
+    target_positions = pd.read_csv(input_params['target_positions_path'],
+                                   comment='#', sep="[ \t]+",
+                                   engine='python')
+    destination_dir = input_params['destination_dir']
+    if not os.path.isdir(destination_dir):
+        raise ValueError("Invalid destination dir {}".format(destination_dir))
+
     # get bin layout
-    ifuset = ifu.read_mitchell_datacube(path)
-    ngc_match = re.search(const.re_ngc, path)
+    ifuset = ifu.read_mitchell_datacube(proc_cube_path)
+    ngc_match = re.search(const.re_ngc, proc_cube_path)
     if ngc_match is None:
-        raise RuntimeError("No galaxy name found for path {}".format(path))
+        msg = "No galaxy name found for path {}".format(proc_cube_path)
+        raise RuntimeError(msg)
     else:
         ngc_num = ngc_match.groups()[0]
     ngc_name = "NGC{}".format(ngc_num)
@@ -140,7 +137,7 @@ for path in cube_paths:
                                                      angular_bounds)):
         print ("   {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
                "".format(iter + 1, rin, rout, len(angles)))
-    output_base = os.path.join(binned_dir, "{}-{}".format(ngc_name, bindesc))
+    output_base = os.path.join(destination_dir, "{}-{}".format(ngc_name, bindesc))
     binned_data_path = "{}.fits".format(output_base)
     binned_specset.write_to_fits(binned_data_path)
     binned_path = "{}_binfibers.p".format(output_base)
@@ -203,3 +200,5 @@ for path in cube_paths:
     plot_path = "{}-binoutlines.pdf".format(output_base)
     fig.savefig(plot_path)
     plt.close(fig)
+
+print 'You may ignore the weird underflow error, it is not important.'

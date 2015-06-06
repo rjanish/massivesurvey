@@ -448,6 +448,14 @@ class SpectrumSet(object):
         s2n_values = mean_s2n.filled() # gets data with filling
         return s2n_values
 
+    def compute_spectrum_median(self, ids=None):
+        """
+        Return the median over wavelength of the numerical spectra
+        values for the given spectra ids, or by default the whole
+        set. This is useful for quick, non-physical normalization.
+        """
+        return np.median(self.spectra, axis=1)
+
     def get_normalized(self, norm_func=None, norm_value=1):
         """
         Normalize spectral data, returning as a new SpectrumSet.

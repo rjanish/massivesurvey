@@ -51,6 +51,8 @@ for paramfile_path in all_paramfile_paths:
     #Eventually all lines with eval() should be replaced with something better
     fit_range = eval(input_params['fit_range'])
     gh_init = eval(input_params['gh_init'])
+    num_trials = int(input_params['num_trials'])
+    run_name = str(input_params['run_name'])
     if not input_params['bins_to_fit']=='all':
         bins_to_fit = eval(input_params['bins_to_fit'])
     else:
@@ -72,14 +74,27 @@ for paramfile_path in all_paramfile_paths:
     for spec_iter in xrange(specset.num_spectra):
         specset.metaspectra["bad_data"][spec_iter, :] = (
             specset.metaspectra["bad_data"][spec_iter, :] | masked)
+            # move this logic into pPXFdriver - regions to mask in the
+            # fit are not necessarily bad data
     if bins_to_fit=='all':
         specset_to_fit = specset
     else:
         specset_to_fit = specset.get_subset(bins_to_fit)
     # do fits
-    driver = driveppxf.pPXFDriver(spectra=specset_to_fit,
-                                  templates=template_library,
+    driver = driveppxf.pPXFDriver(specset=specset_to_fit,
+                                  templib=template_library,
                                   fit_range=fit_range,
                                   initial_gh=gh_init,
+                                  num_trials=num_trials,
                                   **fit_settings)
-    results = driver.run_fit()
+    driver.run_fit()
+    results = {"main_input":driver.main_input,
+               "main_rawoutput":driver.main_rawoutput,
+               "main_procoutput":driver.main_procoutput,
+               "mc_input":driver.mc_input,
+               "mc_rawoutput":driver.mc_rawoutput,
+               "mc_procoutput":driver.mc_procoutput}
+    for output_name, data in results.iteritems():
+        output_path = os.path.join(destination_dir,
+                                   "{}-{}.p".format(run_name, output_name))
+        utl.save_pickle(data, output_path)

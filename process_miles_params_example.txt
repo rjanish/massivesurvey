@@ -10,6 +10,8 @@ library_fwhm		2.5
 #Locations and names of output
 #Desired path to folder for all of this script's output (folder should not exist yet)
 path_new		../all_my_output/miles-processed/
+#Don't change any of the following (spectra, catalog.txt, ir.txt) because they are
+# expected (and hard-coded) names for the templates module to read the library
 #Name of subfolder for spectra
 new_spectra_subdir	spectra
 #Name of new index file

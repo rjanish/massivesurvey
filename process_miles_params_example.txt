@@ -1,20 +1,23 @@
 
-#Locations of raw MILES information, as obtained from their website
-#Path to the folder containing all (and only!) raw miles spectra, e.g. m0001V
+
+###Input###
+#Need 3 items from the miles website:
+#   folder containing the raw spectra (e.g. m0001V) and nothing else
+#   index file (probably paramsMILES_v9.1.txt)
+#   value of the ir
+
 path_milesraw_spectra	../all_my_input/raw-miles/MILES_library_v9.1/
-#Path to index file (also downloaded from miles website)
 path_milesraw_index	../all_my_input/raw-miles/paramsMILES_v9.1.txt
-#Value of ir
 library_fwhm		2.5		
 
-#Locations and names of output
-#Desired path to folder for all of this script's output (folder should not exist yet)
+###Output###
+#Specify the folder where you want the script's output to go, but note the 
+#   folder should not exist yet!
+#The items within the folder (spectra, catalog.txt, ir.txt) should not be
+#   renamed, because the module to read the template library expects these
+#   names (which are hard-coded in).
+
 path_new		../all_my_output/miles-processed/
-#Don't change any of the following (spectra, catalog.txt, ir.txt) because they are
-# expected (and hard-coded) names for the templates module to read the library
-#Name of subfolder for spectra
 new_spectra_subdir	spectra
-#Name of new index file
 new_index_filename	catalog.txt
-#Name of file storing library_fwhm
 new_ir_filename		ir.txt

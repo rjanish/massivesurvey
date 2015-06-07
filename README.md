@@ -1,8 +1,6 @@
 This package contains software used in the MASSIVE survey.
 
 
-### This readme is becoming increasingly outdated as work goes on in the "Organizer" branch. It will be rewritten at some point!
-
 ## Code Organization
 
 The code is divided into a set executable scripts and a python package called
@@ -14,7 +12,9 @@ contains modules that perform the heavy-lifting for common computations and
 routines to simplify I/O operations. The modules are not executable and do not perform I/O directly nor work with data files on disk - that is left to
 individual analysis scripts to allow more flexibility.
 
-Calculations are done by executing the scripts found in bin/. These scripts
+Calculations are done by executing the scripts found in the main directory.
+(Additional scripts for comparison and testing purposes are found in bin/.)
+These scripts
 are indented to be small, a few hundred lines, and execute only one logical
 piece of analysis. They will handle I/O of data and the logging of the analysis, while making calls to massivepy for significant calculation. The
 purpose and usage of each of these scripts is described in its docstring and
@@ -23,37 +23,19 @@ command-line manual, viewable by running: $ python *path_to_script.py* -h.
 ## Requirements
 
 ### Directory Structure
-As much as possible, the software tries to be agnostic about the lay-out of directories and data. This is achieved by a set of configuration files that
-give paths to the locations of important dataset. But, **the location of the configuration files is hard-wired**. The directory structure is assumed to contain the following:
-- massive/
-  - etc/
-    - datamap.txt
+As much as possible, the software tries to be agnostic about the lay-out of directories and data. This is achieved by a set of parameter files for each script that
+give paths to the locations of important dataset.
+Parameter files can contain relative (to the location the scripts are run from) or absolute paths.
+(Absolute paths should allow you to run the script from any location.)
 
-Analysis scripts are run from the top-level directory, here called *massive*
-though any name could be used.  The directory etc/ contains the configuration
-files, and its name **is** assumed by the software. The module
-massivepy.constants contains hard-coded paths to the conifg files in etc/,
-specified relative to the top-level directory (massive/). To locate data,
-the scripts in bin/ will use the massivepy.constants module to read the
-needed entries from the config files in etc/.  The contents and format of
-these config files is also assumed by the software, and is detailed below.
+(Previous versions required the following "global" parameter file, but this should no longer be necessary.
+The location of this parameter file was hard-coded into massivepy.constants.):
+- massive/etc/datamap.txt
 
-### Config Files
-The config files are dictionary files, as read by the function read_dict_file in the python package utilities.
-
-The file etc/datamap.txt describes the locations of mostly-static data, and
-should include the entries:
-- template_libraries - points to the directory containing stellar template
-libraries
-- raw_mitchell_cubes - points to the directory containing raw Mitchell IFU
-datacubes (i.e., the datacubes results from Jenny Greene's processing of
-Vaccine output)
-- proc_mitchell_cubes - points to the directory containing Mitchell IFU
-datacubes processed for MASSIVE analysis
-- target_positions - points to the file containing galaxy center coordinates
-and position angles
-- binned_mitchell -  points to the directory containing binned Mitchell IFU
-data
+### Input Files
+The input parameter files are dictionary files, as read by the function read_dict_file in the python package utilities.
+Each script in the main directory has an example input parameter file; the easiest way to run the scripts is to copy the example files to some directory of your choice, then rename and edit them as necessary.
+Include the galaxy name in the parameter file names; each script can accept multiple parameter files as command line input in order to process multiple galaxies at once.
 
 ### Other Software
 Required third-party public python packages (these packages need to reside
@@ -80,8 +62,7 @@ on the PYTHONPATH):
 
 ## Usage
 
-Analysis scripts are found in bin/, and should behave as proper unix
-command-line programs. The calculations performed and usage of each script
+Analysis scripts should behave as proper unix command-line programs.
+The calculations performed and usage of each script
 is detailed in its help menu: $ python *path_to_script.py* -h.
-
-The scripts in bin/ are indented to be run from the top-level directory (see above), regardless of the actual location of bin/.
+Each script takes one or more parameter files as command line arguments, with all needed inputs specified in the parameter files.

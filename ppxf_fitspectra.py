@@ -77,9 +77,10 @@ for paramfile_path in all_paramfile_paths:
     else:
         specset_to_fit = specset.get_subset(bins_to_fit)
     # do fits
-    driver = driveppxf.pPXFDriver(spectra=specset_to_fit,
-                                  templates=template_library,
+    driver = driveppxf.pPXFDriver(specset=specset_to_fit,
+                                  templib=template_library,
                                   fit_range=fit_range,
                                   initial_gh=gh_init,
+                                  num_trials=setup_settings["error_simulation_trials"],
                                   **fit_settings)
     results = driver.run_fit()

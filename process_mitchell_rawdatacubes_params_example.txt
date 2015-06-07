@@ -1,10 +1,14 @@
 
-#Inputs
-#Path to raw datacube
+
+###Input###
+#Need two inputs:
+#   path to raw datacube
+#   path to target positions file from Jenny
+
 raw_mitchell_cube	../all_my_input/QnovallfibNGC1600_log.fits
-#Path to target positions file from Jenny
 target_positions	../all_my_input/target-positions.txt
 
-#Outputs
+###Output###
 #Directory where processed datacube will be put
+
 destination_dir		../all_my_output/

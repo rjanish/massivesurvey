@@ -85,3 +85,4 @@ command-line programs. The calculations performed and usage of each script
 is detailed in its help menu: $ python *path_to_script.py* -h.
 
 The scripts in bin/ are indented to be run from the top-level directory (see above), regardless of the actual location of bin/.
+

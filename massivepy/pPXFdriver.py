@@ -40,6 +40,7 @@ class pPXFDriver(object):
                             "num_moments": ["moments", int],
                             "bias":        ["bias", float]}
         # These are input parameter names and types needed by pPXF's caller
+    VEL_FACTOR = const.ppxf_losvd_sampling_factor
 
     def __init__(self, specset=None, templib=None, fit_range=None,
                  initial_gh=None, num_trials=None, **ppxf_kwargs):
@@ -405,54 +406,61 @@ class pPXFDriver(object):
                                goodpixels=good_pix_indices,
                                vsyst=velocity_offset, plot=False,
                                quiet=True, **self.ppxf_kwargs)
-
-            # NEEDS UPDATING
-            self.main_input = self.get_pPXF_inputdict(fitter)
-            self.main_rawoutput = self.get_pPXF_rawoutputdict(fitter)
-            self.main_procoutput = self.process_pPXF_results(fitter,
-                                            const.ppxf_losvd_sampling_factor)
-            # NEEDS UPDATING
-
+            # save main results
+            inputs = self.get_pPXF_inputdict(fitter)
+            self.main_input = utl.merge_dicts(self.main_input, inputs)
+            raw_outputs = self.get_pPXF_rawoutputdict(fitter)
+            self.main_rawoutput = utl.merge_dicts(self.main_rawoutput,
+                                                  raw_outputs)
+            proc_outputs = self.process_pPXF_results(fitter, self.VEL_FACTOR)
+            self.main_procoutput = utl.merge_dicts(self.main_procoutput,
+                                                   proc_outputs)
             # construct error estimate from Monte Carlo trial spectra
-            if self.num_trials > 1:
-                base = self.main_rawoutput("best_model")
-                chsq_dof = self.main_rawoutput("chisq_dof")
-                if chsq_dof >= 1:
-                    raise Warning("chi^2/dof = {} >= 1\n"
-                                  "inflating noise for Monte Carlo trials "
-                                  "such that chi^2/dof = 1".format(chsq_dof))
-                else:
-                    raise Warning("chi^2/dof = {} < 1\n"
-                                  "deflating noise for Monte Carlo trials "
-                                  "such that chi^2/dof = 1".format(chsq_dof))
-                noise_scale = self.main_input["noise"]*np.sqrt(chisq_dof)
-                    # this sets the noise level for the Monte Carlo trials to
-                    # be roughly the size of the actual fit residuals - i.e.,
-                    # we assume the model is valid and that a high/low chisq
-                    # per dof is due to under/overestimated errors
-                noise_draw = np.random.randn(self.num_trials, *base.shape)
-                    # uniform, uncorrelated Gaussian pixel noise
-                trial_spectra = base + noise_draw*noise_scale
-                base_gh_params = self.main_rawoutput["gh_params"]
-                for trial_spectrum in trial_spectra:
-                    trial_fitter = ppxf.ppxf(library_spectra_cols,
-                                             trial_spectrum, noise_draw,
-                                             self.velscale, base_gh_params,
-                                             goodpixels=good_pix_indices,
-                                             vsyst=velocity_offset,
-                                             plot=False, quiet=True,
-                                             **self.ppxf_kwargs)
-
-                    # NEEDS UPDATING
-                    self.main_input = self.get_pPXF_inputdict(fitter)
-                    self.main_rawoutput = self.get_pPXF_rawoutputdict(fitter)
-                    self.main_procoutput = self.process_pPXF_results(fitter,
-                                                    const.ppxf_losvd_sampling_factor)
-                    # NEEDS UPDATING
-        return
-
-    def output_fit_results(self, path):
-        pass
+            if not (self.num_trials > 1):
+                continue
+            base = self.main_rawoutput("best_model")
+            chsq_dof = self.main_rawoutput("chisq_dof")
+            if chsq_dof >= 1:
+                raise Warning("chi^2/dof = {} >= 1\n"
+                              "inflating noise for Monte Carlo trials "
+                              "such that chi^2/dof = 1".format(chsq_dof))
+            else:
+                raise Warning("chi^2/dof = {} < 1\n"
+                              "deflating noise for Monte Carlo trials "
+                              "such that chi^2/dof = 1".format(chsq_dof))
+            noise_scale = self.main_input["noise"]*np.sqrt(chisq_dof)
+                # this sets the noise level for the Monte Carlo trials to be
+                # roughly the size of the actual fit residuals - i.e., we
+                # assume the model is valid and that a high/low chisq per dof
+                # is due to under/overestimated errors
+            noise_draw = np.random.randn(self.num_trials, *base.shape)
+                # uniform, uncorrelated Gaussian pixel noise
+            trial_spectra = base + noise_draw*noise_scale
+            base_gh_params = self.main_rawoutput["gh_params"]
+            trialset_input = {} # stores all results for this set of trials
+            trialset_rawoutput = {}
+            trialset_procoutput = {}
+            for trial_spectrum in trial_spectra:
+                trial_fitter = ppxf.ppxf(library_spectra_cols,
+                                         trial_spectrum, noise_draw,
+                                         self.velscale, base_gh_params,
+                                         goodpixels=good_pix_indices,
+                                         vsyst=velocity_offset, plot=False,
+                                         quiet=True, **self.ppxf_kwargs)
+                inputs = self.get_pPXF_inputdict(trial_fitter)
+                trialset_input = utl.merge_dicts(trialset_input, inputs)
+                raw_outputs = self.get_pPXF_rawoutputdict(trial_fitter)
+                trialset_rawoutput = utl.merge_dicts(trialset_rawoutput,
+                                                     raw_outputs)
+                proc_outputs = self.process_pPXF_results(trial_fitter,
+                                                         self.VEL_FACTOR)
+                trialset_procoutput = utl.merge_dicts(trialset_procoutput,
+                                                      proc_outputs)
+            self.mc_input = utl.merge_dicts(self.mc_input, trialset_input)
+            self.mc_rawoutput = utl.merge_dicts(self.mc_rawoutput,
+                                                trialset_rawoutput)
+            self.mc_procoutput = utl.merge_dicts(self.mc_procoutput,
+                                                 trialset_procoutput)
         return
 
 

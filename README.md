@@ -1,5 +1,8 @@
 This package contains software used in the MASSIVE survey.
 
+
+### This readme is becoming increasingly outdated as work goes on in the "Organizer" branch. It will be rewritten at some point!
+
 ## Code Organization
 
 The code is divided into a set executable scripts and a python package called

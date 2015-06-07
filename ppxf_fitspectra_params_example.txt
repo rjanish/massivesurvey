@@ -1,5 +1,10 @@
 
 #Inputs
+run_name            NGC1600-polar_folded_s2n20-example
+# This is a quick way to generate a stem for output filename, maybe try
+# something more elegant that will identify the galaxy, binning, and ppxf
+# parameter-set without having to write it all manually into the name
+
 binned_cube_path	../all_my_output/NGC1600-polar_folded_s2n20.fits
 templates_dir		../all_my_output/miles-processed/
 
@@ -22,6 +27,9 @@ bins_to_fit		all
 #bins_to_fit		[4]
 
 mask			[[4260.0,4285.0],[4475.0,4795.0]]
+
+#num_trials    100  # appropriate for actual results
+num_trials    5  # use for quicker testing
 
 #Outputs
 destination_dir		../all_my_output/

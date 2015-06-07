@@ -58,4 +58,5 @@ ppxf_losvd_sampling_factor = 5
 gaussian_fwhm_over_sigma = 2*np.sqrt(2*np.log(2))
 
 # directory structure
-path_to_datamap = "etc/datamap.txt" # file giving locations of data stores
+#path_to_datamap = "etc/datamap.txt" # file giving locations of data stores
+#Should not be needed anymore!

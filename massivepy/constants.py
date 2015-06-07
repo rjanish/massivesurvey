@@ -45,6 +45,7 @@ fullMILES_1600fullgalaxy_optimized = [136, 246, 376, 498, 720, 838,
     # These are the nonzero templates resulting from a ppxf of the full-
     # galaxy bin of NGC1600 using the full miles-massive template library
 float_tol = 10**(-10)
+#float_tol = 10**(-3)
 re_ngc = r"(?:NGC|ngc|N)(?P<num>\d{4})" # get number from NGC designations
 
 # math

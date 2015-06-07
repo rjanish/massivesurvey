@@ -78,14 +78,14 @@ class pPXFDriver(object):
             The Gaussian biasing parameters - see pPXF paper
         """
         # validate input types
-        self.specset = copy.deepcopy(spectra)
-        self.templib = copy.deepcopy(templates)
+        self.specset = copy.deepcopy(specset)
+        self.templib = copy.deepcopy(templib)
         self.nominal_fit_range = np.asarray(fit_range, dtype=float)
         if self.nominal_fit_range.shape != (2,):
             raise ValueError("invalid fit range shape {}"
                              "".format(self.nominal_fit_range.shape))
         self.num_trials = int(num_trials)
-        if not (self.num_trials => 0):
+        if not (self.num_trials >= 0):
             raise ValueError("invalid number of Monte Carlo trials: "
                              "{}, must be a non-negative integer"
                              "".format(self.num_trials))
@@ -209,14 +209,14 @@ class pPXFDriver(object):
         raw_outputs["chisq_dof"] = ppxf_fitter.chi2 # is per dof, see ppxf.py
         raw_outputs["add_weights"] = ppxf_fitter.polyweights
         raw_outputs["template_weights"] = ppxf_fitter.weights
-        raw_outputs["mul_weights"] = prepend_const_mweight(ppxf_fitter)
+        raw_outputs["mul_weights"] = self.prepend_const_mweight(ppxf_fitter)
             # multiplicative weights need constant term
         raw_outputs["unscaled_lsq_errors"] = ppxf_fitter.error
             # error estimate from least-square algorithm's covariance matrix
         raw_outputs["num_kin_components"] = ppxf_fitter.ncomp
         raw_outputs["reddening"] = ppxf_fitter.reddening
             # used if an extinction estimate is included in the fit
-        raw_inputs["sampling_factor"] = ppxf_fitter.factor
+        raw_outputs["sampling_factor"] = ppxf_fitter.factor
             # used if pPXF re-samples the input to denser grid
         return raw_outputs
 
@@ -239,7 +239,7 @@ class pPXFDriver(object):
             # interval linearly onto the Legendre interval [-1, 1]
         legendre_series = np.polynomial.legendre.legval
         add_continuum = legendre_series(poly_args, ppxf_fitter.polyweights)
-        proc_mul_weights = prepend_const_mweight(ppxf_fitter)
+        proc_mul_weights = self.prepend_const_mweight(ppxf_fitter)
         mul_continuum = legendre_series(poly_args, proc_mul_weights)
         return add_continuum, mul_continuum
 
@@ -280,8 +280,8 @@ class pPXFDriver(object):
             # between the templates and data - using this losvd is accurate
             # if one assumed that templates and data are identically sampled
         # do convolutions
-        smoothed_temps = np.zeros(raw_inputs["templates"].shape)
         template_spectra = ppxf_fitter.star.T # ppxf stores spectra in cols
+        smoothed_temps = np.zeros(template_spectra.shape)
         for temp_iter, temp in enumerate(template_spectra):
             convolved = self.velscale*signal.fftconvolve(temp, shifted_losvd,
                                                          mode='same')
@@ -303,7 +303,7 @@ class pPXFDriver(object):
         num_data_samples = fitter.galaxy.shape[0]
         model_temps = np.zeros((num_templates, num_data_samples))
         fluxes = np.zeros(num_templates)
-        for temp_iter, smoothed in enumerate(smoothed_temps):
+        for temp_iter, smoothed in enumerate(smoothed_templates):
             model_temps[temp_iter, :] = smoothed[:num_data_samples]*mul_poly
                 # the smoothed templates are sampled with the same starting
                 # wavelength and log-step as the data, but possibly extending
@@ -324,7 +324,7 @@ class pPXFDriver(object):
         the remaining terms are normalized to have identical units.
         This means that $a_0 + \sum_i w_i = 1$, for returned a and w.
         """
-        fit_wave_width = self.exact_fit_range[1] - self.exact_fit_range[1]
+        fit_wave_width = self.exact_fit_range[1] - self.exact_fit_range[0]
         total_flux = integ.simps(fitter.bestfit, self.specset.waves)
         flux_add_weights = fitter.polyweights*fit_wave_width/total_flux
         flux_template_weights = fitter.weights*model_tmps_fluxes/total_flux
@@ -341,9 +341,8 @@ class pPXFDriver(object):
         proc_outputs["add_poly"] = add_poly
         smoothed_tmps = self.convolve_templates(fitter, losvd_sampling_factor)
         proc_outputs["smoothed_temps"] = smoothed_tmps
-        [model_tmps, model_fluxes] = self.get_model_temps(fitter,
-                                                          smoothed_tmps,
-                                                          mul_poly)
+        [model_tmps, model_fluxes] = (
+            self.compute_model_templates(fitter, smoothed_tmps, mul_poly))
         proc_outputs["model_temps"] = model_tmps
         proc_outputs["model_temps_fluxes"] = model_fluxes
         [flux_add_weights,
@@ -408,27 +407,29 @@ class pPXFDriver(object):
                                quiet=True, **self.ppxf_kwargs)
             # save main results
             inputs = self.get_pPXF_inputdict(fitter)
-            self.main_input = utl.merge_dicts(self.main_input, inputs)
+            self.main_input = utl.append_to_dict(self.main_input, inputs)
             raw_outputs = self.get_pPXF_rawoutputdict(fitter)
-            self.main_rawoutput = utl.merge_dicts(self.main_rawoutput,
-                                                  raw_outputs)
+            self.main_rawoutput = utl.append_to_dict(self.main_rawoutput,
+                                                     raw_outputs)
             proc_outputs = self.process_pPXF_results(fitter, self.VEL_FACTOR)
-            self.main_procoutput = utl.merge_dicts(self.main_procoutput,
-                                                   proc_outputs)
+            self.main_procoutput = utl.append_to_dict(self.main_procoutput,
+                                                      proc_outputs)
             # construct error estimate from Monte Carlo trial spectra
             if not (self.num_trials > 1):
                 continue
-            base = self.main_rawoutput("best_model")
-            chsq_dof = self.main_rawoutput("chisq_dof")
-            if chsq_dof >= 1:
-                raise Warning("chi^2/dof = {} >= 1\n"
+            base = np.asarray(self.main_rawoutput["best_model"][-1])
+                # index -1: grab most recent entry
+            chisq_dof = float(self.main_rawoutput["chisq_dof"][-1])
+            if chisq_dof >= 1:
+                warnings.warn("chi^2/dof = {:.2f} >= 1\n"
                               "inflating noise for Monte Carlo trials "
-                              "such that chi^2/dof = 1".format(chsq_dof))
+                              "such that chi^2/dof = 1".format(chisq_dof))
             else:
-                raise Warning("chi^2/dof = {} < 1\n"
+                warnings.warn("chi^2/dof = {:.2f} < 1\n"
                               "deflating noise for Monte Carlo trials "
-                              "such that chi^2/dof = 1".format(chsq_dof))
-            noise_scale = self.main_input["noise"]*np.sqrt(chisq_dof)
+                              "such that chi^2/dof = 1".format(chisq_dof))
+            noise_scale = np.asarray(self.main_input["noise"][-1])
+            noise_scale *= np.sqrt(chisq_dof)
                 # this sets the noise level for the Monte Carlo trials to be
                 # roughly the size of the actual fit residuals - i.e., we
                 # assume the model is valid and that a high/low chisq per dof
@@ -436,31 +437,43 @@ class pPXFDriver(object):
             noise_draw = np.random.randn(self.num_trials, *base.shape)
                 # uniform, uncorrelated Gaussian pixel noise
             trial_spectra = base + noise_draw*noise_scale
-            base_gh_params = self.main_rawoutput["gh_params"]
+            base_gh_params = np.asarray(self.main_rawoutput["gh_params"][-1])
             trialset_input = {} # stores all results for this set of trials
             trialset_rawoutput = {}
             trialset_procoutput = {}
             for trial_spectrum in trial_spectra:
                 trial_fitter = ppxf.ppxf(library_spectra_cols,
-                                         trial_spectrum, noise_draw,
+                                         trial_spectrum, noise_scale,
                                          self.velscale, base_gh_params,
                                          goodpixels=good_pix_indices,
                                          vsyst=velocity_offset, plot=False,
                                          quiet=True, **self.ppxf_kwargs)
                 inputs = self.get_pPXF_inputdict(trial_fitter)
-                trialset_input = utl.merge_dicts(trialset_input, inputs)
+                trialset_input = utl.append_to_dict(trialset_input, inputs)
                 raw_outputs = self.get_pPXF_rawoutputdict(trial_fitter)
-                trialset_rawoutput = utl.merge_dicts(trialset_rawoutput,
-                                                     raw_outputs)
+                trialset_rawoutput = utl.append_to_dict(trialset_rawoutput,
+                                                        raw_outputs)
                 proc_outputs = self.process_pPXF_results(trial_fitter,
                                                          self.VEL_FACTOR)
-                trialset_procoutput = utl.merge_dicts(trialset_procoutput,
-                                                      proc_outputs)
-            self.mc_input = utl.merge_dicts(self.mc_input, trialset_input)
-            self.mc_rawoutput = utl.merge_dicts(self.mc_rawoutput,
-                                                trialset_rawoutput)
-            self.mc_procoutput = utl.merge_dicts(self.mc_procoutput,
-                                                 trialset_procoutput)
+                trialset_procoutput = utl.append_to_dict(trialset_procoutput,
+                                                         proc_outputs)
+            self.mc_input = utl.append_to_dict(self.mc_input, trialset_input)
+            self.mc_rawoutput = utl.append_to_dict(self.mc_rawoutput,
+                                                   trialset_rawoutput)
+            self.mc_procoutput = utl.append_to_dict(self.mc_procoutput,
+                                                    trialset_procoutput)
+        self.main_input = {k:np.asarray(v, dtype=type(v[0])) for k, v in
+                           self.main_input.iteritems()}
+        self.main_rawoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
+                               self.main_rawoutput.iteritems()}
+        self.main_procoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
+                                self.main_procoutput.iteritems()}
+        self.mc_input = {k:np.asarray(v, dtype=type(v[0])) for k, v in
+                         self.mc_input.iteritems()}
+        self.mc_rawoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
+                             self.mc_rawoutput.iteritems()}
+        self.mc_procoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
+                              self.mc_procoutput.iteritems()}
         return
 
 

@@ -33,7 +33,7 @@ setup_settings = { # from old settings files
     "templates_to_use":         const.fullMILES_1600fullgalaxy_optimized,
     "mask":                     [[4260.0, 4285.0],
                                  [4775.0, 4795.0]],  # A
-    "error_simulation_trials":  0}
+    "error_simulation_trials":  5}
 gh_init = [0, 250, 0, 0, 0, 0]
 fit_range = [3900.0, 5300.0]
 range_masks = [3900, 5300]
@@ -81,9 +81,10 @@ for path in binned_specsets_paths:
             specset.metaspectra["bad_data"][spec_iter, :] | masked)
     specset_to_fit = specset.get_subset(bins_to_fit)
     # do fits
-    driver = driveppxf.pPXFDriver(spectra=specset_to_fit,
-                                  templates=template_library,
+    driver = driveppxf.pPXFDriver(specset=specset_to_fit,
+                                  templib=template_library,
                                   fit_range=fit_range,
                                   initial_gh=gh_init,
+                                  num_trials=setup_settings["error_simulation_trials"],
                                   **fit_settings)
     results = driver.run_fit()

@@ -44,7 +44,37 @@ class pPXFDriver(object):
     def __init__(self, specset=None, templib=None, fit_range=None,
                  initial_gh=None, num_trials=None, **ppxf_kwargs):
         """
+        This validates the passed pPXF settings, and prepares the
+        input spectra for fitting.
+
+        Copies are made of the input spectral dataset and template
+        library, to ensure that any manipulations required before
+        fitting to do propagate back to original data.
+
         Args:
+        specset - massivepy.SpectrumSet object
+            The spectral data to fit
+        templib - massivepy.TemplateLibrary object
+            The library of stellar template to use in the fitting
+        fit_range - (2,) arraylike
+            The wavelength interval over which to fit the spectra
+        initial_gh - 1d arraylike
+            The Gauss-Hermite parameters with which to start the fit
+        num_trials - int
+            The number of Monte Carlo trials to run in order to
+            determine the errors in the output fit parameters
+        add_deg - int
+            The degree of the additive Legendre polynomial series
+            used to model the continuum
+        mul_deg - int
+            The degree minus 1 of the multiplicative Legendre
+            polynomial series used to model the continuum. The constant
+            term is always a 1, and this input specifies the number
+            of additional terms to include.
+        num_moments - int
+            The number of Gauss-Hermite moments to include in the fit
+        bias - float, positive
+            The Gaussian biasing parameters - see pPXF paper
         """
         # validate input types
         self.specset = copy.deepcopy(spectra)
@@ -96,6 +126,8 @@ class pPXFDriver(object):
 
     def prepare_library(self, target_spec):
         """
+        Prepare a template library based on the library in pPXFdriver's
+        templib attribute to be usable to fit the passed SpectrumSet.
         """
         spec_waves = target_spec.waves
         spec_ir = target_spec.metaspectra["ir"][0]
@@ -113,55 +145,81 @@ class pPXFDriver(object):
             matched_library.spectrumset.get_normalized(
                 norm_func=spec.SpectrumSet.compute_spectrum_median,
                 norm_value=1.0))
+            # normalize by median only for sensible numerical values, as a
+            # proper flux-normalization in the fitting region can only be
+            # done after the best-fit overall velocity shift is determined
         return matched_library
 
-    def get_pPXF_inputdict(ppxf_fitter):
+    def get_pPXF_inputdict(self, ppxf_fitter):
         """
+        Saves a record of exact pPXF input parameters into dictionary
         """
         raw_inputs = {}
-        raw_inputs["pixels_used"] = ppxf_fitter.goodpixels
-        raw_inputs["bias"] = ppxf_fitter.bias
-        raw_inputs["lam"] = ppxf_fitter.lam
-        raw_inputs["mul_deg"] = ppxf_fitter.mdegree
-        raw_inputs["reg_dim"] = ppxf_fitter.reg_dim
-        raw_inputs["clean"] = ppxf_fitter.clean
-        raw_inputs["num_moments"] = ppxf_fitter.moments
-        raw_inputs["regul"] = ppxf_fitter.regul
-        raw_inputs["sky_template"] = ppxf_fitter.sky
-        raw_inputs["add_deg"] = ppxf_fitter.degree
+        raw_inputs["spectrum"] = ppxf_fitter.galaxy # data spectrum
         raw_inputs["noise"] = ppxf_fitter.noise
-        raw_inputs["templates"] = ppxf_fitter.star.T
-        raw_inputs["oversample"] = ppxf_fitter.oversample
+        raw_inputs["templates"] = ppxf_fitter.star.T # convert back to rows
         raw_inputs["vsyst"] = ppxf_fitter.vsyst*self.velscale
-        raw_inputs["spectrum"] = ppxf_fitter.galaxy
+            # the template to data initial sampling shift - pPXF saves
+            # the value in units of pixels, restore velocity units here
+        raw_inputs["pixels_used"] = ppxf_fitter.goodpixels
+        raw_inputs["mul_deg"] = ppxf_fitter.mdegree
+        raw_inputs["add_deg"] = ppxf_fitter.degree
+        raw_inputs["num_moments"] = ppxf_fitter.moments
+        raw_inputs["bias"] = ppxf_fitter.bias  # bias towards Gaussian losvd
+        raw_inputs["lam"] = ppxf_fitter.lam
+            # the data spectrum sampling wavelengths, only needed
+            # if an extinction estimate is included in the fit
+        raw_inputs["regul"] = ppxf_fitter.regul
+        raw_inputs["reg_dim"] = ppxf_fitter.reg_dim
+            # factor used to regularize the template weights
+        raw_inputs["clean"] = ppxf_fitter.clean
+            # used if pPXF does an iterative outlier clipping with the fit
+        raw_inputs["sky_template"] = ppxf_fitter.sky # include sky in fit
+        raw_inputs["oversample"] = ppxf_fitter.oversample
+            # used if pPXF is to densely re-sample the input
         raw_inputs["kin_components"] = ppxf_fitter.component
-        raw_inputs["sampling_factor"] = ppxf_fitter.factor
+            # for fits with multiple kinematic components, used to
+            # specify the component to which each template belongs
         return raw_inputs
 
-    def get_pPXF_rawoutputdict(ppxf_fitter):
+    def prepend_const_mweight(self, ppxf_fitter):
         """
+        The multiplicative polynomial in pPXF has a constant term of
+        fixed coefficient 1, but pPXF only returns the variable
+        coefficients (for the linear and higher-order terms). This
+        restores the 1, so that additive and multiplicative polynomial
+        weights are reported identically.
+        """
+        try:
+            mul_weights = np.concatenate(([1], ppxf_fitter.mpolyweights))
+        except AttributeError:
+            mul_weights = np.asarray([1])
+                # 'mpolyweights' is not defined in pPXF if only a constant
+        return mul_weights
+
+    def get_pPXF_rawoutputdict(self, ppxf_fitter):
+        """
+        Saves an exact record of raw pPXF outputs into dictionary.
         """
         raw_outputs = {}
         raw_outputs["best_model"] = ppxf_fitter.bestfit
-        raw_outputs["reddening"] = ppxf_fitter.reddening
-        raw_outputs["chisq_dof"] = ppxf_fitter.chi2
-        raw_outputs["num_kin_components"] = ppxf_fitter.ncomp
+            # best-fit model spectrum, sampled identically to input data
         raw_outputs["gh_params"] = ppxf_fitter.sol
-        raw_outputs["unscaled_lsq_errors"] = ppxf_fitter.error
-            # error estimate from least-squares cov matrix
+        raw_outputs["chisq_dof"] = ppxf_fitter.chi2 # is per dof, see ppxf.py
         raw_outputs["add_weights"] = ppxf_fitter.polyweights
         raw_outputs["template_weights"] = ppxf_fitter.weights
-        try:
-            raw_outputs["mul_weights"] = (
-                np.concatenate(([1], ppxf_fitter.mpolyweights)))
-                # constant term is always 1, but not returned by pPXF
-        except AttributeError:
-            raw_outputs["mul_weights"] = np.asarray([1])
-                # if no mult poly specified in the fit, then pPXF still uses
-                # a constant term of 1, but returns no output mult polynomial
+        raw_outputs["mul_weights"] = prepend_const_mweight(ppxf_fitter)
+            # multiplicative weights need constant term
+        raw_outputs["unscaled_lsq_errors"] = ppxf_fitter.error
+            # error estimate from least-square algorithm's covariance matrix
+        raw_outputs["num_kin_components"] = ppxf_fitter.ncomp
+        raw_outputs["reddening"] = ppxf_fitter.reddening
+            # used if an extinction estimate is included in the fit
+        raw_inputs["sampling_factor"] = ppxf_fitter.factor
+            # used if pPXF re-samples the input to denser grid
         return raw_outputs
 
-    def scale_lsqvariance(self, ppxf_fitter):
+    def scale_lsq_variance(self, ppxf_fitter):
         """
         Scale the error estimate derived from the least-squares
         algorithm's covariance matrix by sqrt(chisq). This provides a
@@ -179,146 +237,148 @@ class pPXFDriver(object):
             # pPXF evaluates polynomials by mapping the fit log-lambda
             # interval linearly onto the Legendre interval [-1, 1]
         legendre_series = np.polynomial.legendre.legval
-        mul_continuum = legendre_series(poly_args,
-                                          raw_outputs["mul_weights"])
         add_continuum = legendre_series(poly_args, ppxf_fitter.polyweights)
-        proc_outputs["mul_continuum"] = mul_continuum
-        proc_outputs["add_continuum"] = add_continuum
-        return
+        proc_mul_weights = prepend_const_mweight(ppxf_fitter)
+        mul_continuum = legendre_series(poly_args, proc_mul_weights)
+        return add_continuum, mul_continuum
 
-    def compute_convolved_templates():
-        bf_v, bf_sigma = raw_outputs["gh_params"][:2]
-        rough_edge = (np.absolute(raw_inputs["vsyst"]) +
-                      np.absolute(bf_v) + sampling_scale*bf_sigma)
+    def convolve_templates(self, ppxf_fitter, losvd_sampling_factor):
+        """
+        Convolve the templates by the best-fitting losvd. The velocity
+        width over which the losvd is sampled its central velocity +-
+        losvd_sampling_factor*sigma. The losvds used here are *not*
+        normalized unless exactly Gaussian (this is in accord with
+        pPXF's convention), so the total fluxes will change here.
+
+        The returned smoothed templates are sampled with the same
+        starting wavelength and log-step as the data, but possibly
+        extending to some much greater final wavelength. This is
+        ensured by accounting for the difference in template and data
+        initial sampling values in the fit using pPXF's vsyst.
+        """
+        v, sigma = ppxf_fitter.sol[:2]
+        vsyst = ppxf_fitter.vsyst*self.velscale
+            # the template to data initial sampling shift - pPXF saves
+            # the value in units of pixels, restore velocity units here
+        # get velocity sampling
+        rough_edge = (np.absolute(vsyst) +
+                      np.absolute(v) +
+                      losvd_sampling_factor*sigma)
         num_steps = np.ceil(rough_edge/self.velscale)
+            # number of steps from zero to outer edge of sampling
         exact_edge = self.velscale*num_steps
-            # sample losvd in [-exact_edge, exact_edges], steps of logscale*c
-        kernel_size = 2*num_steps + 1
+            # allow sampling of [-exact_edge, exact_edges] via velscale steps
+        kernel_size = 2*num_steps + 1  # center kernel on zero
         velocity_samples = np.linspace(-exact_edge, exact_edge, kernel_size)
-        shifted_gh_params = np.concatenate(([bf_v + raw_inputs["vsyst"]],
-                                             raw_outputs["gh_params"][1:]))
+        # compute losvd
+        shifted_gh_params = np.concatenate(([v + vsyst],
+                                            ppxf_fitter.sol[1:]))
         shifted_losvd = gh.unnormalized_gausshermite_pdf(velocity_samples,
                                                          shifted_gh_params)
+            # this includes the difference in initial sampling wavelengths
+            # between the templates and data - using this losvd is accurate
+            # if one assumed that templates and data are identically sampled
+        # do convolutions
         smoothed_temps = np.zeros(raw_inputs["templates"].shape)
-        model_temps = np.zeros((raw_inputs["templates"].shape[0],
-                                raw_inputs["spectrum"].shape[0]))
-        model_temps_fluxes = np.zeros(raw_inputs["templates"].shape[0])
-        temp_waves = temp_lib.spectrumset.waves
-        for temp_iter, temp in enumerate(raw_inputs["templates"]):
-            convolved = signal.fftconvolve(temp, shifted_losvd, mode='same')*self.velscale
+        template_spectra = ppxf_fitter.star.T # ppxf stores spectra in cols
+        for temp_iter, temp in enumerate(template_spectra):
+            convolved = self.velscale*signal.fftconvolve(temp, shifted_losvd,
+                                                         mode='same')
+                # factor of velscale makes discrete convolution ~ trapezoid
+                # approximation to continuous convolution integral, see notes
             smoothed_temps[temp_iter, :] = convolved
-            model_temps[temp_iter, :] = convolved[:mul_continuum.shape[0]]*mul_continuum
-            flux = integ.simps(model_temps[temp_iter, :], self.specset.waves)
-            model_temps_fluxes[temp_iter] = flux
-        proc_outputs["smoothed_temps"] = smoothed_temps
-        proc_outputs["model_temps"] = model_temps
-        proc_outputs["model_temps_fluxes"] = model_temps_fluxes
-        fit_width = self.exact_fit_range[1] - self.exact_fit_range[1]
-        total_flux = integ.simps(raw_outputs["best_model"],
-                                 self.specset.waves)
-        proc_outputs["total_flux"] = total_flux
-        flux_add_weights = raw_outputs["add_weights"]*fit_width/total_flux
-        proc_outputs["flux_add_weights"] = flux_add_weights
-        flux_template_weights = (
-            raw_outputs["template_weights"]*model_temps_fluxes/total_flux)
-        proc_outputs["flux_template_weights"] = flux_template_weights
-        model_reconstruct = (add_continuum +
-            np.sum(model_temps.T*raw_outputs["template_weights"], axis=1))
-        full_template = np.sum(model_temps.T*raw_outputs["template_weights"], axis=1)
-        model_delta = model_reconstruct - raw_outputs['best_model']
-        model_frac_delta = model_delta/raw_outputs['best_model']
-        matches = np.absolute(model_frac_delta).max() < const.float_tol
-        if not matches:
-            fig, ax = plt.subplots()
-            ax.plot(self.specset.waves, raw_outputs['best_model'],
-                    linestyle='-', marker='', color='k', alpha=0.6,
-                    label="pPXF-returned best-fit model")
-            ax.plot(self.specset.waves, model_reconstruct,
-                    linestyle='-', marker='', color='r', alpha=0.6,
-                    label="reconstructed best-fit model")
-            plt.show()
-            raise RuntimeError("reconstructed spectrum model does not match")
-        return raw_inputs, raw_outputs, proc_outputs
+        return smoothed_temps
 
-
-    def process_pPXF_results(self, ppxf_fitter, temp_lib, sampling_scale):
+    def compute_model_templates(self, fitter, smoothed_templates, mul_poly):
         """
+        The computes the 'model templates', meaning the template terms
+        as the appear in the final model summation - the templates
+        convolved by the losvd and scaled by the multiplicative
+        polynomial, and then sampled identical to the data spectrum.
+        Also returns the integrated (over wavelength) fluxes of the
+        model templates.
+        """
+        num_templates = fitter.star.shape[1] # ppxf stores templates in cols
+        num_data_samples = fitter.galaxy.shape[0]
+        model_temps = np.zeros((num_templates, num_data_samples))
+        fluxes = np.zeros(num_templates)
+        for temp_iter, smoothed in enumerate(smoothed_temps):
+            model_temps[temp_iter, :] = smoothed[:num_data_samples]*mul_poly
+                # the smoothed templates are sampled with the same starting
+                # wavelength and log-step as the data, but possibly extending
+                # to some much greater final wavelength
+            fluxes[temp_iter] = integ.simps(model_temps[temp_iter, :],
+                                            self.specset.waves)
+        return model_temps, fluxes
+
+    def fluxnormalize_weights(self, fitter, model_tmps_fluxes):
+        """
+        Normalize the additive polynomial and template weights such
+        that they equal the fractional flux contribution of their
+        respective terms to the total model flux. This is done using
+        the total fluxes integrated over wavelength.
+
+        Only the constant term in the additive polynomial technically
+        carries a total flux, so it is normalized as above and then
+        the remaining terms are normalized to have identical units.
+        This means that $a_0 + \sum_i w_i = 1$, for returned a and w.
+        """
+        fit_wave_width = self.exact_fit_range[1] - self.exact_fit_range[1]
+        total_flux = integ.simps(fitter.bestfit, self.specset.waves)
+        flux_add_weights = fitter.polyweights*fit_wave_width/total_flux
+        flux_template_weights = fitter.weights*model_tmps_fluxes/total_flux
+        return flux_add_weights, flux_template_weights
+
+    def process_pPXF_results(self, fitter, losvd_sampling_factor):
+        """
+        Compute all useful outputs not directly returned by pPXF.
         """
         proc_outputs = {}
-        error_scale = np.sqrt(ppxf_fitter.chi2)
-        proc_outputs["scaled_lsq_errors"] = ppxf_fitter.error*error_scale
-            # error estimate from least-squares cov matrix, scaled by
-            # root-chisq to account for residuals in poorly-fit data
-        poly_args = np.linspace(-1, 1, raw_inputs["spectrum"].shape[0])
-            # pPXF evaluates polynomials by mapping the fit log-lambda
-            # interval linearly onto the Legendre interval [-1, 1]
-        mul_continuum = (
-            np.polynomial.legendre.legval(poly_args,
-                                          raw_outputs["mul_weights"]))
-        add_continuum = (
-            np.polynomial.legendre.legval(poly_args,
-                                          raw_outputs["add_weights"]))
-        proc_outputs["mul_continuum"] = mul_continuum
-        proc_outputs["add_continuum"] = add_continuum
-        bf_v, bf_sigma = raw_outputs["gh_params"][:2]
-        rough_edge = (np.absolute(raw_inputs["vsyst"]) +
-                      np.absolute(bf_v) + sampling_scale*bf_sigma)
-        num_steps = np.ceil(rough_edge/self.velscale)
-        exact_edge = self.velscale*num_steps
-            # sample losvd in [-exact_edge, exact_edges], steps of logscale*c
-        kernel_size = 2*num_steps + 1
-        velocity_samples = np.linspace(-exact_edge, exact_edge, kernel_size)
-        shifted_gh_params = np.concatenate(([bf_v + raw_inputs["vsyst"]],
-                                             raw_outputs["gh_params"][1:]))
-        shifted_losvd = gh.unnormalized_gausshermite_pdf(velocity_samples,
-                                                         shifted_gh_params)
-        smoothed_temps = np.zeros(raw_inputs["templates"].shape)
-        model_temps = np.zeros((raw_inputs["templates"].shape[0],
-                                raw_inputs["spectrum"].shape[0]))
-        model_temps_fluxes = np.zeros(raw_inputs["templates"].shape[0])
-        temp_waves = temp_lib.spectrumset.waves
-        for temp_iter, temp in enumerate(raw_inputs["templates"]):
-            convolved = signal.fftconvolve(temp, shifted_losvd, mode='same')*self.velscale
-            smoothed_temps[temp_iter, :] = convolved
-            model_temps[temp_iter, :] = convolved[:mul_continuum.shape[0]]*mul_continuum
-            flux = integ.simps(model_temps[temp_iter, :], self.specset.waves)
-            model_temps_fluxes[temp_iter] = flux
-        proc_outputs["smoothed_temps"] = smoothed_temps
-        proc_outputs["model_temps"] = model_temps
-        proc_outputs["model_temps_fluxes"] = model_temps_fluxes
-        fit_width = self.exact_fit_range[1] - self.exact_fit_range[1]
-        total_flux = integ.simps(raw_outputs["best_model"],
-                                 self.specset.waves)
-        proc_outputs["total_flux"] = total_flux
-        flux_add_weights = raw_outputs["add_weights"]*fit_width/total_flux
+        proc_outputs["scaled_lsq_errors"] = self.scale_lsq_variance(fitter)
+        add_poly, mul_poly = self.evalute_continuum_polys(fitter)
+        proc_outputs["mul_poly"] = mul_poly
+        proc_outputs["add_poly"] = add_poly
+        smoothed_tmps = self.convolve_templates(fitter, losvd_sampling_factor)
+        proc_outputs["smoothed_temps"] = smoothed_tmps
+        [model_tmps, model_fluxes] = self.get_model_temps(fitter,
+                                                          smoothed_tmps,
+                                                          mul_poly)
+        proc_outputs["model_temps"] = model_tmps
+        proc_outputs["model_temps_fluxes"] = model_fluxes
+        [flux_add_weights,
+         flux_tmp_weights] = self.fluxnormalize_weights(fitter, model_fluxes)
         proc_outputs["flux_add_weights"] = flux_add_weights
-        flux_template_weights = (
-            raw_outputs["template_weights"]*model_temps_fluxes/total_flux)
-        proc_outputs["flux_template_weights"] = flux_template_weights
-        model_reconstruct = (add_continuum +
-            np.sum(model_temps.T*raw_outputs["template_weights"], axis=1))
-        full_template = np.sum(model_temps.T*raw_outputs["template_weights"], axis=1)
-        model_delta = model_reconstruct - raw_outputs['best_model']
-        model_frac_delta = model_delta/raw_outputs['best_model']
-        matches = np.absolute(model_frac_delta).max() < const.float_tol
+        proc_outputs["flux_template_weights"] = flux_tmp_weights
+        # test reconstruction
+        reconstructed = add_poly + (model_tmps.T*fitter.weights).sum(axis=1)
+        delta = (reconstructed - fitter.bestfit)/fitter.bestfit
+        matches = np.absolute(delta).max() < const.float_tol
         if not matches:
-            fig, ax = plt.subplots()
-            ax.plot(self.specset.waves, raw_outputs['best_model'],
-                    linestyle='-', marker='', color='k', alpha=0.6,
-                    label="pPXF-returned best-fit model")
-            ax.plot(self.specset.waves, model_reconstruct,
-                    linestyle='-', marker='', color='r', alpha=0.6,
-                    label="reconstructed best-fit model")
-            plt.show()
-            raise RuntimeError("reconstructed spectrum model does not match")
-        return raw_inputs, raw_outputs, proc_outputs
+            raise RuntimeError("reconstructed model spectrum does "
+                               "not match ppxf's output")
+        return proc_outputs
 
     def run_fit(self):
         """
+        Perform the actual pPXF fit, along with processing of the fit
+        output and Monte Carlo fits to determine errors. This driver
+        ensures that the data and templates are properly prepared.
+
+        Fit outputs are not returned, but stored in six pPXFdriver
+        attributes. The first of these store the results of the fits
+        to the passed spectra:
+          main_input - record of inputs to pPXF
+          main_rawoutput - record of direct pPXF outputs
+          main_procoutput - processed pPXF outputs
+        and the next three hold the corresponding results for the Monte
+        Carlo fits, one set of trial fits for each input spectrum:
+          mc_input - record of inputs to pPXF
+          mc_rawoutput - record of direct pPXF outputs
+          mc_procoutput - processed pPXF outputs
         """
         if self.main_rawoutput:
             raise RuntimeWarning("A pPXF fit to this set of spectra has "
-                                 "been computed - overwriting...")
+                                 "already been computed - overwriting...")
         for spec_iter, target_id in enumerate(self.specset.ids):
             target_spec = self.specset.get_subset([target_id])
             matched_library = self.prepare_library(target_spec)
@@ -339,17 +399,22 @@ class pPXFDriver(object):
                 # an array containing integer indices where the input is True
             library_spectra_cols = matched_library.spectrumset.spectra.T
                 # pPXF requires library spectra in columns of input array
-            raw_fitter = ppxf.ppxf(library_spectra_cols,
-                                   target_spec.spectra[0],
-                                   target_spec.metaspectra["noise"][0],
-                                   self.velscale, self.initial_gh,
-                                   goodpixels=good_pix_indices,
-                                   vsyst=velocity_offset, plot=False,
-                                   quiet=True, **self.ppxf_kwargs)
+            fitter = ppxf.ppxf(library_spectra_cols, target_spec.spectra[0],
+                               target_spec.metaspectra["noise"][0],
+                               self.velscale, self.initial_gh,
+                               goodpixels=good_pix_indices,
+                               vsyst=velocity_offset, plot=False,
+                               quiet=True, **self.ppxf_kwargs)
 
-            # save some results
+            # NEEDS UPDATING
+            self.main_input = self.get_pPXF_inputdict(fitter)
+            self.main_rawoutput = self.get_pPXF_rawoutputdict(fitter)
+            self.main_procoutput = self.process_pPXF_results(fitter,
+                                            const.ppxf_losvd_sampling_factor)
+            # NEEDS UPDATING
+
+            # construct error estimate from Monte Carlo trial spectra
             if self.num_trials > 1:
-                # generate Monte Carlo trial spectra
                 base = self.main_rawoutput("best_model")
                 chsq_dof = self.main_rawoutput("chisq_dof")
                 if chsq_dof >= 1:
@@ -378,7 +443,17 @@ class pPXFDriver(object):
                                              plot=False, quiet=True,
                                              **self.ppxf_kwargs)
 
+                    # NEEDS UPDATING
+                    self.main_input = self.get_pPXF_inputdict(fitter)
+                    self.main_rawoutput = self.get_pPXF_rawoutputdict(fitter)
+                    self.main_procoutput = self.process_pPXF_results(fitter,
+                                                    const.ppxf_losvd_sampling_factor)
+                    # NEEDS UPDATING
+        return
 
-                bin_output["spectrum"][trial, ...] = simulated_galaxy
-        return raw_fitter
+    def output_fit_results(self, path):
+        pass
+        return
+
+
 

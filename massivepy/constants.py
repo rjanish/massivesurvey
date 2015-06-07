@@ -16,7 +16,7 @@ angstrom = units.angstrom
 flux_per_angstrom = cgs_flux/units.angstrom
 c_kms = astro_const.c.to('km/s').value
 
-# instrument constants
+# instrumental constants
 mitchell_fiber_radius = 2.08 * arcsec
 mitchell_arc_centers = np.array([4046.5469,  # Hg-Cd blend
                                  4077.8403,  # Hg
@@ -46,6 +46,12 @@ fullMILES_1600fullgalaxy_optimized = [136, 246, 376, 498, 720, 838,
     # galaxy bin of NGC1600 using the full miles-massive template library
 float_tol = 10**(-10)
 re_ngc = r"(?:NGC|ngc|N)(?P<num>\d{4})" # get number from NGC designations
+
+# pPXF conventions
+ppxf_losvd_sampling_factor = 5
+    # When convolving template spectra, pPXF samples losvds on the interval
+    # central_velocity +- 5*sigma. This is stored here to allow an exact
+    # reconstruction of the pPXF model.
 
 # math
 gaussian_fwhm_over_sigma = 2*np.sqrt(2*np.log(2))

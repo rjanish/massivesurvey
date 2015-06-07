@@ -121,7 +121,7 @@ def read_miles_library(dirname):
       spectra/
         - contains one ascii file per spectrum, with wavelengths [A]
           in first column and spectrum [flux(cgs)/A] in second column
-      README.txt
+      ir.txt
         - readable ascii dict file, contains value of the wavelength-
           independent spectral resolution (Gaussian FWHM) [A]
       catalog.txt
@@ -148,7 +148,7 @@ def read_miles_library(dirname):
         return all_waves
         raise ValueError("Spectra must have uniform wavelength sampling")
     waves = all_waves[0]
-    readme_path = os.path.join(dirname, "README.txt")
+    readme_path = os.path.join(dirname, "ir.txt")
     readme_data = utl.read_dict_file(readme_path)
     fwhm = readme_data["library_fwhm"]
     resolution = np.ones(spectra.shape, dtype=float)*fwhm

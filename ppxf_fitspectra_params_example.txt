@@ -1,0 +1,27 @@
+
+#Inputs
+binned_cube_path	../all_my_output/NGC1600-polar_folded_s2n20.fits
+templates_dir		../all_my_output/miles-processed/
+
+#template_list		all
+template_list		not_all_ew_so_slow
+#Eventually, template_list can also point to the file where the list of good
+# templates is stored. right now anything but "all" results in taking the list
+# of templates from massivepy.constants
+
+add_deg			0
+mul_deg			7
+num_moments		6
+bias			0.0
+
+fit_range		[3900.0,5300.0]
+gh_init			[0,250,0,0,0,0]
+
+bins_to_fit		all
+#bins_to_fit		[1,4,31,49]
+#bins_to_fit		[4]
+
+mask			[[4260.0,4285.0],[4475.0,4795.0]]
+
+#Outputs
+destination_dir		../all_my_output/

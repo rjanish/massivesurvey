@@ -97,7 +97,7 @@ for paramfile_path in all_paramfile_paths:
     # save data
     fiber_numbers = np.arange(spectra.shape[0], dtype=int)
     vhelio = spectra_h["VHELIO"]
-    comments = {
+    general_comments = {
         "target":ngc_name,
         "heliocentric correction applied":"{} [km/s]".format(vhelio),
         "wavelengths":"wavelength in galaxy rest frame",

@@ -105,13 +105,10 @@ for paramfile_path in all_paramfile_paths:
     spec_res_full = np.nan*np.ones(spectra.shape)
     print "  interpolating spectral resolution..."
     for fiber_iter, fiber_res_samples in enumerate(spec_res_samples):
-        res_interp_func = utl.interp1d_constextrap(*fiber_res_samples.T)
-        spec_res_full[fiber_iter] = res_interp_func(inst_waves)
-            # spec_res_full is fwhm(galaxy-rest-frame wavelengths),
-            # given as samples at the wavelength values in gal_waves
-            # OR equivalently,
-            # spec_res_full is fwhm(inst-rest-frame wavelengths),
-            # given as samples at the wavelength values in inst_waves
+        galframe_samples = fiber_res_samples/(1 + redshift)
+        gal_interp_func = utl.interp1d_constextrap(*galframe_samples.T)
+        spec_res_full[fiber_iter] = gal_interp_func(gal_waves)
+            # This scales the ir into the galaxy rest frame
     print ("cropping to {}-{} A (galaxy rest frame)..."
            "".format(*const.mitchell_crop_region))
     valid = utl.in_linear_interval(gal_waves, const.mitchell_crop_region)

@@ -151,14 +151,14 @@ class pPXFDriver(object):
             # done after the best-fit overall velocity shift is determined
         return matched_library
 
-    def get_pPXF_inputdict(self, ppxf_fitter):
+    def get_pPXF_inputdict(self, ppxf_fitter, templib):
         """
         Saves a record of exact pPXF input parameters into dictionary
         """
         raw_inputs = {}
         raw_inputs["spectrum"] = ppxf_fitter.galaxy # data spectrum
         raw_inputs["noise"] = ppxf_fitter.noise
-        raw_inputs["templates"] = ppxf_fitter.star.T # convert back to rows
+        raw_inputs["templates"] = templib
         raw_inputs["vsyst"] = ppxf_fitter.vsyst*self.velscale
             # the template to data initial sampling shift - pPXF saves
             # the value in units of pixels, restore velocity units here
@@ -411,7 +411,7 @@ class pPXFDriver(object):
                                vsyst=velocity_offset, plot=False,
                                quiet=True, **self.ppxf_kwargs)
             # save main results
-            inputs = self.get_pPXF_inputdict(fitter)
+            inputs = self.get_pPXF_inputdict(fitter, matched_library)
             self.main_input = utl.append_to_dict(self.main_input, inputs)
             raw_outputs = self.get_pPXF_rawoutputdict(fitter)
             self.main_rawoutput = utl.append_to_dict(self.main_rawoutput,
@@ -453,7 +453,8 @@ class pPXFDriver(object):
                                          goodpixels=good_pix_indices,
                                          vsyst=velocity_offset, plot=False,
                                          quiet=True, **self.ppxf_kwargs)
-                inputs = self.get_pPXF_inputdict(trial_fitter)
+                inputs = self.get_pPXF_inputdict(trial_fitter,
+                                                 matched_library)
                 trialset_input = utl.append_to_dict(trialset_input, inputs)
                 raw_outputs = self.get_pPXF_rawoutputdict(trial_fitter)
                 trialset_rawoutput = utl.append_to_dict(trialset_rawoutput,
@@ -468,17 +469,19 @@ class pPXFDriver(object):
             self.mc_procoutput = utl.append_to_dict(self.mc_procoutput,
                                                     trialset_procoutput)
         self.main_input = {k:np.asarray(v, dtype=type(v[0])) for k, v in
-                           self.main_input.iteritems()}
+                           self.main_input.iteritems() if k != "templates"}
         self.main_rawoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
                                self.main_rawoutput.iteritems()}
         self.main_procoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
-                                self.main_procoutput.iteritems()}
+                                self.main_procoutput.iteritems()
+                                if k != "smoothed_temps"}
         self.mc_input = {k:np.asarray(v, dtype=type(v[0])) for k, v in
-                         self.mc_input.iteritems()}
+                         self.mc_input.iteritems() if k != "templates"}
         self.mc_rawoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
                              self.mc_rawoutput.iteritems()}
         self.mc_procoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
-                              self.mc_procoutput.iteritems()}
+                              self.mc_procoutput.iteritems()
+                              if k != "smoothed_temps"}
         return
 
 

@@ -10,6 +10,7 @@ output:
 import os
 import re
 import argparse
+import sys
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -81,9 +82,19 @@ error_pattern = r'{}.*gh_params_errors.txt'.format(settings['name'])
 all_gh_errors_paths = utl.re_filesearch(error_pattern, old_results_dir)[0]
 full_errors_path = [path for path in all_gh_errors_paths
                     if 'bin' not in path][0]
-print "reading results files:"
+temps_pattern = r'{}.*?bin\d{{2}}.*templates.txt'.format(settings['name'])
+temps_paths = utl.re_filesearch(temps_pattern, old_results_dir)[0]
+temps_waves_pattern = (r'{}.*?bin\d{{2}}.*templates_waves.txt'
+                       r''.format(settings['name']))
+temps_waves_paths = utl.re_filesearch(temps_waves_pattern, old_results_dir)[0]
+print 'found old results files:'
 print "  {}".format(os.path.basename(full_params_path))
 print "  {}".format(os.path.basename(full_errors_path))
+print ("  {} ppxf-output templates, e.g.\n    {}"
+       "".format(len(temps_paths), os.path.basename(temps_paths[0])))
+print ("  {} ppxf-output template wavelengths, e.g.\n    {}"
+       "".format(len(temps_waves_paths),
+                 os.path.basename(temps_waves_paths[0])))
 old_params = np.loadtxt(full_params_path).T
 old_errors = np.loadtxt(full_errors_path).T
 
@@ -93,7 +104,7 @@ if args.fit_all:
     to_fit = np.arange(1, 1 + num_old_bins, dtype=int)
 else:
     to_fit = np.asarray(args.to_fit, dtype=int)
-print "fitting bins:"
+print "reading bins:"
 print "  {}".format(to_fit)
 
 # gather old data
@@ -101,18 +112,21 @@ spectra, noise = [], []
 bad_data_cropping, bad_data_masking = [], []
     # these two bad data arrays implement the two methods of handling the
     # fit_range enforcement - later cropping or masking the edges
+templates, template_waves = [], []
 ir_samples, ir_interped = [], []
 ids = []
-for binned_path, ir_path in zip(old_binneddata_paths, old_ir_paths):
+zipped_old_paths = zip(old_binneddata_paths, temps_paths,
+                       temps_waves_paths, old_ir_paths)
+for binned_path, temp_path, tempw_path, ir_path in zipped_old_paths:
     current_ids = []
-    for path in [binned_path, ir_path]:
+    for path in [binned_path, temp_path, tempw_path]:
         id = int(re.search("bin(\d{2})", os.path.basename(path)).groups()[0])
         current_ids.append(id)
     current_ids = np.asarray(current_ids, dtype=int)
     if np.all(current_ids == current_ids[0]):
         ids.append(current_ids[0])
     else:
-        raise ValueError("binned data and ir bin id numbers do not agree")
+        raise ValueError("data and templates bin id numbers do not agree")
     [[s, n, w, m]], headers = utl.fits_quickread(binned_path)
     waves = w  # assume uniform wavelength sampling
     spectra.append(s)
@@ -122,8 +136,10 @@ for binned_path, ir_path in zip(old_binneddata_paths, old_ir_paths):
     bad_data_cropping.append(m.astype(bool) | masked)
     bad_data_masking.append(m.astype(bool) | masked | out_of_range)
     ir_samples.append(np.loadtxt(ir_path)) # col 0: waves, col 1: fwhm
-    ir_interp_func = utl.interp1d_constextrap(*ir_samples[-1].T)
-    ir_interped.append(ir_interp_func(waves))
+    obsolete_interp = utl.interp1d_constextrap(*ir_samples[-1].T)
+    ir_interped.append(obsolete_interp(waves))
+    templates.append(np.loadtxt(temp_path).T)
+    template_waves.append(np.loadtxt(tempw_path))
 ids = np.asarray(ids, dtype=int)
 spectra = np.asarray(spectra)
 noise = np.asarray(noise)
@@ -133,79 +149,58 @@ waves = np.asarray(waves)
     # These are wavelengths in the galaxy's rest frame, obtained by applying
     # some assumed redshift to the observed wavelengths
 ir_samples = np.asarray(ir_samples)
-    # These are actual measurements of fwhm vs lambda in the
-    # instrument's rest frame
 ir_interped = np.asarray(ir_interped)
-    # using the above ir_interped in a SpectrumSet gives the same ir
-    # treatment as used by the ppxf_trials.py and MassiveKinematics.py
-    # DETAILS: These are the fwhm vs lambda_inst naively interpolated onto
-    # the spectrum sampling wavelengths as though those sampling wavelengths
-    # were given as values in the instrument rest frame (which they are
-    # not - see above). The pPXFdriver code does not know about the various
-    # frames - it will take this ir and the spectra's waves as in the same
-    # frame as the templates' waves, then interpolate directly from
-    # (ir_interped, galaxy sample waves) onto template's sample waves, and
-    # then convolve from there.  This is equivalent to what the old scripts
-    # did. They interpolated directly from the sampled fwhm vs instrument
-    # frame wavelengths onto the template's sample waves.
 
-# make specsets
-oldir_cropped="{}-sameir-rangecropped".format(settings["name"])
-specset_oldir_cropped = spec.SpectrumSet(spectra=spectra, noise=noise,
-                                         wavelengths=waves,
-                                         bad_data=bad_data_cropping,
-                                         ir=ir_interped,
-                                         spectra_ids=ids,
-                                         spectra_unit=const.flux_per_angstrom,
-                                         wavelength_unit=const.angstrom,
-                                         name=oldir_cropped)
-specset_oldir_cropped = specset_oldir_cropped.get_subset(to_fit)
-
-oldir_masked="{}-duplicate".format(settings["name"])
-specset_oldir_masked = spec.SpectrumSet(spectra=spectra, noise=noise,
+# make specset
+duplicate_name="{}-duplicate".format(settings["name"])
+duplicate_specset = spec.SpectrumSet(spectra=spectra, noise=noise,
                                         wavelengths=waves,
                                         bad_data=bad_data_masking,
                                         ir=ir_interped,
                                         spectra_ids=ids,
                                         spectra_unit=const.flux_per_angstrom,
                                         wavelength_unit=const.angstrom,
-                                        name=oldir_masked)
-specset_oldir_masked = specset_oldir_masked.get_subset(to_fit)
+                                        name=duplicate_name)
+duplicate_specset = duplicate_specset.get_subset(to_fit)
 
-# get templates
-template_lib_name = 'miles-massive'
-templates_to_use = [temps.miles_filename_to_number(os.path.basename(path))
-                    for path in old_temp_paths]
-datamap = utl.read_dict_file(const.path_to_datamap)
-temps_dir = datamap["template_libraries"]
-temp_path = os.path.join(temps_dir, template_lib_name)
-full_template_library = temps.read_miles_library(temp_path)
-template_library = full_template_library.get_subset(templates_to_use)
-print "using {} templates:".format(template_lib_name)
-for temp_num in template_library.spectrumset.ids:
-    print "  {:03d}".format(temp_num)
+# make template library for each bin
+template_libs = {}
+for id, temps_s, temp_w, ir_samps in zip(ids, templates,
+                                        template_waves, ir_samples):
+    obsolete_interp = utl.interp1d_constextrap(*ir_samps.T)
+    ir_interped_to_temps = obsolete_interp(temp_w)
+        # here interpolate the ir onto the galaxy wavelengths which are
+        # in the galaxy rest frame, but use an interpolation function
+        # defined by measurements in the instrument rest frame
+    temps_ir = np.asarray([ir_interped_to_temps,]*temps_s.shape[0])
+    temp_ids = np.arange(temps_s.shape[0])  # ID LAzINESS
+    lib = temps.TemplateLibrary(spectra=temps_s,
+                                bad_data=np.zeros(temps_s.shape, dtype=bool),
+                                noise=np.zeros(temps_s.shape, dtype=float),
+                                ir=temps_ir,
+                                spectra_ids=temp_ids, wavelengths=temp_w,
+                                spectra_unit=const.flux_per_angstrom,
+                                wavelength_unit=const.angstrom,
+                                comments={"source":"output of old ppxf fits"},
+                                name="old bin {} fit templates".format(id),
+                                catalog=np.zeros(temps_s.shape[0]))
+    template_libs[id] = lib
 
 # run fits
-print "fitting {}".format(specset_oldir_masked.name)
-scale_inward = 1 + np.asarray([1, -1])*const.float_tol
-full_range = specset_oldir_masked.spec_region*scale_inward
-dirver_oldir_masked = driveppxf.pPXFDriver(
-                              spectra=specset_oldir_masked,
-                              templates=template_library,
-                              fit_range=full_range,
-                              initial_gh=old_gh_initial,
-                              **old_misc_settings)
-    # fit over full wavelength range, with edges outside nominal range masked
-oldir_masked_results, oldir_masked_ids = dirver_oldir_masked.run_fit()
-print "fitting {}".format(specset_oldir_cropped.name)
-dirver_oldir_cropped = driveppxf.pPXFDriver(
-                              spectra=specset_oldir_cropped,
-                              templates=template_library,
-                              fit_range=nominal_fit_range,
-                              initial_gh=old_gh_initial,
-                              **old_misc_settings)
-    # crop and fit over only the nominal fit range
-oldir_cropped_results, oldir_cropped_ids = dirver_oldir_cropped.run_fit()
+for bin_id in to_fit:
+    print "fitting {}".format(bin_id)
+    scale_inward = 1 + np.asarray([1, -1])*const.float_tol
+    full_range = duplicate_specset.spec_region*scale_inward
+    driver_duplicate = driveppxf.pPXFDriver(
+                            specset=duplicate_specset.get_subset([bin_id]),
+                            templib=template_libs[bin_id],
+                            fit_range=full_range,
+                            initial_gh=old_gh_initial,
+                            num_trials=0,
+                            **old_misc_settings)
+    driver_duplicate.run_fit()
+
+sys.exit()
 
 # plot comparison
 for param in xrange(6):

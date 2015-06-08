@@ -352,7 +352,7 @@ class pPXFDriver(object):
         # test reconstruction
         reconstructed = add_poly + (model_tmps.T*fitter.weights).sum(axis=1)
         delta = (reconstructed - fitter.bestfit)/fitter.bestfit
-        matches = np.absolute(delta).max() < const.float_tol
+        matches = np.absolute(delta).max() < const.relaxed_tol
         if not matches:
             warnings.warn("reconstructed model spectrum does not match pPXF "
                           "output model - quartiles over pixels of the "

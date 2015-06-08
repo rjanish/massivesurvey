@@ -473,13 +473,15 @@ class pPXFDriver(object):
         self.main_rawoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
                                self.main_rawoutput.iteritems()}
         self.main_procoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
-                                self.main_procoutput.iteritems()}
+                                self.main_procoutput.iteritems()
+                                if k != "smoothed_temps"}
         self.mc_input = {k:np.asarray(v, dtype=type(v[0])) for k, v in
                          self.mc_input.iteritems() if k != "templates"}
         self.mc_rawoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
                              self.mc_rawoutput.iteritems()}
         self.mc_procoutput = {k:np.asarray(v, dtype=type(v[0])) for k, v in
-                              self.mc_procoutput.iteritems()}
+                              self.mc_procoutput.iteritems()
+                              if k != "smoothed_temps"}
         return
 
 

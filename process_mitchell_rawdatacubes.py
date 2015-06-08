@@ -7,6 +7,12 @@ The changes are:
  - Arc frames are fit by Gaussian line profiles and replaced with the
    resulting samples of fwhm(lambda) for each fiber
 
+input:
+  takes one command line argument, a path to the input parameter text file
+  process_mitchell_rawdatacubes_params_example.txt is an example
+  can take multiple parameter files if you want to process multiple galaxies
+  (give one param file per galaxy)
+
 output:
     one processed data for each input raw datacube
 """
@@ -26,54 +32,35 @@ import massivepy.spectralresolution as res
 import massivepy.IFUspectrum as ifu
 
 
-# defaults
-datamap = utl.read_dict_file(const.path_to_datamap)
-raw_cube_dir = datamap["raw_mitchell_cubes"]
-proc_cube_dir = datamap["proc_mitchell_cubes"]
-target_positions = pd.read_csv(datamap["target_positions"],
-                               comment='#', sep="[ \t]+",
-                               engine='python')
-output_filename = lambda gal_name: "{}_mitchellcube.fits".format(gal_name)
-
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument("cubes", nargs='*', type=str,
-                    help="The raw Michell datacubes to process, passed as "
-                         "either a path to the cube or a galaxy name. Paths "
-                         "are matched first in the current directory and "
-                         "then in the MASSIVE Mitchell raw datacube dir, "
-                         "while for passed galaxy names matching cubes are "
-                         "searched for only in the raw datacube directory.")
-parser.add_argument("--all", action="store_true",
-                    help="Process all raw Michell datacubes located in "
-                         "the MASSIVE Mitchell raw datacube directory")
-parser.add_argument("--destination_dir", action="store",
-                    type=str, nargs=1, default=proc_cube_dir,
-                    help="Directory in which to place processed datacubes")
+parser.add_argument("paramfiles", nargs='*', type=str,
+                    help="path(s) to input parameter file(s)")
 args = parser.parse_args()
-if args.all:
-    cube_paths = utl.re_filesearch(r".*\.fits", raw_cube_dir)[0]
-else:
-    cube_paths = [os.path.normpath(p) for p in args.cubes]
-for path in cube_paths:
-    if (not os.path.isfile(path)) or (os.path.splitext(path)[-1] != ".fits"):
-        raise ValueError("Invalid raw datacube path {}, "
-                         "must be .fits file".format(path))
-dest_dir = os.path.normpath(args.destination_dir)
-if not os.path.isdir(dest_dir):
-    raise ValueError("Invalid destination dir {}".format(dest_dir))
+all_paramfile_paths = args.paramfiles
 
-# start processing
-print "processing {} cubes ...".format(len(cube_paths))
-for path in cube_paths:
+for paramfile_path in all_paramfile_paths:
+    # parse input parameter file
+    input_params = utl.read_dict_file(paramfile_path)
+    raw_cube_path = input_params['raw_mitchell_cube']
+    target_positions = pd.read_csv(input_params["target_positions"],
+                                   comment='#', sep="[ \t]+",
+                                   engine='python')
+    destination_dir = input_params['destination_dir']
+    if not os.path.isdir(destination_dir):
+        raise ValueError("Invalid destination dir {}".format(destination_dir))
+    output_filename = lambda gal_name: "{}_mitchellcube.fits".format(gal_name)
+
+    # start processing
     # check galaxy name consistency
-    ngc_match = re.search(const.re_ngc, path)
+    ngc_match = re.search(const.re_ngc, raw_cube_path)
     if ngc_match is None:
-        raise RuntimeError("No galaxy name found for path {}".format(path))
+        msg = "No galaxy name found for path {}".format(raw_cube_path)
+        raise RuntimeError(msg)
     else:
         ngc_num = ngc_match.groups()[0]
-    data, headers = utl.fits_quickread(path)
+    data, headers = utl.fits_quickread(raw_cube_path)
     ngcs = [re.search(const.re_ngc, header["OBJECT"]).groups()[0]
             for header in headers]
     all_match = [num == ngc_num for num in ngcs] == [True]*len(ngcs)
@@ -92,7 +79,7 @@ for path in cube_paths:
     gal_pa = gal_position.PA_best.iat[0]
         # .ita[0] extracts scalar value from a 1-element dataframe
     print "\n{}".format(ngc_name)
-    print "  raw datacube: {}".format(path)
+    print "  raw datacube: {}".format(raw_cube_path)
     print "        center: {}, {}".format(*gal_center)
     print "            pa: {}".format(gal_pa)
     try:
@@ -173,6 +160,6 @@ for path in cube_paths:
                              linear_scale=fiber_radius,
                              footprint=fiber_circle,
                              name=name)
-    output_path = os.path.join(proc_cube_dir, output_filename(ngc_name))
+    output_path = os.path.join(destination_dir, output_filename(ngc_name))
     ifuset.write_to_fits(output_path)
-    print "  wrote proc cube: {}".format(path)
+    print "  wrote proc cube: {}".format(output_path)

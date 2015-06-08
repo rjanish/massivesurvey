@@ -1,0 +1,19 @@
+
+
+###Input###
+#Need the processed output from process_mitchell_rawdatacubes.py.
+#   (But, we might change the IO at some point so the processing step does not
+#   duplicate the old data, and only saves the processed stuff, in which case
+#   we will need to add separate inputs for the raw datacube and processing output.
+#Also need the target positions file from Jenny.
+#Also need to choose desired aspect ratio and signal to noise.
+
+proc_mitchell_cube	../all_my_output/NGC1600_mitchellcube.fits
+target_positions_path	../all_my_input/target-positions.txt
+aspect_ratio		1.5
+s2n_threshold		20
+
+###Output###
+#Folder to put output in. (Folder should already exist.)
+
+destination_dir		../all_my_output/

@@ -354,8 +354,10 @@ class pPXFDriver(object):
         delta = (reconstructed - fitter.bestfit)/fitter.bestfit
         matches = np.absolute(delta).max() < const.float_tol
         if not matches:
-            raise RuntimeError("reconstructed model spectrum does "
-                               "not match ppxf's output")
+            warnings.warn("reconstructed model spectrum does not match pPXF "
+                          "output model - quartiles over pixels of the "
+                          "fractional deviations are: {:.2e} {:.2e} {:.2e} "
+                          "{:.2e}".format(*utl.quartiles(delta)))
         return proc_outputs
 
     def run_fit(self):
@@ -380,6 +382,9 @@ class pPXFDriver(object):
             raise RuntimeWarning("A pPXF fit to this set of spectra has "
                                  "already been computed - overwriting...")
         for spec_iter, target_id in enumerate(self.specset.ids):
+            print ("fitting spectrum {} ({} of {})..."
+                   "".format(target_id, spec_iter + 1,
+                             self.specset.num_spectra))
             target_spec = self.specset.get_subset([target_id])
             matched_library = self.prepare_library(target_spec)
             template_range = utl.min_max(matched_library.spectrumset.waves)
@@ -421,11 +426,11 @@ class pPXFDriver(object):
                 # index -1: grab most recent entry
             chisq_dof = float(self.main_rawoutput["chisq_dof"][-1])
             if chisq_dof >= 1:
-                warnings.warn("chi^2/dof = {:.2f} >= 1\n"
+                warnings.warn("chi^2/dof = {:.2f} >= 1, "
                               "inflating noise for Monte Carlo trials "
                               "such that chi^2/dof = 1".format(chisq_dof))
             else:
-                warnings.warn("chi^2/dof = {:.2f} < 1\n"
+                warnings.warn("chi^2/dof = {:.2f} < 1, "
                               "deflating noise for Monte Carlo trials "
                               "such that chi^2/dof = 1".format(chisq_dof))
             noise_scale = np.asarray(self.main_input["noise"][-1])

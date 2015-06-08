@@ -47,7 +47,7 @@ for paramfile_path in all_paramfile_paths:
     # parse input parameter file
     input_params = utl.read_dict_file(paramfile_path)
     proc_cube_path = input_params['proc_mitchell_cube']
-    if ((not os.path.isfile(proc_cube_path)) 
+    if ((not os.path.isfile(proc_cube_path))
         or (os.path.splitext(proc_cube_path)[-1] != ".fits")):
         raise ValueError("Invalid raw datacube path {}, "
                          "must be .fits file".format(proc_cube_path))
@@ -59,6 +59,7 @@ for paramfile_path in all_paramfile_paths:
     destination_dir = input_params['destination_dir']
     if not os.path.isdir(destination_dir):
         raise ValueError("Invalid destination dir {}".format(destination_dir))
+    binning_name = input_params['binning_name']
 
     # get bin layout
     ifuset = ifu.read_mitchell_datacube(proc_cube_path)
@@ -109,13 +110,13 @@ for paramfile_path in all_paramfile_paths:
         binned_data["ir"][bin_iter, :] = binned.metaspectra["ir"]
         binned_comments = subset.spectrumset.comments.copy()
         binned_comments["binning"] = "spectra have been spatially binned"
-        bindesc = "polar_folded_s2n20"
         spec_unit = spectra_unit=subset.spectrumset.spec_unit
         wave_unit = wavelength_unit=subset.spectrumset.wave_unit
         binned_specset = spec.SpectrumSet(spectra_unit=spec_unit,
                                           wavelength_unit=wave_unit,
                                           comments=binned_comments,
-                                          name=bindesc, **binned_data)
+                                          name=binning_name,
+                                          **binned_data)
         bin_xs, bin_ys = subset.coords.T
         fluxes = subset.spectrumset.compute_flux()
         total_flux = fluxes.sum()
@@ -137,7 +138,8 @@ for paramfile_path in all_paramfile_paths:
                                                      angular_bounds)):
         print ("   {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
                "".format(iter + 1, rin, rout, len(angles)))
-    output_base = os.path.join(destination_dir, "{}-{}".format(ngc_name, bindesc))
+    output_base = os.path.join(destination_dir,
+                               "{}-{}".format(ngc_name, binning_name))
     binned_data_path = "{}.fits".format(output_base)
     binned_specset.write_to_fits(binned_data_path)
     binned_path = "{}_binfibers.p".format(output_base)

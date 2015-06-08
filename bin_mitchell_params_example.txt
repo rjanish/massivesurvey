@@ -16,4 +16,5 @@ s2n_threshold		20
 ###Output###
 #Folder to put output in. (Folder should already exist.)
 
+binning_name        polar_folded_s2n20
 destination_dir		../all_my_output/

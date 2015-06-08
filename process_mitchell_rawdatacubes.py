@@ -124,8 +124,9 @@ for paramfile_path in all_paramfile_paths:
         "applied galaxy redshift":waves_h["Z"],
         "galaxy center":"{}, {} [RA, DEC degrees]".format(*gal_center),
         "galaxy position angle":"{} [degrees E of N]".format(gal_pa),
-        "spectral resolution":("interpolated from {} arc lamp "
-            "measurements".format(len(const.mitchell_arc_centers)))}
+        "spectral resolution":("interpolated from {} arc lamp measurements, "
+                               "reported in the galaxy rest frame"
+                               "".format(len(const.mitchell_arc_centers)))}
     coord_comments = {
         "target":ngc_name,
         "coord-system":("dimensionless distance in plane through galaxy "

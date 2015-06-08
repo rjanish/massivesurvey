@@ -88,8 +88,8 @@ for paramfile_path in all_paramfile_paths:
         spectra, noise, all_waves, coords, arcs = data
         spectra_h, noise_h, waves_h, coords_h, arcs_h = headers
         gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
-        inst_waves = gal_waves*(1 + redshift)  # instrument rest frame
         redshift = waves_h['z']  # assumed redshift of galaxy
+        inst_waves = gal_waves*(1 + redshift)  # instrument rest frame
     print "  re-scaling coordinates..."
     cart_coords = ifu.center_coordinates(coords, gal_center)
     print "  fitting arc frames..."
@@ -101,7 +101,7 @@ for paramfile_path in all_paramfile_paths:
     warnings.warn("Intentionally ignoring reference fame differences!")
     for fiber_iter, fiber_res_samples in enumerate(spec_res_samples):
         inst_interp = utl.interp1d_constextrap(*fiber_res_samples.T)
-        specres_inst[fiber_iter] = inst_interp(gal_waves)
+        spec_res_full[fiber_iter] = inst_interp(gal_waves)
             # here interpolate the ir onto the galaxy wavelengths which are
             # in the galaxy rest frame, but use an interpolation function
             # defined by measurements in the instrument rest frame

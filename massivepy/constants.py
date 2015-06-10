@@ -44,6 +44,16 @@ fullMILES_1600fullgalaxy_optimized = [136, 246, 376, 498, 720, 838,
     # Move this to an update-able store of similar list for all galaxies!
     # These are the nonzero templates resulting from a ppxf of the full-
     # galaxy bin of NGC1600 using the full miles-massive template library
+fullMILES_5557fullgalaxy_optimized_OLD = [
+    71, 107, 204, 409, 472, 614, 792, 931, 969, 93, 149, 219, 427, 498,
+    642, 853, 932, 98, 177, 322, 452, 511, 720, 879, 933, 102, 183, 343,
+    455, 544, 728, 927, 961]
+    # DO NOT KEEP HERE - FOR TESTING PURPOSED ONLY
+    # Move this to an update-able store of similar list for all galaxies!
+    # These are the nonzero templates resulting from a ppxf of the full-
+    # galaxy bin of NGC5557 using the full miles-massive template library.
+    # This fit was not done new with the current massivepy library, but
+    # taken from a (poorly-documented) previous fit dating from July 2014
 float_tol = 10**(-10)
 relaxed_tol = 10**(-5)
 re_ngc = r"(?:NGC|ngc|N)(?P<num>\d{4})" # get number from NGC designations

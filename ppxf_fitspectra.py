@@ -58,19 +58,30 @@ for paramfile_path in all_paramfile_paths:
     else:
         bins_to_fit = input_params['bins_to_fit']
     mask = eval(input_params['mask'])
+    print "processing template library..."
     templates_dir = input_params['templates_dir']
+    print "loading library {}...".format(templates_dir)
     full_template_library = temps.read_miles_library(templates_dir)
     if input_params['template_list']=='all':
         template_library = full_template_library
     else:
-        template_library = full_template_library.get_subset(
-            const.fullMILES_1600fullgalaxy_optimized)
+        temps_to_use = eval(input_params["template_list"])
+        template_library = full_template_library.get_subset(temps_to_use)
+    print ("loaded library of {} templates"
+           "".format(template_library.spectrumset.num_spectra))
     destination_dir = input_params['destination_dir']
     if not os.path.isdir(destination_dir):
         raise ValueError("Invalid destination dir {}".format(destination_dir))
     # get data
+    print "reading spectra to fit..."
     specset = spec.read_datacube(binned_cube_path)
     masked = utl.in_union_of_intervals(specset.waves, mask)
+    if mask:
+        print "masking the regions:"
+        for mask_interval in mask:
+            print '  {}'.format(mask_interval)
+    else:
+        print 'no regions masked'
     for spec_iter in xrange(specset.num_spectra):
         specset.metaspectra["bad_data"][spec_iter, :] = (
             specset.metaspectra["bad_data"][spec_iter, :] | masked)

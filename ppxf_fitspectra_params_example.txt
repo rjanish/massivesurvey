@@ -14,7 +14,7 @@
 binned_cube_path	../all_my_output/NGC1600-polar_folded_s2n20.fits
 templates_dir		../all_my_output/miles-processed/
 #template_list		all
-template_list		not_all_ew_so_slow
+template_list       const.fullMILES_1600fullgalaxy_optimized
 bins_to_fit		all
 #bins_to_fit		[1,4,31,49]
 #bins_to_fit		[4]

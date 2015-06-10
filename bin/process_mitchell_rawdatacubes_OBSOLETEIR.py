@@ -1,25 +1,15 @@
 """
-Process the raw Mitchell datacubes into a format more accessible
-for binning and fitting.
+This generates intentionally obsolete results for comparison purposes only!
 
-The changes are:
- - Coordinates converted from (RA, DEC) to projected Cartesian arcsec
- - Arc frames are fit by Gaussian line profiles and replaced with the
-   resulting samples of fwhm(lambda) for each fiber
-
-input:
-  takes one command line argument, a path to the input parameter text file
-  process_mitchell_rawdatacubes_params_example.txt is an example
-  can take multiple parameter files if you want to process multiple galaxies
-  (give one param file per galaxy)
-
-output:
-    one processed data for each input raw datacube
+This script is identical in usage to process_mitchell_rawdatacubes.py. But,
+it ignores the difference in reference frame between the galaxy spectrum and
+the IR measurements. This matches what was done in previous analyses.
 """
 
 
 import argparse
 import re
+import warnings
 import os
 
 import numpy as np
@@ -31,6 +21,8 @@ import massivepy.constants as const
 import massivepy.spectralresolution as res
 import massivepy.IFUspectrum as ifu
 
+warnings.warn("This script generates intentionally obsolete "
+              "results for comparison purposes only! ")
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
@@ -50,7 +42,8 @@ for paramfile_path in all_paramfile_paths:
     destination_dir = input_params['destination_dir']
     if not os.path.isdir(destination_dir):
         raise ValueError("Invalid destination dir {}".format(destination_dir))
-    output_filename = lambda gal_name: "{}_mitchellcube.fits".format(gal_name)
+    output_filename = lambda gal_name: ("{}_mitchellcube_OBSOLETEIR.fits"
+                                        "".format(gal_name))
 
     # start processing
     # check galaxy name consistency
@@ -88,6 +81,7 @@ for paramfile_path in all_paramfile_paths:
         spectra_h, noise_h, waves_h, coords_h, arcs_h, inst_waves_h = headers
         gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
         inst_waves = all_inst_waves[0, :]  # instrument rest frame
+        redshift = waves_h['z']  # assumed redshift of galaxy
     except ValueError:
         # wavelength of arc spectra not included - compute by shifting
         # the spectra wavelength back into the instrument rest frame
@@ -104,11 +98,13 @@ for paramfile_path in all_paramfile_paths:
                                       const.mitchell_nominal_spec_resolution)
     spec_res_full = np.nan*np.ones(spectra.shape)
     print "  interpolating spectral resolution..."
+    warnings.warn("Intentionally ignoring reference fame differences!")
     for fiber_iter, fiber_res_samples in enumerate(spec_res_samples):
-        galframe_samples = fiber_res_samples/(1 + redshift)
-        gal_interp_func = utl.interp1d_constextrap(*galframe_samples.T)
-        spec_res_full[fiber_iter] = gal_interp_func(gal_waves)
-            # This scales the ir into the galaxy rest frame
+        inst_interp = utl.interp1d_constextrap(*fiber_res_samples.T)
+        spec_res_full[fiber_iter] = inst_interp(gal_waves)
+            # here interpolate the ir onto the galaxy wavelengths which are
+            # in the galaxy rest frame, but use an interpolation function
+            # defined by measurements in the instrument rest frame
     print ("cropping to {}-{} A (galaxy rest frame)..."
            "".format(*const.mitchell_crop_region))
     valid = utl.in_linear_interval(gal_waves, const.mitchell_crop_region)
@@ -124,9 +120,10 @@ for paramfile_path in all_paramfile_paths:
         "applied galaxy redshift":waves_h["Z"],
         "galaxy center":"{}, {} [RA, DEC degrees]".format(*gal_center),
         "galaxy position angle":"{} [degrees E of N]".format(gal_pa),
-        "spectral resolution":("interpolated from {} arc lamp measurements, "
-                               "reported in the galaxy rest frame"
-                               "".format(len(const.mitchell_arc_centers)))}
+        "spectral resolution":("OBSOLETE - these are interpolated from {} "
+            "arc lamp while intentionally ignoring the difference in "
+            "reference frame between the arc lamp measurements and the "
+            "given galaxy spectrum".format(len(const.mitchell_arc_centers)))}
     coord_comments = {
         "target":ngc_name,
         "coord-system":("dimensionless distance in plane through galaxy "

@@ -88,6 +88,7 @@ for paramfile_path in all_paramfile_paths:
         spectra_h, noise_h, waves_h, coords_h, arcs_h, inst_waves_h = headers
         gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
         inst_waves = all_inst_waves[0, :]  # instrument rest frame
+        redshift = waves_h['z']  # assumed redshift of galaxy
     except ValueError:
         # wavelength of arc spectra not included - compute by shifting
         # the spectra wavelength back into the instrument rest frame

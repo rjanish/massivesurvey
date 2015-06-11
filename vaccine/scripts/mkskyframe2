@@ -1,0 +1,44 @@
+#! /bin/csh -f
+
+rm -f imcmb.fits
+rm -f imars.fits
+rm -f sky?.fits
+rm -f comb.list
+
+set scale = `echo "($4)/($5) * ($6)" | bc -l`
+#echo ""
+#echo "The first sky scaled by..."
+#`echo "($4)/($5) * ($6)" | bc -l`
+#echo ""
+
+../bin/imars << eof
+../proc_data/$2p.fits
+1
+2
+${scale}
+eof
+
+mv imars.fits sky1.fits
+
+set scale = `echo "($4)/($5) * ($7)" | bc -l`
+#echo ""
+#echo "The second sky scaled by..."
+#`echo "($4)/($5) * ($7)" | bc -l`
+#echo""
+
+../bin/imars << eof
+../proc_data/$3p.fits
+1
+2
+${scale}
+eof
+
+mv imars.fits sky2.fits
+
+ls sky?.fits > comb.list
+
+../bin/imcmb << eof
+comb.list
+eof
+
+mv imcmb.fits ../proc_data/$1p.fits

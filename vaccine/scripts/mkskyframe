@@ -1,0 +1,115 @@
+#! /bin/csh -f
+
+rm -f imcmb.fits
+rm -f imars.fits
+rm -f imar.fits
+rm -f ../proc_data/$1sper.fits
+rm -f ../proc_data/$1spe.fits
+
+echo ../proc_data/$2pe.fits > comb.list
+echo ../proc_data/$3pe.fits >> comb.list
+
+echo "COMBINING SKY FRAMES"
+
+../bin/imcmb << eof
+comb.list
+eof
+
+set norm = `echo "($4)/($5)" | bc -l`
+
+echo "SCALING SKY FRAMES"
+
+../bin/imars << eof
+imcmb.fits
+1
+2
+${norm}
+eof
+
+
+mv imars.fits ../proc_data/$1spe.fits
+
+rm -f comb.list
+rm -f imcmb.fits
+
+
+echo "SQUARE FIRST ERROR FRAME"
+
+
+cp ../proc_data/${2}per.fits aux11.fits
+cp ../proc_data/${2}per.fits aux12.fits
+
+
+../bin/imar << EOF
+aux11.fits
+1
+aux12.fits
+1
+3
+EOF
+
+echo "SQUARE SECOND ERROR FRAME"
+
+mv imar.fits junk1.fits
+
+cp ../proc_data/${3}per.fits aux21.fits
+cp ../proc_data/${3}per.fits aux22.fits
+
+../bin/imar << EOF
+aux21.fits
+1
+aux22.fits
+1
+3
+EOF
+
+mv imar.fits junk2.fits 
+
+echo "SUM SQUARED ERROR FRAMES"
+
+../bin/imar << EOF
+junk1.fits
+1
+junk2.fits
+1
+1 
+EOF
+
+rm -f junk1.fits junk2.fits aux11.fits aux21.fits aux12.fits aux22.fits
+
+echo "TAKE SQUARE ROOT" 
+
+../bin/imars << EOF
+imar.fits
+1
+3
+EOF
+
+echo "MULTIPLY BY NORM AND DIVIDE BY 2"
+
+mv imars.fits junk.fits
+set norm2 = `echo "($norm)/(2.0)" | bc -l`
+
+../bin/imars << eof
+junk.fits
+1
+2
+${norm2}
+eof
+
+
+#echo ../proc_data/$2per.fits > comb.list
+#echo ../proc_data/$3per.fits >> comb.list
+
+#../bin/imcmb << eof
+#comb.list
+#eof
+
+#../bin/imars << eof
+#imcmb.fits
+#1
+#2
+#${norm}
+#eof
+
+mv imars.fits ../proc_data/$1sper.fits

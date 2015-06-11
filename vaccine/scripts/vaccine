@@ -1,0 +1,873 @@
+#! /bin/csh -f
+
+## VACCINE
+## BY JOSH ADAMS AND GUILLERMO A. BLANC
+
+## UPDATED BY RYAN JANISH 2012-08-13, SEE NOTE using-vaccine-DATE.txt FOR DESCRIPTION OF THE CHANGES
+
+## UPDATED BY RYAN JANISH 2013-06-04, ADDED CALLS TO CHANGE THE FORMAT OF THE raw_data/science_n#.list WHILE RUNNING, AND ADDED A CALL TO MKSKYFRAMES.  THESE CHANGES SHOULD MAKE VACCINE RUN COMPLETLEY WITH NO USER MANIPULATIONS, EXCEPT FOR ACCEPTING THE TRACE AND PTOW RESULTS.
+
+## UPDATED BY RYAN JANISH 2015-06-07, IMPOROVED HANDLING OF THE TWO
+## SCIENCE LIST FORMATS. SCRIPT WILL NOW COPY OVER LISTS FOR EACH NIGHT
+## IN THE RUN, AND DOES SO EXPLICITLY FOR EVERY STEP THAT DEPENDS ON A
+## CERTAIN SCIENCE LIST FORMAT. THE SCIECNE LISTS ARE TREATED AT THE
+## BEGINING OF THE SCRIPT. STEP gh65 NOW ONLY RUNS mkskyframes, IT DOES
+## NOT COPY ANY LISTS, AND IS LOCATED IN ITS SEQUENTIAL ORDER.
+
+## THIS INTERACTIVE PIPELINE REDUCES VIRUS-P DATA
+
+## READ PARAMETER FILE
+
+setenv id `awk '($1=="ID"){print $2}' vaccine.param`
+setenv n_nights `awk '($1=="N_NIGHTS"){print $2}' vaccine.param`
+setenv bin `awk '($1=="BIN"){print $2}' vaccine.param`
+
+set gb1 = `awk '($1=="MKBIAS"){print $2}' vaccine.param`
+set gb2 = `awk '($1=="BIAS"){print $2}' vaccine.param`
+set gb3 = `awk '($1=="BPM"){print $2}' vaccine.param`
+set gb4 = `awk '($1=="COMB"){print $2}' vaccine.param`
+set gb5 = `awk '($1=="TRACE"){print $2}' vaccine.param`
+set gb6 = `awk '($1=="PTOW"){print $2}' vaccine.param`
+set gb65 = `awk '($1=="MKSKYFRAMES"){print $2}' vaccine.param`
+set gb7 = `awk '($1=="EXTRACT"){print $2}' vaccine.param`
+set gb8 = `awk '($1=="NORMFLAT"){print $2}' vaccine.param`
+set gb8b = `awk '($1=="GAINMULT"){print $2}' vaccine.param`
+set gb9 = `awk '($1=="REPTOW"){print $2}' vaccine.param`
+set gb10 = `awk '($1=="BKGSUB"){print $2}' vaccine.param`
+set gb11 = `awk '($1=="CR_REJECT"){print $2}' vaccine.param`
+set gb12 = `awk '($1=="COLLAPSE"){print $2}' vaccine.param`
+
+## ADDED BY RYAN JANISH 2015-06-07
+## SET INITIAL ../raw_data/science_n#.list FORMAT
+## THIS SCIENCE LIST IS USED ONLY IN THE BIAS AND BPM STEPS
+if (($gb2 == "y") || ($gb3 == "y")) then
+set cntr = 1
+while ($cntr <= $n_nights)
+cp ../raw_data/1science_n$cntr.list ../raw_data/science_n$cntr.list
+@ cntr = $cntr + 1
+end
+endif
+## SET LATER ../raw_data/science_n#.list FORMAT
+## THIS SCIENCE LIST IS USED IN THE EXTRACT, GAINMULT, BKGSUB,
+## CR_REJECT, AND COLLAPSE STEPS
+if (($gb7 == "y") || ($gb8b == "y") || ($gb10 == "y") || \
+    ($gb11 == "y") || ($gb12 == "y")) then
+  set cntr = 1
+  while ($cntr <= $n_nights)
+  cp ../raw_data/2science_n$cntr.list ../raw_data/science_n$cntr.list
+  @ cntr = $cntr + 1
+  end
+endif
+
+## CREATE COMBINED OVERSCAN SUBTRACTED BIAS FRAME bias_ID.fits
+
+if ($gb1 == "y") then
+    if ($bin == "2x1") then
+    ./mkbias2x1
+    endif
+    if ($bin == "1x1") then
+    ./mkbias1x1
+    endif
+endif
+
+## SUBTRACT OVERSCAN AND BIAS FROM ALL FRAMES (outputs vp0000p.fits)
+
+if ($gb2 == "y") then
+cd ../raw_data
+cat arc_n*.list > tmp0
+cat flat_n*.list > tmp1
+awk '{print $1}' science_n*.list > tmp2
+cat tmp2 >> tmp1
+cat tmp0 >> tmp1
+cd ../scripts
+if ($bin == "2x1") then
+    cat ../raw_data/tmp1 | awk '{print "./rimproc2x1 "$1}' > grun1
+endif
+if ($bin == "1x1") then
+    cat ../raw_data/tmp1 | awk '{print "./rimproc1x1 "$1}' > grun1
+endif
+chmod 777 grun1
+./grun1
+rm -f grun1
+rm -f ../raw_data/tmp1 ../raw_data/tmp2 ../raw_data/tmp0
+endif
+
+## MASK BAD PIXELS
+# BPM must be called bpm.fits and must live in scripts folder
+
+if ($gb3 == "y") then
+cd ../raw_data
+cat flat_n*.list > tmp1
+awk '{print $1}' science_n*.list > tmp2
+cat tmp2 >> tmp1
+cd ../scripts
+foreach var (`cat ../raw_data/tmp1`)
+rm -f imar.fits
+../bin/imar << eof
+   ../proc_data/${var}p.fits
+   1
+   bpm.fits
+   1
+   3
+eof
+mv imar.fits ../proc_data/${var}p.fits
+end
+rm -f ../raw_data/tmp1 ../raw_data/tmp2
+endif
+
+## COMBINE FLATS AND ARCS FOR ALL NIGHTS
+
+if ($gb4 == "y") then
+set cntr = 1
+while ($cntr <= $n_nights)
+
+
+foreach var (`cat ../raw_data/flat_n$cntr.list`)
+rm -f imstat.out
+if ($bin == "2x1") then
+../bin/imstat << eof
+   ../proc_data/${var}p.fits
+   1
+   1 1024
+   1 2048
+eof
+endif
+if ($bin == "1x1") then
+../bin/imstat << eof
+   ../proc_data/${var}p.fits
+   1
+   1 2048
+   1 2048
+eof
+endif
+   set norm_value = `cat imstat.out | awk '{print $3}'`
+   set norm_value = `echo "1.0/($norm_value)" | bc -l`
+echo "Norm Value is $norm_value."
+   rm -f imars.fits
+   ../bin/imars << eof
+   ../proc_data/${var}p.fits
+   1
+   2
+   ${norm_value}
+eof
+  mv imars.fits ../proc_data/${var}pn.fits
+end
+cat ../raw_data/flat_n$cntr.list | awk '{print "../proc_data/"$1"pn.fits"}' > comb.list
+../bin/imcmb << eof
+comb.list
+eof
+mv imcmb.fits ../proc_data/flat_${id}_n$cntr.fits
+rm -f comb.list
+cat ../raw_data/arc_n$cntr.list | awk '{print "../proc_data/"$1"p.fits"}' > comb.list
+../bin/imcmb << eof
+comb.list
+eof
+mv imcmb.fits ../proc_data/arc_${id}_n$cntr.fits
+rm -f comb.list
+@ cntr = $cntr + 1
+end
+endif
+
+## TRACE FIBERS FOR ALL NIGHTS
+
+if ($gb5 == "y") then
+set cntr = 1
+while ($cntr <= $n_nights)
+set switch = 0
+while ($switch == 0)
+rm -f peaks_check.reg trace_check.reg peaks_store.txt mask.dat
+echo '../bin/no_smo_trace << eof' > tmp
+echo ../proc_data/flat_${id}_n$cntr >> tmp
+echo 'eof' >> tmp
+chmod 777 tmp
+./tmp
+rm -f tmp
+xpaset -p ds9 exit >& junk
+ds9 ../proc_data/flat_${id}_n$cntr.fits &
+sleep 5
+xpaset -p ds9 regions load trace_check.reg
+xpaset -p ds9 scale sqrt zscale
+xpaset -p ds9 zoom 4
+xpaset -p ds9 pan to 1 25 image
+#xpaset -p ds9 regions load peaks_check.reg
+echo -n "Do you like the tracing for night $cntr? (y/n)"
+set answere = $<
+if ($answere == "y") set switch = 1
+if ($answere == "n") then
+echo -n "Modify parameters in 'no_smo.param' and hit Enter"
+setenv keepgoing $<
+endif
+end
+mv peaks_store.txt ../proc_data/peaks_store_${id}_n$cntr.txt
+mv mask.dat ../proc_data/mask_${id}_n$cntr.dat
+mv peaks_check.reg ../proc_data/peaks_check_${id}_n$cntr.reg
+mv trace_check.reg ../proc_data/trace_check_${id}_n$cntr.reg
+
+
+
+
+#Extract flats and flat errors for optional fit_psf.x
+#run to determine wavelength soln
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+cat ../raw_data/flat_n$cntr.list | awk '{print "./extractflat2x1 "$1"p"}' > grun2
+chmod 777 grun2
+./grun2
+rm -f grun2
+#cat ../raw_data/flat_n$cntr.list | awk '{print "adu_to_e "$1}' > grun2
+#chmod 777 grun2
+#grun2
+#rm -f grun2
+#I've now killed off the tracing of real error. The flat field
+#uncertainty of a few (2?) percent is dominant so I'll just use that.
+#foreach var (`awk '{print $1}' ../raw_data/flat_n$cntr.list`)
+#rm -f mk_err.fits
+#../bin/mk_err << eof
+#   ../proc_data/${var}pe.fits
+#eof
+#mv mk_err.fits ../proc_data/${var}per.fits
+#end
+#Normalize flats
+foreach var (`cat ../raw_data/flat_n$cntr.list`)
+rm -f imstat.out
+if ($bin == "2x1") then
+../bin/imstat << eof
+   ../proc_data/${var}p.fits
+   1
+   1 1024
+   1 2048
+eof
+endif
+if ($bin == "1x1") then
+../bin/imstat << eof
+   ../proc_data/${var}p.fits
+   1
+   1 2048
+   1 2048
+eof
+endif
+   set norm_value = `cat imstat.out | awk '{print $3}'`
+   set norm_value = `echo "1.0/($norm_value)" | bc -l`
+   rm -f imars.fits
+   ../bin/imars << eof
+   ../proc_data/${var}pe.fits
+   1
+   2
+   ${norm_value}
+eof
+  mv imars.fits ../proc_data/${var}pen.fits
+#   ../bin/imars << eof
+#   ../proc_data/${var}per.fits
+#   1
+#   2
+#   ${norm_value}
+#eof
+#  mv imars.fits ../proc_data/${var}pern.fits
+end
+#Combine flats and errors
+cat ../raw_data/flat_n$cntr.list | awk '{print "../proc_data/"$1"pen.fits"}' > comb.list
+../bin/imcmb << eof
+comb.list
+eof
+mv imcmb.fits tmp_flat.fits
+#cat ../raw_data/flat_n$cntr.list | awk '{print "../proc_data/"$1"pern.fits"}' > comb.list
+#../bin/imcmb << eof
+#comb.list
+#eof
+#set norm_value = `wc -l < ../raw_data/flat_n$cntr.list`
+#set norm_value = `echo "1./sqrt(5.*$norm_value)" | bc -l`
+#   rm -f imars.fits
+#   ../bin/imars << eof
+#   imcmb.fits
+#   1
+#   2
+#   ${norm_value}
+#eof
+#mv imars.fits tmp_err.fits
+#rm -f imcmb.fits
+cp tmp_flat.fits tmp_wei.fits
+   ../bin/imars << eof
+   tmp_wei.fits
+   1
+   2
+   0.
+eof
+mv imars.fits tmp_wei.fits
+   ../bin/imars << eof
+   tmp_wei.fits
+   1
+   1
+   1.
+eof
+mv imars.fits tmp_wei.fits
+
+#Collapse to twi_coll_n?.fits and twierr_coll_n?.fits
+rm -f tmp_flatc.fits
+   ../bin/no_smo_collapse << eof
+   tmp_flat
+   tmp_wei
+eof
+mv tmp_flatc.fits ../proc_data/twi_coll_n$cntr.fits
+rm -f imars.fits
+   ../bin/imars << eof
+   ../proc_data/twi_coll_n$cntr.fits
+   1
+   2
+   0.04
+eof
+mv imars.fits ../proc_data/twierr_coll_n$cntr.fits
+#rm -f tmp_errc.fits
+#   ../bin/no_smo_collapse << eof
+#   tmp_err
+#   tmp_wei
+#eof
+#mv tmp_errc.fits twierr_coll_n$cntr.fits
+rm -f tmp_flat.fits tmp_wei.fits
+@ cntr = $cntr + 1
+end
+endif
+
+## COMPUTE WAVELENGTH SOLUTION FOR ALL NIGHTS
+
+if ($gb6 == "y") then
+set cntr = 1
+while ($cntr <= $n_nights)
+set switch = 0
+while ($switch == 0)
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+rm -f ../proc_data/arc_${id}_n${cntr}e.fits ptow_check.reg ptow.dat ptow2.dat
+echo '../bin/no_smo_ptow << eof' > tmp
+echo ../proc_data/arc_${id}_n$cntr >> tmp
+echo 'none' >> tmp
+echo 'eof' >> tmp
+chmod 777 tmp
+./tmp
+#rm -f tmp
+#This section only happens if you've chosen to fit the higher order wavelength terms
+if (-e ptow2.dat) then
+set ord_fit = `cat -n ptow2.dat | awk '$1==1{print NF-1}'`
+rm -f Fit_*.txt Refit_*.txt Refit_*.ps Refits.ps
+paste mask.dat ptow.dat | awk '$3!=0.0{print $1,$3}' > Fit_1.txt
+paste mask.dat ptow2.dat | awk '$3!=0.0{print $1,$3}' > Refit_1.txt
+echo "set term postscript" > tmp.p
+echo 'set output "Refit_1.ps"' >> tmp.p
+echo 'set title "The Refit Wavelength Solution"' >> tmp.p
+echo 'set xlabel "Y Chip Position"' >> tmp.p
+echo 'set ylabel "Polynomial Coefficient"' >> tmp.p
+echo 'plot "Fit_1.txt" t "First Fit", "Refit_1.txt" t "Second Fit" w lines' >> tmp.p
+gnuplot < tmp.p
+set cnt_ord = 1
+#Creating the plots for the higher order term fits
+while ($cnt_ord < $ord_fit)
+@ cnt_ord = $cnt_ord + 1
+@ des_col = $cnt_ord + 2
+paste mask.dat ptow.dat | awk '$var1!=0.0{print $1,$var1}' var1=$des_col > Fit_${cnt_ord}.txt
+paste mask.dat ptow2.dat | awk '$var1!=0.0{print $1,$var1}' var1=$des_col> Refit_${cnt_ord}.txt
+echo "set term postscript" > tmp.p
+echo 'set output "Refit_'${cnt_ord}'.ps"' >> tmp.p
+echo 'set title "The Refit Wavelength Solution"' >> tmp.p
+echo 'set xlabel "Y Chip Position"' >> tmp.p
+echo 'set ylabel "Polynomial Coefficient"' >> tmp.p
+echo 'plot "Fit_'${cnt_ord}'.txt" t "First Fit", "Refit_'${cnt_ord}'.txt" t "Second Fit" w lines' >> tmp.p
+gnuplot < tmp.p
+end
+./psjoin Refit_*.ps > Refits.ps
+#rm -f Refit_*.ps
+#rm -f Refit_*.txt
+mv ptow2.dat ptow.dat
+mv resid_ptow2.txt resid_ptow.txt
+mv ptow_check2.reg ptow_check.reg
+else
+set ord_fit = `cat -n ptow.dat | awk '$1==1{print NF-1}'`
+rm -f Fit_*.txt Refit_*.txt Refit_*.ps Refits.ps
+paste mask.dat ptow.dat | awk '$3!=0.0{print $1,$3}' > Fit_1.txt
+echo "set term postscript" > tmp.p
+echo 'set output "Refit_1.ps"' >> tmp.p
+echo 'set title "The Refit Wavelength Solution"' >> tmp.p
+echo 'set xlabel "Y Chip Position"' >> tmp.p
+echo 'set ylabel "Polynomial Coefficient"' >> tmp.p
+echo 'plot "Fit_1.txt" t "First Fit"' >> tmp.p
+gnuplot < tmp.p
+set cnt_ord = 1
+#Creating the plots for the higher order term fits
+while ($cnt_ord < $ord_fit)
+@ cnt_ord = $cnt_ord + 1
+@ des_col = $cnt_ord + 2
+paste mask.dat ptow.dat | awk '$var1!=0.0{print $1,$var1}' var1=$des_col > Fit_${cnt_ord}.txt
+echo "set term postscript" > tmp.p
+echo 'set output "Refit_'${cnt_ord}'.ps"' >> tmp.p
+echo 'set title "The Refit Wavelength Solution"' >> tmp.p
+echo 'set xlabel "Y Chip Position"' >> tmp.p
+echo 'set ylabel "Polynomial Coefficient"' >> tmp.p
+echo 'plot "Fit_'${cnt_ord}'.txt" t "First Fit"' >> tmp.p
+gnuplot < tmp.p
+end
+./psjoin Refit_*.ps > Refits.ps
+endif
+xpaset -p ds9 exit >& junk
+ds9 ../proc_data/arc_${id}_n${cntr}e.fits &
+sleep 3
+xpaset -p ds9 regions load ptow_check.reg
+xpaset -p ds9 scale zscale
+xpaset -p ds9 zoom 2
+xpaset -p ds9 pan to 100 1 image
+#xpaset -p ds9 regions load peaks_check.reg
+rm -f resid_ptow.ps
+set wave_fibs = `cat resid_ptow.txt | awk '$1==""{print $0}' | wc -l`
+set wave_fibs = `echo "scale=0;$wave_fibs/2-1" | bc -l`
+set wf_cnt = 0
+echo $wave_fibs
+echo "set term postscript enhanced color" > tmp.p
+echo 'set output "resid_ptow.ps"' >> tmp.p
+echo 'set title "Residual Error to Wavelength Fit"' >> tmp.p
+echo 'set xlabel "Wavelength (Ang)"' >> tmp.p
+echo 'set ylabel "Difference between Fit and Line List (Ang)"' >> tmp.p
+echo "set nokey" >> tmp.p
+echo 'plot[3500:6000] \' >> tmp.p
+while ($wf_cnt < $wave_fibs)
+echo '"resid_ptow.txt" index '$wf_cnt',\' >> tmp.p
+@ wf_cnt = $wf_cnt + 1
+end
+echo '"resid_ptow.txt" index '$wf_cnt >> tmp.p
+gnuplot < tmp.p
+gv Refits.ps &
+gv resid_ptow.ps &
+echo -n "Do you like the wavelength solution for night $cntr? (y/n)"
+set answere = $<
+killall -KILL gv
+if ($answere == "y") set switch = 1
+if ($answere == "n") then
+echo -n "Modify parameters in 'no_smo.param' and/or linelist and hit Enter"
+setenv keepgoing $<
+endif
+end
+mv ptow.dat ../proc_data/ptow_${id}_n$cntr.dat
+mv ptow_check.reg ../proc_data/ptow_check_${id}_n$cntr.reg
+# copy residuals of wavelength fits
+cp Refits.ps ../proc_data/Refits_${id}_n$cntr.ps
+cp resid_ptow.ps ../proc_data/resid_ptow_${id}_n$cntr.ps
+cp resid_ptow.txt ../proc_data/resid_ptow_${id}_n$cntr.txt
+set coeforder = 1
+while ($coeforder <= $ord_fit)
+cp Fit_$coeforder.txt ../proc_data/Fit_${coeforder}_${id}_n$cntr.txt
+cp Refit_$coeforder.txt ../proc_data/Refit_${coeforder}_${id}_n$cntr.txt
+@ coeforder = $coeforder + 1
+end
+@ cntr = $cntr + 1
+end
+endif
+
+## ADDED BY RYAN JANISH 2015-06-07
+## RUN MKSKYFRAMES
+if ($gb65 == "y") then
+    mkskyframes
+endif
+
+# EXTRACT 2D SPECTRA FROM FLAT FRAMES
+
+if ($gb7 == "y") then
+set cntr = 1
+while ($cntr <= $n_nights)
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+cp ../proc_data/ptow_${id}_n$cntr.dat ptow.dat
+cat ../raw_data/science_n$cntr.list | awk '{print "./extract2x1 "$1}' > grun2
+chmod 777 grun2
+./grun2
+rm -f grun2
+#cat ../raw_data/science_n$cntr.list | awk '{print "adu_to_e "$1}' > grun2
+#chmod 777 grun2
+#grun2
+#rm -f grun2
+#awk '{print $1}' ../raw_data/science_n$cntr.list > tmp2
+#foreach var (`awk '{print $1}' ../raw_data/science_n$cntr.list`)
+#rm -f mk_err.fits
+#../bin/mk_err << eof
+#   ../proc_data/${var}pe.fits
+#eof
+#mv mk_err.fits ../proc_data/${var}per.fits
+#end
+#rm -f tmp2
+./extractflat2x1 ../proc_data/flat_${id}_n${cntr}
+@ cntr = $cntr + 1
+end
+endif
+
+# NORMALIZE FLAT FRAMES FOR ALL NIGHTS
+
+if ($gb8 == "y") then
+set cntr = 1
+#set shift_flag = `cat -n no_smo.param | awk '$1==34{print $2}'`
+while ($cntr <= $n_nights)
+if ( -e ../proc_data/ptop_${id}_n$cntr.dat) then
+   cp ../proc_data/ptop_${id}_n$cntr.dat ptop.dat
+endif
+if ( -e ../proc_data/ptoh3_${id}_n$cntr.dat) then
+   cp ../proc_data/ptoh3_${id}_n$cntr.dat ptoh3.dat
+endif
+if ( -e ../proc_data/ptoh4_${id}_n$cntr.dat) then
+   cp ../proc_data/ptoh4_${id}_n$cntr.dat ptoh4.dat
+endif
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+cp ../proc_data/ptow_${id}_n$cntr.dat ptow.dat
+rm -f ../proc_data/flat_${id}_n${cntr}en.fits
+echo '../bin/no_smo_dissect << eof' > tmp
+echo '1' >> tmp
+echo ../proc_data/flat_${id}_n${cntr}e >> tmp
+echo 'eof' >> tmp
+chmod 777 tmp
+./tmp
+rm -f tmp
+#if ($shift_flag == "1") then
+#   mv keep_prof_coeffs.txt ../proc_data/kpc_${id}_n$cntr.txt
+#endif
+@ cntr = $cntr + 1
+end
+endif
+
+# WORK THROUGH THE GAIN, EXTRACT SCIENCE, AND MAKE ERROR FRAMES
+
+if ($gb8b == "y") then
+#set shift_flag = `cat -n no_smo.param | awk '$1==34{print $2}'`
+cp ../proc_data/mask_${id}_n1.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n1.txt peaks_store.txt
+cp ../proc_data/ptow_${id}_n1.dat ptow.dat
+#Multiplying science frames by gain (empirical if available)
+set gain_flag = `cat -n no_smo.param | awk '$1==40{print $2}'`
+set gain_test1 = `echo "$gain_flag < 0." | bc -l`
+set pass_gain = 0.
+if ($gain_test1 == "1") then
+#Find a value from the twilight flats, using same
+#extraction trace for simplicity
+   set num_gain = `cat ../raw_data/flat_n*.list | wc -l`
+   set all_gain_files = `cat ../raw_data/flat_n*.list`
+   set num_gain2 = `echo "scale=0;$num_gain/2" | bc -l`
+   set num_gain3 = `echo "scale=0;$num_gain2/2" | bc -l`
+   set cnt_gain1 = 1
+   rm -f gain_sort.txt
+   while ($cnt_gain1 <= $num_gain2)
+      @ np1_gain = $cnt_gain1 + $num_gain2
+      ../bin/est_gain << eof
+../proc_data/${all_gain_files[$cnt_gain1]}p
+../proc_data/${all_gain_files[$np1_gain]}p
+eof
+      cat est_gain.out >> gain_sort.txt
+      @ cnt_gain1 = $cnt_gain1 + 1
+   end
+#Getting median of all the flat pairs
+   set pass_gain = `sort -n gain_sort.txt | awk 'NR==inner_awk{print $1}' inner_awk=$num_gain3`
+   rm -f gain_sort.txt
+else
+#Pass the old value or the input
+   set pass_gain = $gain_flag
+endif
+set cntr = 1
+while ($cntr <= $n_nights)
+   cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+   cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+   cp ../proc_data/ptow_${id}_n$cntr.dat ptow.dat
+   cat ../raw_data/science_n$cntr.list | awk '{print "./extract2x1 "$1,other_var}' other_var=$pass_gain > grun2
+   chmod 777 grun2
+   ./grun2
+   rm -f grun2
+   foreach var (`awk '{print $1}' ../raw_data/science_n$cntr.list`)
+   rm -f mk_err.fits
+   ../bin/mk_err << eof
+   ../proc_data/${var}pe.fits
+eof
+   mv mk_err.fits ../proc_data/${var}per.fits
+   end
+   @ cntr = $cntr + 1
+end
+endif
+
+# REDO THE PTOW AND NORMFLAT STEPS WITH THE ARCS FLATTENED
+
+if ($gb9 == "y") then
+set cntr = 1
+while ($cntr <= $n_nights)
+set switch = 0
+while ($switch == 0)
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+rm -f ../proc_data/arc_${id}_n${cntr}e.fits ptow_check.reg ptow.dat ptow2.dat
+echo '../bin/no_smo_ptow << eof' > tmp
+echo ../proc_data/arc_${id}_n$cntr >> tmp
+echo ../proc_data/flat_${id}_n${cntr}en >> tmp
+echo 'eof' >> tmp
+chmod 777 tmp
+./tmp
+#rm -f tmp
+#This section only happens if you've chosen to fit the higher order wavelength terms
+if (-e ptow2.dat) then
+set ord_fit = `cat -n ptow2.dat | awk '$1==1{print NF-1}'`
+rm -f Fit_*.txt Refit_*.txt Refit_*.ps Refits.ps
+paste mask.dat ptow.dat | awk '$3!=0.0{print $1,$3}' > Fit_1.txt
+paste mask.dat ptow2.dat | awk '$3!=0.0{print $1,$3}' > Refit_1.txt
+echo "set term postscript" > tmp.p
+echo 'set output "Refit_1.ps"' >> tmp.p
+echo 'set title "The Refit Wavelength Solution"' >> tmp.p
+echo 'set xlabel "Y Chip Position"' >> tmp.p
+echo 'set ylabel "Polynomial Coefficient"' >> tmp.p
+echo 'plot "Fit_1.txt" t "First Fit", "Refit_1.txt" t "Second Fit" w lines' >> tmp.p
+gnuplot < tmp.p
+set cnt_ord = 1
+#Creating the plots for the higher order term fits
+while ($cnt_ord < $ord_fit)
+@ cnt_ord = $cnt_ord + 1
+@ des_col = $cnt_ord + 2
+paste mask.dat ptow.dat | awk '$var1!=0.0{print $1,$var1}' var1=$des_col > Fit_${cnt_ord}.txt
+paste mask.dat ptow2.dat | awk '$var1!=0.0{print $1,$var1}' var1=$des_col> Refit_${cnt_ord}.txt
+echo "set term postscript" > tmp.p
+echo 'set output "Refit_'${cnt_ord}'.ps"' >> tmp.p
+echo 'set title "The Refit Wavelength Solution"' >> tmp.p
+echo 'set xlabel "Y Chip Position"' >> tmp.p
+echo 'set ylabel "Polynomial Coefficient"' >> tmp.p
+echo 'plot "Fit_'${cnt_ord}'.txt" t "First Fit", "Refit_'${cnt_ord}'.txt" t "Second Fit" w lines' >> tmp.p
+gnuplot < tmp.p
+end
+./psjoin Refit_*.ps > Refits.ps
+#rm -f Refit_*.ps
+#rm -f Refit_*.txt
+mv ptow2.dat ptow.dat
+mv resid_ptow2.txt resid_ptow.txt
+mv ptow_check2.reg ptow_check.reg
+else
+set ord_fit = `cat -n ptow.dat | awk '$1==1{print NF-1}'`
+rm -f Fit_*.txt Refit_*.txt Refit_*.ps Refits.ps
+paste mask.dat ptow.dat | awk '$3!=0.0{print $1,$3}' > Fit_1.txt
+echo "set term postscript" > tmp.p
+echo 'set output "Refit_1.ps"' >> tmp.p
+echo 'set title "The Refit Wavelength Solution"' >> tmp.p
+echo 'set xlabel "Y Chip Position"' >> tmp.p
+echo 'set ylabel "Polynomial Coefficient"' >> tmp.p
+echo 'plot "Fit_1.txt" t "First Fit"' >> tmp.p
+gnuplot < tmp.p
+set cnt_ord = 1
+#Creating the plots for the higher order term fits
+while ($cnt_ord < $ord_fit)
+@ cnt_ord = $cnt_ord + 1
+@ des_col = $cnt_ord + 2
+paste mask.dat ptow.dat | awk '$var1!=0.0{print $1,$var1}' var1=$des_col > Fit_${cnt_ord}.txt
+echo "set term postscript" > tmp.p
+echo 'set output "Refit_'${cnt_ord}'.ps"' >> tmp.p
+echo 'set title "The Refit Wavelength Solution"' >> tmp.p
+echo 'set xlabel "Y Chip Position"' >> tmp.p
+echo 'set ylabel "Polynomial Coefficient"' >> tmp.p
+echo 'plot "Fit_'${cnt_ord}'.txt" t "First Fit"' >> tmp.p
+gnuplot < tmp.p
+end
+./psjoin Refit_*.ps > Refits.ps
+endif
+xpaset -p ds9 exit >& junk
+ds9 ../proc_data/arc_${id}_n${cntr}e.fits &
+sleep 3
+xpaset -p ds9 regions load ptow_check.reg
+xpaset -p ds9 scale zscale
+xpaset -p ds9 zoom 2
+xpaset -p ds9 pan to 100 1 image
+#xpaset -p ds9 regions load peaks_check.reg
+rm -f resid_ptow.ps
+set wave_fibs = `cat resid_ptow.txt | awk '$1==""{print $0}' | wc -l`
+set wave_fibs = `echo "scale=0;$wave_fibs/2-1" | bc -l`
+set wf_cnt = 0
+echo $wave_fibs
+echo "set term postscript enhanced color" > tmp.p
+echo 'set output "resid_ptow.ps"' >> tmp.p
+echo 'set title "Residual Error to Wavelength Fit"' >> tmp.p
+echo 'set xlabel "Wavelength (Ang)"' >> tmp.p
+echo 'set ylabel "Difference between Fit and Line List (Ang)"' >> tmp.p
+echo "set nokey" >> tmp.p
+echo 'plot \' >> tmp.p
+while ($wf_cnt < $wave_fibs)
+echo '"resid_ptow.txt" index '$wf_cnt',\' >> tmp.p
+@ wf_cnt = $wf_cnt + 1
+end
+echo '"resid_ptow.txt" index '$wf_cnt >> tmp.p
+gnuplot < tmp.p
+gv Refits.ps &
+gv resid_ptow.ps &
+echo -n "Do you like the wavelength solution for night $cntr? (y/n)"
+set answere = $<
+killall -KILL gv
+if ($answere == "y") set switch = 1
+if ($answere == "n") then
+echo -n "Modify parameters in 'no_smo.param' and/or linelist and hit Enter"
+setenv keepgoing $<
+endif
+end
+mv ptow.dat ../proc_data/ptow_${id}_n$cntr.dat
+mv ptow_check.reg ../proc_data/ptow_check_${id}_n$cntr.reg
+# copy residuals of wavelength fits
+cp Refits.ps ../proc_data/Refits_${id}_n$cntr.ps
+cp resid_ptow.ps ../proc_data/resid_ptow_${id}_n$cntr.ps
+cp resid_ptow.txt ../proc_data/resid_ptow_${id}_n$cntr.txt
+set coeforder = 1
+while ($coeforder <= $ord_fit)
+cp Fit_$coeforder.txt ../proc_data/Fit_${coeforder}_${id}_n$cntr.txt
+cp Refit_$coeforder.txt ../proc_data/Refit_${coeforder}_${id}_n$cntr.txt
+@ coeforder = $coeforder + 1
+end
+@ cntr = $cntr + 1
+end
+set cntr = 1
+#set shift_flag = `cat -n no_smo.param | awk '$1==34{print $2}'`
+while ($cntr <= $n_nights)
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+cp ../proc_data/ptow_${id}_n$cntr.dat ptow.dat
+rm -f ../proc_data/flat_${id}_n${cntr}en.fits
+echo '../bin/no_smo_dissect << eof' > tmp
+echo '1' >> tmp
+echo ../proc_data/flat_${id}_n${cntr}e >> tmp
+echo 'eof' >> tmp
+chmod 777 tmp
+./tmp
+rm -f tmp
+#if ($shift_flag == "1") then
+#   mv keep_prof_coeffs.txt ../proc_data/kpc_${id}_n$cntr.txt
+#endif
+@ cntr = $cntr + 1
+end
+endif
+
+# BACKGROUND SUBSTRACT SCIENCE FRAMES
+
+if ($gb10 == "y") then
+#Create error frames
+#set cntr = 3
+set cntr = 1
+set shift_flag = `cat -n no_smo.param | awk '$1==34{print $2}'`
+while ($cntr <= $n_nights)
+if ( -e ../proc_data/ptop_${id}_n$cntr.dat) then
+   cp ../proc_data/ptop_${id}_n$cntr.dat ptop.dat
+endif
+if ( -e ../proc_data/ptoh3_${id}_n$cntr.dat) then
+   cp ../proc_data/ptoh3_${id}_n$cntr.dat ptoh3.dat
+endif
+if ( -e ../proc_data/ptoh4_${id}_n$cntr.dat) then
+   cp ../proc_data/ptoh4_${id}_n$cntr.dat ptoh4.dat
+endif
+#if ($shift_flag == "1") then
+#   if ( -e ../proc_data/kpc_${id}_n$cntr.txt ) then
+#      cp ../proc_data/kpc_${id}_n$cntr.txt keep_prof_coeffs.txt
+#   else
+#      echo "Error: couldn't find profile data file named ../proc_data/kpc_${id}_n$cntr.txt"
+#      echo "Rerun the flat normalization step with the profile shifting flag on."
+#      exit(1)
+#   endif
+#endif
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+cp ../proc_data/ptow_${id}_n$cntr.dat ptow.dat
+if ($shift_flag == "1") then
+#Doing a shift to the flat fields, need 3 columns in science_n*.list, sci, sky, shifter
+   awk '($2!=""&&$3!=""){print $1,$2,$3}' ../raw_data/science_n$cntr.list > tmp
+   set max2 = `wc -l < tmp`
+   set ind_files1 = `cat tmp | awk '{split($0,a," "); print a[1]}'`
+   set ind_files2 = `cat tmp | awk '{split($0,a," "); print a[2]}'`
+   set ind_files3 = `cat tmp | awk '{split($0,a," "); print a[3]}'`
+   set cnter1 = 0
+   while ($cnter1 < $max2)
+      @ cnter1 = $cnter1 + 1
+      rm -f ../proc_data/${ind_files1[$cnter1]}pefs.fits
+      rm -f ../proc_data/${ind_files1[$cnter1]}pef.fits
+      rm -f ../proc_data/${ind_files1[$cnter1]}pefy.fits
+      rm -f ../proc_data/${ind_files1[$cnter1]}pefw.fits
+      echo '../bin/no_smo_dissect << eof' > tmpjja
+      echo '2' >> tmpjja
+      echo ../proc_data/${ind_files1[$cnter1]}pe >> tmpjja
+      echo ../proc_data/${ind_files2[$cnter1]}pe >> tmpjja
+      echo ../proc_data/${ind_files3[$cnter1]}pe >> tmpjja
+      echo ../proc_data/flat_${id}_n${cntr}en >> tmpjja
+      echo 'eof' >> tmpjja
+      chmod 777 tmpjja
+      tmpjja
+#      ff_flat_cheat.csh ../proc_data/flat_${id}_n${cntr}en ../proc_data/${ind_files1[$cnter1]}pei
+      rm -f tmpjja
+   end
+   rm -f tmp
+else
+#No shift being applied, so only need 2 columns
+   awk '($2!=""){print $1,$2}' ../raw_data/science_n$cntr.list > tmp
+   set max2 = `wc -l < tmp`
+   set ind_files1 = `cat tmp | awk '{split($0,a," "); print a[1]}'`
+   set ind_files2 = `cat tmp | awk '{split($0,a," "); print a[2]}'`
+   set cnter1 = 0
+   while ($cnter1 < $max2)
+      @ cnter1 = $cnter1 + 1
+      rm -f ../proc_data/${ind_files1[$cnter1]}pefs.fits
+      rm -f ../proc_data/${ind_files1[$cnter1]}pefy.fits
+      rm -f ../proc_data/${ind_files1[$cnter1]}pefw.fits
+#Optional lines for alternate program to calculate fibers with objects
+#      echo '../../../vp_aux/bin/skyhist.x << eof' > tmpjja
+#      echo ../proc_data/${ind_files2[$cnter1]}pe.fits >> tmpjja
+#      echo ../proc_data/flat_${id}_n${cntr}en.fits >> tmpjja
+#      echo 'eof' >> tmpjja
+#      chmod 777 tmpjja
+#      tmpjja
+#      rm -f tmpjja
+#
+      echo '../bin/no_smo_dissect << eof' > tmpjja
+      echo '2' >> tmpjja
+      echo ../proc_data/${ind_files1[$cnter1]}pe >> tmpjja
+      echo ../proc_data/${ind_files2[$cnter1]}pe >> tmpjja
+      echo ../proc_data/flat_${id}_n${cntr}en >> tmpjja
+      echo 'eof' >> tmpjja
+      chmod 777 tmpjja
+      ./tmpjja
+      rm -f tmpjja
+   end
+   rm -f tmp
+endif
+@ cntr = $cntr + 1
+end
+endif
+
+# REJECT COSMIC RAYS ON SCIENCE FRAMES
+if ($gb11 == "y") then
+#set cntr = 3
+set cntr = 1
+while ($cntr <= $n_nights)
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+cp ../proc_data/peaks_store_${id}_n$cntr.txt peaks_store.txt
+cp ../proc_data/ptow_${id}_n$cntr.dat ptow.dat
+awk '($2!=""){print $1,$2}' ../raw_data/science_n$cntr.list > tmp
+cat tmp | awk '{print "./rbpcorr "$1}' > grun5
+chmod 777 grun5
+./grun5
+rm -f grun5 tmp
+@ cntr = $cntr + 1
+end
+endif
+
+# COLLAPSE SCIENCE FRAMES
+if ($gb12 == "y") then
+set cntr = 1
+while ($cntr <= $n_nights)
+cp ../proc_data/mask_${id}_n$cntr.dat mask.dat
+awk '($2!=""){print $1,$2}' ../raw_data/science_n$cntr.list > tmp
+set max2 = `wc -l < tmp`
+set ind_files1 = `cat tmp | awk '{split($0,a," "); print a[1]}'`
+set ind_files2 = `cat tmp | awk '{split($0,a," "); print a[2]}'`
+set cnter1 = 0
+while ($cnter1 < $max2)
+   @ cnter1 = $cnter1 + 1
+   rm -f ../proc_data/${ind_files1[$cnter1]}pefsmc.fits
+   echo '../bin/no_smo_collapse << eof' > tmpjja
+   echo ../proc_data/${ind_files1[$cnter1]}pefsm >> tmpjja
+   echo ../proc_data/${ind_files1[$cnter1]}pefw >> tmpjja
+   echo 'eof' >> tmpjja
+   chmod 777 tmpjja
+   ./tmpjja
+   rm -f tmpjja
+end
+rm -f tmp
+@ cntr = $cntr + 1
+end
+endif
+# CLEAN scripts DIRECTORY
+
+rm -f peaks_store.txt mask.dat ptow.dat

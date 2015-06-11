@@ -118,13 +118,25 @@ for paramfile_path in all_paramfile_paths:
                                           name=binning_name,
                                           **binned_data)
         bin_xs, bin_ys = subset.coords.T
-        #Reflect all fibers above ma in the folded case
+        #Reflect all fibers below ma in the folded case
         # (replace this logic later when folded-unfolded option is made nice)
         if True:
-            bin_ys_ma_line = bin_xs*np.tan(ma_bin)
-            ii = np.where(bin_ys < bin_ys_ma_line)[0]
-            #Math for reflecting over line y = m*x:
-            # xnew = A - x, ynew = A*m - y, where A = 2 (x + m*y1) / (1 + m^2)
+            if len(fibers)>1:
+                #Reflect all fibers below ma for multi-fiber bins
+                bin_ys_ma_line = bin_xs*np.tan(ma_bin)
+                ii = np.where(bin_ys < bin_ys_ma_line)[0]
+            else:
+                if np.sqrt(bin_xs[0]**2+bin_ys[0]**2) < np.min(radial_bounds):
+                    #Don't reflect "inner" single fiber bins.
+                    ii = []
+                else:
+                    print "There is a lonely fiber in an outer bin!",
+                    print " ( bin number ",bin_number,")"
+                    #Do reflect the single fiber if below ma
+                    if bin_ys[0] < bin_xs[0]*np.tan(ma_bin): ii = [0]
+                    else: ii = []
+            #Math for reflecting point over line y = m*x:
+            # xnew = A - x, ynew = A*m - y, where A = 2 (x + m*y) / (1 + m^2)
             A = 2*(bin_xs[ii]+bin_ys[ii]*np.tan(ma_bin))/(1+np.tan(ma_bin)**2)
             bin_xs[ii] = A - bin_xs[ii]
             bin_ys[ii] = A*np.tan(ma_bin) - bin_ys[ii]
@@ -181,8 +193,10 @@ for paramfile_path in all_paramfile_paths:
                                 linewidth=0.25, alpha=0.8))
         ax.set_aspect('equal')
         #Plot flux-weighted bin centers (adjust size of stars for bin size)
-        ms = 7.0 + 0.8*len(fibers)
-        mew = 1.0 + 0.08*len(fibers)
+        ms = 7.0 + 0.5*len(fibers)
+        if ms > 20.0: ms = 20.0
+        mew = 1.0 + 0.05*len(fibers)
+        if mew > 2.0: mew = 2.0
         ax.plot(bin_coords[n][0],bin_coords[n][1],ls='',marker='*',
                 mew=mew,ms=ms,mec='k',mfc=bin_color)
     # gray-out unbinned fibers

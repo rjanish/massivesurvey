@@ -164,6 +164,7 @@ for paramfile_path in all_paramfile_paths:
                                "{}-{}".format(ngc_name, binning_name))
     binned_data_path = "{}.fits".format(output_base)
     binned_specset.write_to_fits(binned_data_path)
+    ###Here be pickle files, BEWARE
     binned_path = "{}_binfibers.p".format(output_base)
     utl.save_pickle(grouped_ids, binned_path)
     unbinned_path = "{}_unbinnedfibers.p".format(output_base)
@@ -175,6 +176,7 @@ for paramfile_path in all_paramfile_paths:
     for anulus_iter, angle_bounds in enumerate(angular_bounds):
         angle_path = "{}_angularbounds-{}.p".format(output_base, anulus_iter)
         utl.save_pickle(angle_bounds, angle_path)
+    ###End of pickle file territory
     # plot bins
     # TO DO: move this to a MASSVIE plotting module
     fiber_coords = ifuset.coords.copy()

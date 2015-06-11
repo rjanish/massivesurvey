@@ -118,6 +118,28 @@ for paramfile_path in all_paramfile_paths:
                                           name=binning_name,
                                           **binned_data)
         bin_xs, bin_ys = subset.coords.T
+        #Reflect all fibers below ma in the folded case
+        # (replace this logic later when folded-unfolded option is made nice)
+        if True:
+            if len(fibers)>1:
+                #Reflect all fibers below ma for multi-fiber bins
+                bin_ys_ma_line = bin_xs*np.tan(ma_bin)
+                ii = np.where(bin_ys < bin_ys_ma_line)[0]
+            else:
+                if np.sqrt(bin_xs[0]**2+bin_ys[0]**2) < np.min(radial_bounds):
+                    #Don't reflect "inner" single fiber bins.
+                    ii = []
+                else:
+                    print "There is a lonely fiber in an outer bin!",
+                    print " ( bin number ",bin_number,")"
+                    #Do reflect the single fiber if below ma
+                    if bin_ys[0] < bin_xs[0]*np.tan(ma_bin): ii = [0]
+                    else: ii = []
+            #Math for reflecting point over line y = m*x:
+            # xnew = A - x, ynew = A*m - y, where A = 2 (x + m*y) / (1 + m^2)
+            A = 2*(bin_xs[ii]+bin_ys[ii]*np.tan(ma_bin))/(1+np.tan(ma_bin)**2)
+            bin_xs[ii] = A - bin_xs[ii]
+            bin_ys[ii] = A*np.tan(ma_bin) - bin_ys[ii]
         fluxes = subset.spectrumset.compute_flux()
         total_flux = fluxes.sum()
         x_com = np.sum(bin_xs*fluxes)/total_flux
@@ -142,6 +164,7 @@ for paramfile_path in all_paramfile_paths:
                                "{}-{}".format(ngc_name, binning_name))
     binned_data_path = "{}.fits".format(output_base)
     binned_specset.write_to_fits(binned_data_path)
+    ###Here be pickle files, BEWARE
     binned_path = "{}_binfibers.p".format(output_base)
     utl.save_pickle(grouped_ids, binned_path)
     unbinned_path = "{}_unbinnedfibers.p".format(output_base)
@@ -153,16 +176,17 @@ for paramfile_path in all_paramfile_paths:
     for anulus_iter, angle_bounds in enumerate(angular_bounds):
         angle_path = "{}_angularbounds-{}.p".format(output_base, anulus_iter)
         utl.save_pickle(angle_bounds, angle_path)
+    ###End of pickle file territory
     # plot bins
     # TO DO: move this to a MASSVIE plotting module
     fiber_coords = ifuset.coords.copy()
     fiber_coords[:, 0] *= -1  # east-west reflect
+    bin_coords[:, 0] *= -1
     # plots - each fiber colored by bin membership
     colors = ['b', 'g', 'r', 'c', 'm']
     used_fibers = []
     fig, ax = plt.subplots()
     for n, fibers  in enumerate(grouped_ids):
-        # fibers_in_bins is a list of lists of fibers in each bin
         bin_color = colors[n % len(colors)]
         for fiber in fibers:
             used_fibers.append(fiber)
@@ -170,6 +194,13 @@ for paramfile_path in all_paramfile_paths:
                                 facecolor=bin_color, zorder=0,
                                 linewidth=0.25, alpha=0.8))
         ax.set_aspect('equal')
+        #Plot flux-weighted bin centers (adjust size of stars for bin size)
+        ms = 7.0 + 0.5*len(fibers)
+        if ms > 20.0: ms = 20.0
+        mew = 1.0 + 0.05*len(fibers)
+        if mew > 2.0: mew = 2.0
+        ax.plot(bin_coords[n][0],bin_coords[n][1],ls='',marker='*',
+                mew=mew,ms=ms,mec='k',mfc=bin_color)
     # gray-out unbinned fibers
     for unused_fiber in range(fiber_coords.shape[0]):
         if unused_fiber not in used_fibers:

@@ -566,13 +566,14 @@ class SpectrumSet(object):
             # TO DO: Implement here some noise estimate in the smoothed
             # spectra to replace the error handling below
         scaled_noise = np.absolute(self.metaspectra["noise"]/self.spectra)
-        no_noise = np.all(scaled_noise < const.float_tol)
+        no_noise = np.all(scaled_noise < const.relaxed_tol)
         if no_noise:
             # can propagate the noise for perfect data
             new_noise = np.zeros(self.metaspectra["noise"].shape)
         else:
-            new_noise = np.nan*np.ones(self.num_samples)
-            warning.warn("Convolution has no noise propagation - "
+            print np.sort(scaled_noise,axis=None)
+            new_noise = np.nan*np.ones(self.metaspectra["noise"].shape)
+            warnings.warn("Convolution has no noise propagation - "
                          "noises will be set NaN")
         # crop output
         edge_fwhm = new_ir[:, [0, -1]].max(axis=0) # max over spectra

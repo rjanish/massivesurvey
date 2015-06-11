@@ -56,10 +56,7 @@ target/
 # Ignore all the extra packages I put here due to path laziness
 cap_mpfit.py
 descartes/
-fitting/
-plotting/
 ppxf.py
-utilities/
 
 # And mac directory stuff
 .DS_Store

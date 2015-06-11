@@ -571,10 +571,10 @@ class SpectrumSet(object):
             # can propagate the noise for perfect data
             new_noise = np.zeros(self.metaspectra["noise"].shape)
         else:
-            print np.sort(scaled_noise,axis=None)
             new_noise = np.nan*np.ones(self.metaspectra["noise"].shape)
-            warnings.warn("Convolution has no noise propagation - "
-                         "noises will be set NaN")
+            msg = "Nonzero noises detected in convolved spectra."
+            msg += " Convolution cannot propagate noise, will set to NaN."
+            warnings.warn(msg)
         # crop output
         edge_fwhm = new_ir[:, [0, -1]].max(axis=0) # max over spectra
         edge_sigmas = edge_fwhm/const.gaussian_fwhm_over_sigma

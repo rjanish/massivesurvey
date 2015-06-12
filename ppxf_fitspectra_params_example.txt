@@ -27,7 +27,7 @@ num_moments		6
 bias			0.0
 fit_range		[3900.0,5300.0]
 gh_init			[0,250,0,0,0,0]
-mask			[[4260.0,4285.0],[4475.0,4795.0]]
+mask			[[4260.0,4285.0],[4775.0,4795.0]]
 
 ###Outputs###
 #Directory to store output, and run name. The run name will be the stem for the

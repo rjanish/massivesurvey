@@ -471,5 +471,34 @@ class pPXFDriver(object):
         # add type-processing of output dicts here
         return
 
+    def write_outputs(self,destination_dir,run_name):
+        """
+        Write driver outputs to file.
+        Place all outputs in destination_dir, with run_name as 
+          base filename.
+        All results are packaged into one organized .fits file for
+          the main output, and one similarly organized .fits file
+          for the mc output.
+        If only one bin was fit, output an additional text file to
+          store list of nonzero template spectra in a convenient
+          form. (This is used when fitting the full galaxy spectrum
+          with the full Miles library, so the list can be used as
+          input to further fits.)
+        """
+        #Okay, first set up an empty fits file, then start to migrate
+        # data one at a time into the fits file. Remove from the dict
+        # when added to fits file, so the below prints "leftover" data
+        # information.
+        outputs = [self.main_input,self.main_rawoutput,self.main_procoutput,
+                   self.mc_input,self.mc_rawoutput,self.mc_procoutput]
+        outnames = ['main input','raw output','proc output',
+                    'mc input','mc raw out','mc proc out']
+        for output,outname in zip(outputs,outnames):
+            print '----------------'
+            print outname
+            print '----------------'
+            for k in output.keys():
+                print k, len(output[k]), type(output[k]), type(output[k][0])
+        return
 
 

@@ -99,6 +99,7 @@ for paramfile_path in all_paramfile_paths:
                                   num_trials=num_trials,
                                   **fit_settings)
     driver.run_fit()
+    driver.write_outputs(destination_dir, run_name)
     results = {"main_input":driver.main_input,
                "main_rawoutput":driver.main_rawoutput,
                "main_procoutput":driver.main_procoutput,
@@ -107,5 +108,5 @@ for paramfile_path in all_paramfile_paths:
                "mc_procoutput":driver.mc_procoutput}
     for output_name, data in results.iteritems():
         output_path = os.path.join(destination_dir,
-                                   "{}-{}.p".format(run_name, output_name))
+                                   "{}-misc-{}.p".format(run_name, output_name))
         utl.save_pickle(data, output_path)

@@ -566,7 +566,7 @@ class SpectrumSet(object):
             # TO DO: Implement here some noise estimate in the smoothed
             # spectra to replace the error handling below
         scaled_noise = np.absolute(self.metaspectra["noise"]/self.spectra)
-        no_noise = np.all(scaled_noise < const.relaxed_tol)
+        no_noise = np.all(scaled_noise < const.float_tol)
         if no_noise:
             # can propagate the noise for perfect data
             new_noise = np.zeros(self.metaspectra["noise"].shape)

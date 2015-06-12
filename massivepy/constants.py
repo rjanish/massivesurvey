@@ -55,7 +55,7 @@ fullMILES_5557fullgalaxy_optimized_OLD = [
     # This fit was not done new with the current massivepy library, but
     # taken from a (poorly-documented) previous fit dating from July 2014
 float_tol = 10**(-10)
-relaxed_tol = 10**(-5)
+relaxed_tol = 10**(-4)
 re_ngc = r"(?:NGC|ngc|N)(?P<num>\d{4})" # get number from NGC designations
 
 # pPXF conventions

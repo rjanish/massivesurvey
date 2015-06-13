@@ -514,15 +514,26 @@ class pPXFDriver(object):
 
         #Now do stuff that does not match between bins
         #Add option to save gh_params as text file?
-        gh_params = np.array(self.main_rawoutput['gh_params'])
-        hdu_gh = fits.PrimaryHDU(data=gh_params, header=baseheader)
+        gh_params = self.main_rawoutput['gh_params']
+        header_gh = baseheader.copy()
+        header_gh.append(("axis1", "moment"))
+        header_gh.append(("axis2", "bin"))
+        hdu_gh = fits.PrimaryHDU(data=gh_params,
+                                 header=header_gh)
         #Add template number here, and option to save as text file
-        template_weights = np.array(self.main_rawoutput['template_weights'])
-        hdu_tweights = fits.ImageHDU(data=template_weights, header=baseheader,
-                                     name='template_weights')
-        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_tweights])
-        print baseheader
-
+        t_weights = self.main_rawoutput['template_weights']
+        t_ids = [t.spectrumset.ids for t in self.main_input['templates']]
+        t_mflux = self.main_procoutput['model_temps_fluxes']
+        t_fw = self.main_procoutput['flux_template_weights']
+        template_info = [t_ids,t_weights,t_mflux,t_fw]
+        header_temps = baseheader.copy()
+        header_temps.append(("axis1", "template"))
+        header_temps.append(("axis2", "bin"))
+        header_temps.append(("axis3", "id,weight,modflux,fluxweight"))
+        hdu_temps = fits.ImageHDU(data=template_info,
+                                     header=header_temps,
+                                     name='template_info')
+        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps])
         hdu_all.writeto(destination_dir+run_name+'main.fits', clobber=True)
 
         #Warn for parts of output dicts that I am not saving
@@ -537,22 +548,34 @@ class pPXFDriver(object):
             msg += 'this is not currently saved in the .fits file.'
             msg += '\nYOU SHOULD CODE IT IN IF YOU NEED IT'
             warnings.warn(msg)
-        print 'skipping reg_dim for now in output file, you have been warned'
-        
+        print 'so far only using template ids from main_input templates'
+        print 'skipping main_input reg_dim for now in output file'
+        print 'skipping main_input kin_components for now in output file'
+        print 'skipping main_rawoutput chisq_dof for now in output file'
+        print 'skipping main_rawoutput sampling_factor for now in output file'
+        print 'skipping main_rawoutput num_kin_components for now'
+        print 'skipping main_rawoutput reddening for now'
 
         #Remove the stuff I'm done with so it doesn't appear in pickles anymore
-        mi_done = ['lam','sky_template','reg_dim']
+        mi_done = ['lam','sky_template','reg_dim','templates',
+                   'kin_components']
         mi_done.extend(main_input_matching)
-        print 'done with', mi_done
+        print 'done with main_input', mi_done
         for k in mi_done:
             del self.main_input[k]
+        mr_done = ['chisq_dof','sampling_factor','num_kin_components',
+                   'reddening','template_weights']
+        print 'done with main_rawoutput', mr_done
+        for k in mr_done:
+            del self.main_rawoutput[k]
+        mp_done = ['model_temps_fluxes','flux_template_weights']
+        print 'done with main_procoutput', mp_done
+        for k in mp_done:
+            del self.main_procoutput[k]
+
         print '-------------'
         print 'up next'
         print '-------------'
-        print self.main_rawoutput['sampling_factor']
-        print self.main_rawoutput['num_kin_components']
-        print self.main_rawoutput['unscaled_lsq_errors']
-        print self.main_rawoutput['reddening']
         #outputs = [self.main_input,self.main_rawoutput,self.main_procoutput,
         #           self.mc_input,self.mc_rawoutput,self.mc_procoutput]
         #outnames = ['main input','raw output','proc output',

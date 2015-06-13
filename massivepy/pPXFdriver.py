@@ -12,6 +12,7 @@ import scipy.signal as signal
 import scipy.integrate as integ
 import ppxf
 import matplotlib.pyplot as plt
+import astropy.io.fits as fits
 
 import utilities as utl
 import massivepy.constants as const
@@ -489,16 +490,85 @@ class pPXFDriver(object):
         # data one at a time into the fits file. Remove from the dict
         # when added to fits file, so the below prints "leftover" data
         # information.
-        outputs = [self.main_input,self.main_rawoutput,self.main_procoutput,
-                   self.mc_input,self.mc_rawoutput,self.mc_procoutput]
-        outnames = ['main input','raw output','proc output',
-                    'mc input','mc raw out','mc proc out']
+        baseheader = fits.Header()
+
+        #Identify things that should be the same for all bins, and
+        # save those in the header file.
+        main_input_matching = ['regul','clean','oversample','add_deg','mul_deg',
+                               'bias','vsyst','num_moments']
+        for match_key in main_input_matching:
+            match_list = self.main_input[match_key]
+            if not all([thing==match_list[0] for thing in match_list]):
+                msg = 'Expected {} to be the same '.format(match_key)
+                msg += 'but it is not. All bins printed below.'
+                warnings.warn(msg)
+                print match_list
+            #num_moments is an array for some reason, fix that
+            if match_key=='num_moments':
+                match_value = match_list[0][0]
+            else:
+                match_value = match_list[0]
+            baseheader.append((match_key[:8],match_value)) #limit to 8 chars
+
+        baseheader.append(("primary", "gh_moments"))
+
+        #Now do stuff that does not match between bins
+        #Add option to save gh_params as text file?
+        gh_params = np.array(self.main_rawoutput['gh_params'])
+        hdu_gh = fits.PrimaryHDU(data=gh_params, header=baseheader)
+        #Add template number here, and option to save as text file
+        template_weights = np.array(self.main_rawoutput['template_weights'])
+        hdu_tweights = fits.ImageHDU(data=template_weights, header=baseheader,
+                                     name='template_weights')
+        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_tweights])
+        print baseheader
+
+        hdu_all.writeto(destination_dir+run_name+'main.fits', clobber=True)
+
+        #Warn for parts of output dicts that I am not saving
+        if not all([lam is None for lam in self.main_input['lam']]):
+            msg = 'Data spectrum sampling wavelengths should be recorded '
+            msg += 'if an extinction estimate is included in the fit, '
+            msg += 'but they are not currently saved in the .fits file.'
+            msg += 'YOU SHOULD CODE IT IN IF YOU NEED IT'
+            warnings.warn(msg)
+        if not all([sky is None for sky in self.main_input['sky_template']]):
+            msg = 'Detecting that a sky template was used, but beware '
+            msg += 'this is not currently saved in the .fits file.'
+            msg += '\nYOU SHOULD CODE IT IN IF YOU NEED IT'
+            warnings.warn(msg)
+        print 'skipping reg_dim for now in output file, you have been warned'
+        
+
+        #Remove the stuff I'm done with so it doesn't appear in pickles anymore
+        mi_done = ['lam','sky_template','reg_dim']
+        mi_done.extend(main_input_matching)
+        print 'done with', mi_done
+        for k in mi_done:
+            del self.main_input[k]
+        print '-------------'
+        print 'up next'
+        print '-------------'
+        print self.main_rawoutput['sampling_factor']
+        print self.main_rawoutput['num_kin_components']
+        print self.main_rawoutput['unscaled_lsq_errors']
+        print self.main_rawoutput['reddening']
+        #outputs = [self.main_input,self.main_rawoutput,self.main_procoutput,
+        #           self.mc_input,self.mc_rawoutput,self.mc_procoutput]
+        #outnames = ['main input','raw output','proc output',
+        #            'mc input','mc raw out','mc proc out']
+        outputs = [self.main_input,self.main_rawoutput,self.main_procoutput]
+        outnames = ["main input","main raw out","main proc out"]
         for output,outname in zip(outputs,outnames):
             print '----------------'
             print outname
             print '----------------'
             for k in output.keys():
-                print k, len(output[k]), type(output[k]), type(output[k][0])
+                print k, len(output[k]), 
+                try: print output[k][0].shape
+                except: print type(output[k])
+        print '----------------'
+        print '----------------'
         return
 
 

@@ -526,15 +526,33 @@ class pPXFDriver(object):
         t_mflux = self.main_procoutput['model_temps_fluxes']
         t_fw = self.main_procoutput['flux_template_weights']
         template_info = [t_ids,t_weights,t_mflux,t_fw]
+        template_info_columns = "id,weight,modflux,fluxweight"
         header_temps = baseheader.copy()
         header_temps.append(("axis1", "template"))
         header_temps.append(("axis2", "bin"))
-        header_temps.append(("axis3", "id,weight,modflux,fluxweight"))
+        header_temps.append(("axis3", template_info_columns))
         hdu_temps = fits.ImageHDU(data=template_info,
                                      header=header_temps,
                                      name='template_info')
+        #Now the text file for the templates
+        if len(t_weights)==1:
+            #Collapse extraneous dimension for bin number, convert to 2d array
+            t_array = np.array([info[0] for info in template_info]).T
+            #Get rid of zero weights - assume weights in second column
+            ii = np.nonzero(t_array[:,1])[0]
+            t_array_nonzero = t_array[ii,:]
+            #Format first column (id number) as int
+            fmt = ['%i']
+            fmt.extend(['%-8g']*(len(template_info)-1))
+            np.savetxt(destination_dir+run_name+'-temps.txt',
+                       t_array_nonzero,
+                       header='columns are {}'.format(template_info_columns),
+                       fmt=fmt,delimiter='\t')
+
+        #Now collect all the HDUs for the fits file
         hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps])
-        hdu_all.writeto(destination_dir+run_name+'main.fits', clobber=True)
+        hdu_all.writeto(destination_dir+run_name+'-main.fits', clobber=True)
+            
 
         #Warn for parts of output dicts that I am not saving
         if not all([lam is None for lam in self.main_input['lam']]):

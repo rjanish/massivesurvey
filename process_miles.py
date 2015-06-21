@@ -4,10 +4,12 @@ new library that is more useful for spectral fitting.
 
 The default library is not altered, rather a processed copy is made.
 The changes are:
-  - The star m0790V has been removed due to an instrumental or
+  - The star m0970V has been removed due to an instrumental or
     reduction artifact in the spectrum. There is a step-like feature
     at ~ 7000 A, redward of which the spectrum is identically 0.
     This feature drives pPXF to crash on huge model sigma values.
+  - The stars m0742V and m0468V have been removed for similar reasons.
+    (m0742V has 3 zero values at the end, m0468V has one in the middle.)
   - The index file as been renamed, pruned of unneeded information,
     and reformatted to be easily readable by python pandas.
   - One star in the raw index is numbered '022.' and there is no 0221
@@ -37,7 +39,7 @@ import massivepy.templates as temps
 import massivepy.constants as const
 
 
-BAD_MILES_TEMPLATES = [790]  # MILES stars to omit
+BAD_MILES_TEMPLATES = [970, 742, 468]  # MILES stars to omit
 MILESRAW_ID_MAP = {'022.':'0221'}  # correction of raw MILES index typo
 MILESRAW_INDEX_PATTERN = (r"^(?P<object_name>.+?)\s+"
                           r"(?P<in_cluster>Cl)?\s+"

@@ -486,16 +486,12 @@ class pPXFDriver(object):
           with the full Miles library, so the list can be used as
           input to further fits.)
         """
-        #Okay, first set up an empty fits file, then start to migrate
-        # data one at a time into the fits file. Remove from the dict
-        # when added to fits file, so the below prints "leftover" data
-        # information.
+        #Set up the main run fits file
         baseheader = fits.Header()
-
         #Identify things that should be the same for all bins, and
-        # save those in the header file.
-        main_input_matching = ['regul','clean','oversample','add_deg','mul_deg',
-                               'bias','vsyst','num_moments']
+        #save those in the header.
+        main_input_matching = ['regul','clean','oversample','add_deg',
+                               'mul_deg','bias','vsyst','num_moments']
         for match_key in main_input_matching:
             match_list = self.main_input[match_key]
             if not all([thing==match_list[0] for thing in match_list]):
@@ -509,24 +505,28 @@ class pPXFDriver(object):
             else:
                 match_value = match_list[0]
             baseheader.append((match_key[:8],match_value)) #limit to 8 chars
-
-        baseheader.append(("primary", "gh_moments"))
-
         #Now do stuff that does not match between bins
-        #Add option to save gh_params as text file?
+        #HDU 1: gh moments and lsq errors
+        ###Add option to save gh_params as text file?###
         gh_params = self.main_rawoutput['gh_params']
+        lsqerr = self.main_rawoutput['unscaled_lsq_errors']
+        scaledlsq = self.main_procoutput['scaled_lsq_errors']
+        moment_info = [gh_params,lsqerr,scaledlsq]
+        moment_info_columns = "ghparams,lsqerr,scaledlsq"
         header_gh = baseheader.copy()
         header_gh.append(("axis1", "moment"))
         header_gh.append(("axis2", "bin"))
-        hdu_gh = fits.PrimaryHDU(data=gh_params,
+        header_gh.append(("axis3", moment_info_columns))
+        header_gh.append(("primary","gh_moments"))
+        hdu_gh = fits.PrimaryHDU(data=moment_info,
                                  header=header_gh)
-        #Add template number here, and option to save as text file
+        #HDU 2: templates and weights (raw and flux-weighted)
         t_weights = self.main_rawoutput['template_weights']
         t_ids = [t.spectrumset.ids for t in self.main_input['templates']]
         t_mflux = self.main_procoutput['model_temps_fluxes']
         t_fw = self.main_procoutput['flux_template_weights']
         template_info = [t_ids,t_weights,t_mflux,t_fw]
-        template_info_columns = "id,weight,modflux,fluxweight"
+        template_info_columns = "id,weight,modelflux,fluxweight"
         header_temps = baseheader.copy()
         header_temps.append(("axis1", "template"))
         header_temps.append(("axis2", "bin"))
@@ -538,7 +538,7 @@ class pPXFDriver(object):
         if len(t_weights)==1:
             #Collapse extraneous dimension for bin number, convert to 2d array
             t_array = np.array([info[0] for info in template_info]).T
-            #Get rid of zero weights - assume weights in second column
+            #Get rid of zero weights (weights should be in second column)
             ii = np.nonzero(t_array[:,1])[0]
             t_array_nonzero = t_array[ii,:]
             #Format first column (id number) as int
@@ -548,68 +548,107 @@ class pPXFDriver(object):
                        t_array_nonzero,
                        header='columns are {}'.format(template_info_columns),
                        fmt=fmt,delimiter='\t')
-
+        #HDU 3: spectrum and other related things
+        spectrum = self.main_input['spectrum']
+        noise = self.main_input['noise']
+        pixels_used = []
+        for indexarray in self.main_input['pixels_used']:
+            boolarray = np.zeros(len(self.main_input['noise'][0]),dtype=int)
+            boolarray[indexarray] = 1
+            pixels_used.append(boolarray)
+        best_model = self.main_rawoutput['best_model']
+        mul_poly = self.main_procoutput['mul_poly']
+        add_poly = self.main_procoutput['add_poly']
+        spec_info = [spectrum,noise,pixels_used,best_model,mul_poly,add_poly]
+        spec_info_columns = "spec,noise,pixused,bestmodel,mulpoly,addpoly"
+        header_spec = baseheader.copy()
+        header_spec.append(("axis1", "pixel"))
+        header_spec.append(("axis2", "bin"))
+        header_spec.append(("axis3", spec_info_columns))
+        hdu_spec = fits.ImageHDU(data=spec_info,
+                                 header=header_spec,
+                                 name='spectrum_info')
         #Now collect all the HDUs for the fits file
-        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps])
+        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps,hdu_spec])
         hdu_all.writeto(destination_dir+run_name+'-main.fits', clobber=True)
             
+        ###
+        #Notes about what I am saving of the main run!
+        #--Things I am skipping entirely:
+        #   -from self.main_input: reg_dim, kin_components, lam, sky_template
+        #   -from self.main_rawoutput: chisq_dof, sampling_factor,
+        #    num_kin_components, reddening, add_weights, mul_weights
+        #   -from self.main_procoutput: flux_add_weights, smoothed_temps,
+        #    model_temps
+        #--Things I am skipping partially: everything in the template library
+        #  in main_input['templates'] except for the list of template ids.
+        ###
+        print 'The output fits files will be missing a few things:'
+        print ' (from input) reg_dim, kin_components, lam, sky_template'
+        print ' (from rawoutput) chisq_dof, sampling_factor',
+        print ', num_kin_components, reddening, add_weights, mul_weights'
+        print ' (from procoutput) flux_add_weights, smoothed_temps, model_temps'
 
-        #Warn for parts of output dicts that I am not saving
-        if not all([lam is None for lam in self.main_input['lam']]):
-            msg = 'Data spectrum sampling wavelengths should be recorded '
-            msg += 'if an extinction estimate is included in the fit, '
-            msg += 'but they are not currently saved in the .fits file.'
-            msg += 'YOU SHOULD CODE IT IN IF YOU NEED IT'
-            warnings.warn(msg)
-        if not all([sky is None for sky in self.main_input['sky_template']]):
-            msg = 'Detecting that a sky template was used, but beware '
-            msg += 'this is not currently saved in the .fits file.'
-            msg += '\nYOU SHOULD CODE IT IN IF YOU NEED IT'
-            warnings.warn(msg)
-        print 'so far only using template ids from main_input templates'
-        print 'skipping main_input reg_dim for now in output file'
-        print 'skipping main_input kin_components for now in output file'
-        print 'skipping main_rawoutput chisq_dof for now in output file'
-        print 'skipping main_rawoutput sampling_factor for now in output file'
-        print 'skipping main_rawoutput num_kin_components for now'
-        print 'skipping main_rawoutput reddening for now'
+        #Now do everything again for the mc runs. Only save things that
+        #actually change by run, i.e. input spectrum and all of the outputs
+        mc_baseheader = fits.Header()
+        #HDU 1
+        mc_gh_params = self.mc_rawoutput['gh_params']
+        mc_lsqerr = self.mc_rawoutput['unscaled_lsq_errors']
+        mc_scaledlsq = self.mc_procoutput['scaled_lsq_errors']
+        mc_moment_info = [mc_gh_params,mc_lsqerr,mc_scaledlsq]
+        mc_moment_info_columns = "ghparams,lsqerr,scaledlsq"
+        mc_header_gh = mc_baseheader.copy()
+        mc_header_gh.append(("axis1", "moment"))
+        mc_header_gh.append(("axis2", "mcrun"))
+        mc_header_gh.append(("axis3", "bin"))
+        mc_header_gh.append(("axis4", mc_moment_info_columns))
+        mc_header_gh.append(("primary", "gh_moments"))
+        mc_hdu_gh = fits.PrimaryHDU(data=mc_moment_info,
+                                    header=mc_header_gh)
+        #HDU 2
+        mc_t_weights = self.mc_rawoutput['template_weights']
+        mc_t_mflux = self.mc_procoutput['model_temps_fluxes']
+        mc_t_fw = self.mc_procoutput['flux_template_weights']
+        mc_template_info = [mc_t_weights,mc_t_mflux,mc_t_fw]
+        mc_template_info_columns = "weight,modelflux,fluxweight"
+        mc_header_temps = mc_baseheader.copy()
+        mc_header_temps.append(("axis1", "template"))
+        mc_header_temps.append(("axis2", "mcrun"))
+        mc_header_temps.append(("axis3", "bin"))
+        mc_header_temps.append(("axis4", mc_template_info_columns))
+        mc_hdu_temps = fits.ImageHDU(data=mc_template_info,
+                                     header=mc_header_temps,
+                                     name='template_info')
+        #HDU 3
+        mc_spectrum = self.mc_input['spectrum']
+        mc_best_model = self.mc_rawoutput['best_model']
+        mc_mul_poly = self.mc_procoutput['mul_poly']
+        mc_add_poly = self.mc_procoutput['add_poly']
+        mc_spec_info = [mc_spectrum,mc_best_model,mc_mul_poly,mc_add_poly]
+        mc_spec_info_columns = "spec,bestmodel,mulpoly,addpoly"
+        mc_header_spec = mc_baseheader.copy()
+        mc_header_spec.append(("axis1", "pixel"))
+        mc_header_spec.append(("axis2", "bin"))
+        mc_header_spec.append(("axis3", mc_spec_info_columns))
+        mc_hdu_spec = fits.ImageHDU(data=mc_spec_info,
+                                    header=mc_header_spec,
+                                    name='spectrum_info')
+        #Now collect all the HDUs for the fits file
+        mc_hdu_all = fits.HDUList(hdus=[mc_hdu_gh,mc_hdu_temps,mc_hdu_spec])
+        mc_hdu_all.writeto(destination_dir+run_name+'-mc.fits', clobber=True)
 
-        #Remove the stuff I'm done with so it doesn't appear in pickles anymore
-        mi_done = ['lam','sky_template','reg_dim','templates',
-                   'kin_components']
-        mi_done.extend(main_input_matching)
-        print 'done with main_input', mi_done
-        for k in mi_done:
-            del self.main_input[k]
-        mr_done = ['chisq_dof','sampling_factor','num_kin_components',
-                   'reddening','template_weights']
-        print 'done with main_rawoutput', mr_done
-        for k in mr_done:
-            del self.main_rawoutput[k]
-        mp_done = ['model_temps_fluxes','flux_template_weights']
-        print 'done with main_procoutput', mp_done
-        for k in mp_done:
-            del self.main_procoutput[k]
-
-        print '-------------'
-        print 'up next'
-        print '-------------'
-        #outputs = [self.main_input,self.main_rawoutput,self.main_procoutput,
-        #           self.mc_input,self.mc_rawoutput,self.mc_procoutput]
-        #outnames = ['main input','raw output','proc output',
-        #            'mc input','mc raw out','mc proc out']
-        outputs = [self.main_input,self.main_rawoutput,self.main_procoutput]
-        outnames = ["main input","main raw out","main proc out"]
-        for output,outname in zip(outputs,outnames):
-            print '----------------'
-            print outname
-            print '----------------'
-            for k in output.keys():
-                print k, len(output[k]), 
-                try: print output[k][0].shape
-                except: print type(output[k])
-        print '----------------'
-        print '----------------'
+        ###
+        #Notes about what I am saving of the mc runs!
+        #--If it is skipped for the main run, it is skipped for mc runs
+        #--Additional things I am skipping (all from mc_input) because they 
+        #  should match what is in main_input: templates, regul, vsyst, clean,
+        #  oversample, add_deg, mul_deg, bias, num_moments, noise, pixels_used
+        #--This means the list of things I save is as follows:
+        #   -from self.mc_input: spectrum
+        #   -from self.mc_rawoutput: gh_params, template_weights, 
+        #    unscaled_lsq_errors, best_model
+        #   -from self.mc_procoutput: model_temps_fluxes, scaled_lsq_errors,
+        #    mul_poly, flux_template_weights, add_poly
+        ###
         return
-
-

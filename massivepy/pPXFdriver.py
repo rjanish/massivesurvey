@@ -590,7 +590,13 @@ class pPXFDriver(object):
         print ' (from procoutput) flux_add_weights, smoothed_temps, model_temps'
 
         #Now do everything again for the mc runs. Only save things that
-        #actually change by run, i.e. input spectrum and all of the outputs
+        # actually change by run, i.e. input spectrum and all of the outputs
+        #If the number of runs is not more than one, the mc portion is
+        # skipped, so here just return without saving mc stuff if it does not
+        # exist. (in that case output dicts exist but are empty, no keys)
+        if len(self.mc_input.keys())==0:
+            print 'No MC runs done, saving only main fits file.'
+            return
         mc_baseheader = fits.Header()
         #HDU 1
         mc_gh_params = self.mc_rawoutput['gh_params']

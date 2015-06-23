@@ -12,6 +12,7 @@ import scipy.signal as signal
 import scipy.integrate as integ
 import ppxf
 import matplotlib.pyplot as plt
+import astropy.io.fits as fits
 
 import utilities as utl
 import massivepy.constants as const
@@ -471,5 +472,183 @@ class pPXFDriver(object):
         # add type-processing of output dicts here
         return
 
+    def write_outputs(self,destination_dir,run_name):
+        """
+        Write driver outputs to file.
+        Place all outputs in destination_dir, with run_name as 
+          base filename.
+        All results are packaged into one organized .fits file for
+          the main output, and one similarly organized .fits file
+          for the mc output.
+        If only one bin was fit, output an additional text file to
+          store list of nonzero template spectra in a convenient
+          form. (This is used when fitting the full galaxy spectrum
+          with the full Miles library, so the list can be used as
+          input to further fits.)
+        """
+        #Set up the main run fits file
+        baseheader = fits.Header()
+        #Identify things that should be the same for all bins, and
+        #save those in the header.
+        main_input_matching = ['regul','clean','oversample','add_deg',
+                               'mul_deg','bias','vsyst','num_moments']
+        for match_key in main_input_matching:
+            match_list = self.main_input[match_key]
+            if not all([thing==match_list[0] for thing in match_list]):
+                msg = 'Expected {} to be the same '.format(match_key)
+                msg += 'but it is not. All bins printed below.'
+                warnings.warn(msg)
+                print match_list
+            #num_moments is an array for some reason, fix that
+            if match_key=='num_moments':
+                match_value = match_list[0][0]
+            else:
+                match_value = match_list[0]
+            baseheader.append((match_key[:8],match_value)) #limit to 8 chars
+        #Now do stuff that does not match between bins
+        #HDU 1: gh moments and lsq errors
+        ###Add option to save gh_params as text file?###
+        gh_params = self.main_rawoutput['gh_params']
+        lsqerr = self.main_rawoutput['unscaled_lsq_errors']
+        scaledlsq = self.main_procoutput['scaled_lsq_errors']
+        moment_info = [gh_params,lsqerr,scaledlsq]
+        moment_info_columns = "ghparams,lsqerr,scaledlsq"
+        header_gh = baseheader.copy()
+        header_gh.append(("axis1", "moment"))
+        header_gh.append(("axis2", "bin"))
+        header_gh.append(("axis3", moment_info_columns))
+        header_gh.append(("primary","gh_moments"))
+        hdu_gh = fits.PrimaryHDU(data=moment_info,
+                                 header=header_gh)
+        #HDU 2: templates and weights (raw and flux-weighted)
+        t_weights = self.main_rawoutput['template_weights']
+        t_ids = [t.spectrumset.ids for t in self.main_input['templates']]
+        t_mflux = self.main_procoutput['model_temps_fluxes']
+        t_fw = self.main_procoutput['flux_template_weights']
+        template_info = [t_ids,t_weights,t_mflux,t_fw]
+        template_info_columns = "id,weight,modelflux,fluxweight"
+        header_temps = baseheader.copy()
+        header_temps.append(("axis1", "template"))
+        header_temps.append(("axis2", "bin"))
+        header_temps.append(("axis3", template_info_columns))
+        hdu_temps = fits.ImageHDU(data=template_info,
+                                     header=header_temps,
+                                     name='template_info')
+        #Now the text file for the templates
+        if len(t_weights)==1:
+            #Collapse extraneous dimension for bin number, convert to 2d array
+            t_array = np.array([info[0] for info in template_info]).T
+            #Get rid of zero weights (weights should be in second column)
+            ii = np.nonzero(t_array[:,1])[0]
+            t_array_nonzero = t_array[ii,:]
+            #Format first column (id number) as int
+            fmt = ['%i']
+            fmt.extend(['%-8g']*(len(template_info)-1))
+            np.savetxt(destination_dir+run_name+'-temps.txt',
+                       t_array_nonzero,
+                       header='columns are {}'.format(template_info_columns),
+                       fmt=fmt,delimiter='\t')
+        #HDU 3: spectrum and other related things
+        spectrum = self.main_input['spectrum']
+        noise = self.main_input['noise']
+        pixels_used = []
+        for indexarray in self.main_input['pixels_used']:
+            boolarray = np.zeros(len(self.main_input['noise'][0]),dtype=int)
+            boolarray[indexarray] = 1
+            pixels_used.append(boolarray)
+        best_model = self.main_rawoutput['best_model']
+        mul_poly = self.main_procoutput['mul_poly']
+        add_poly = self.main_procoutput['add_poly']
+        spec_info = [spectrum,noise,pixels_used,best_model,mul_poly,add_poly]
+        spec_info_columns = "spec,noise,pixused,bestmodel,mulpoly,addpoly"
+        header_spec = baseheader.copy()
+        header_spec.append(("axis1", "pixel"))
+        header_spec.append(("axis2", "bin"))
+        header_spec.append(("axis3", spec_info_columns))
+        hdu_spec = fits.ImageHDU(data=spec_info,
+                                 header=header_spec,
+                                 name='spectrum_info')
+        #Now collect all the HDUs for the fits file
+        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps,hdu_spec])
+        hdu_all.writeto(destination_dir+run_name+'-main.fits', clobber=True)
+            
+        ###
+        #Notes about what I am saving of the main run!
+        #--Things I am skipping entirely:
+        #   -from self.main_input: reg_dim, kin_components, lam, sky_template
+        #   -from self.main_rawoutput: chisq_dof, sampling_factor,
+        #    num_kin_components, reddening, add_weights, mul_weights
+        #   -from self.main_procoutput: flux_add_weights, smoothed_temps,
+        #    model_temps
+        #--Things I am skipping partially: everything in the template library
+        #  in main_input['templates'] except for the list of template ids.
+        ###
+        print 'The output fits files will be missing a few things:'
+        print ' (from input) reg_dim, kin_components, lam, sky_template'
+        print ' (from rawoutput) chisq_dof, sampling_factor',
+        print ', num_kin_components, reddening, add_weights, mul_weights'
+        print ' (from procoutput) flux_add_weights, smoothed_temps, model_temps'
 
+        #Now do everything again for the mc runs. Only save things that
+        #actually change by run, i.e. input spectrum and all of the outputs
+        mc_baseheader = fits.Header()
+        #HDU 1
+        mc_gh_params = self.mc_rawoutput['gh_params']
+        mc_lsqerr = self.mc_rawoutput['unscaled_lsq_errors']
+        mc_scaledlsq = self.mc_procoutput['scaled_lsq_errors']
+        mc_moment_info = [mc_gh_params,mc_lsqerr,mc_scaledlsq]
+        mc_moment_info_columns = "ghparams,lsqerr,scaledlsq"
+        mc_header_gh = mc_baseheader.copy()
+        mc_header_gh.append(("axis1", "moment"))
+        mc_header_gh.append(("axis2", "mcrun"))
+        mc_header_gh.append(("axis3", "bin"))
+        mc_header_gh.append(("axis4", mc_moment_info_columns))
+        mc_header_gh.append(("primary", "gh_moments"))
+        mc_hdu_gh = fits.PrimaryHDU(data=mc_moment_info,
+                                    header=mc_header_gh)
+        #HDU 2
+        mc_t_weights = self.mc_rawoutput['template_weights']
+        mc_t_mflux = self.mc_procoutput['model_temps_fluxes']
+        mc_t_fw = self.mc_procoutput['flux_template_weights']
+        mc_template_info = [mc_t_weights,mc_t_mflux,mc_t_fw]
+        mc_template_info_columns = "weight,modelflux,fluxweight"
+        mc_header_temps = mc_baseheader.copy()
+        mc_header_temps.append(("axis1", "template"))
+        mc_header_temps.append(("axis2", "mcrun"))
+        mc_header_temps.append(("axis3", "bin"))
+        mc_header_temps.append(("axis4", mc_template_info_columns))
+        mc_hdu_temps = fits.ImageHDU(data=mc_template_info,
+                                     header=mc_header_temps,
+                                     name='template_info')
+        #HDU 3
+        mc_spectrum = self.mc_input['spectrum']
+        mc_best_model = self.mc_rawoutput['best_model']
+        mc_mul_poly = self.mc_procoutput['mul_poly']
+        mc_add_poly = self.mc_procoutput['add_poly']
+        mc_spec_info = [mc_spectrum,mc_best_model,mc_mul_poly,mc_add_poly]
+        mc_spec_info_columns = "spec,bestmodel,mulpoly,addpoly"
+        mc_header_spec = mc_baseheader.copy()
+        mc_header_spec.append(("axis1", "pixel"))
+        mc_header_spec.append(("axis2", "bin"))
+        mc_header_spec.append(("axis3", mc_spec_info_columns))
+        mc_hdu_spec = fits.ImageHDU(data=mc_spec_info,
+                                    header=mc_header_spec,
+                                    name='spectrum_info')
+        #Now collect all the HDUs for the fits file
+        mc_hdu_all = fits.HDUList(hdus=[mc_hdu_gh,mc_hdu_temps,mc_hdu_spec])
+        mc_hdu_all.writeto(destination_dir+run_name+'-mc.fits', clobber=True)
 
+        ###
+        #Notes about what I am saving of the mc runs!
+        #--If it is skipped for the main run, it is skipped for mc runs
+        #--Additional things I am skipping (all from mc_input) because they 
+        #  should match what is in main_input: templates, regul, vsyst, clean,
+        #  oversample, add_deg, mul_deg, bias, num_moments, noise, pixels_used
+        #--This means the list of things I save is as follows:
+        #   -from self.mc_input: spectrum
+        #   -from self.mc_rawoutput: gh_params, template_weights, 
+        #    unscaled_lsq_errors, best_model
+        #   -from self.mc_procoutput: model_temps_fluxes, scaled_lsq_errors,
+        #    mul_poly, flux_template_weights, add_poly
+        ###
+        return

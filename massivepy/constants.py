@@ -54,8 +54,16 @@ fullMILES_5557fullgalaxy_optimized_OLD = [
     # galaxy bin of NGC5557 using the full miles-massive template library.
     # This fit was not done new with the current massivepy library, but
     # taken from a (poorly-documented) previous fit dating from July 2014
+fullMILES_1600newlist_newbins = [119,124,197,204,225,246,322,455,456,487,
+                                 501,561,617,780,838,853,944,957,961]
+fullMILES_1600newlist_oldbins = [38,99,136,225,246,252,322,376,409,455,
+                                 501,548,561,617,780,838,853,944,956,957]
+    # DO NOT KEEP HERE. these (both newbins and oldbins) were obtained with
+    # the new code, and are store elsewhere also, they are only here for
+    # testing while the code is updated to allow automatic reading of a 
+    # file with this list in it.
 float_tol = 10**(-10)
-relaxed_tol = 10**(-5)
+relaxed_tol = 10**(-4)
 re_ngc = r"(?:NGC|ngc|N)(?P<num>\d{4})" # get number from NGC designations
 
 # pPXF conventions

@@ -170,8 +170,8 @@ for paramfile_path in all_paramfile_paths:
 for data_path in things_to_plot:
     plot_path = "{}.pdf".format(data_path[:-5])
     ifuset = ifu.read_mitchell_datacube(data_path)
-    print ifuset.__dict__.keys()
-    print ifuset.spectrumset.__dict__.keys()
+    #print ifuset.__dict__.keys()
+    #print ifuset.spectrumset.__dict__.keys()
 
     #Collect data to plot
     nfibers = len(ifuset.coords)
@@ -180,10 +180,12 @@ for data_path in things_to_plot:
     ycoords = ifuset.coords[:,1]
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
     rcoords = np.sqrt(xcoords**2 + ycoords**2)
+    coordunit = ifuset.coord_comments['coordunit']
     #The first quantity we want is flux per fiber
     logfluxes = np.log10(ifuset.spectrumset.compute_flux())
     logfmax = max(logfluxes)
     logfmin = min(logfluxes)
+    fluxunit = ifuset.spectrumset.integratedflux_unit
     fcmap = plt.cm.get_cmap('Reds')
     fgetcolor = lambda f: fcmap((f - logfmin)/(logfmax-logfmin))
     #The second quantity we want is s2n per fiber
@@ -196,16 +198,16 @@ for data_path in things_to_plot:
     #Will create 4 figures, to do flux and s2n in both map and vs-radius form
     fig1 = plt.figure(figsize=(6,6))
     fig1.suptitle('flux map')
-    ax1 = fig1.add_axes([0.1,0.1,0.8,0.8])
+    ax1 = fig1.add_axes([0.15,0.1,0.7,0.7])
     fig2 = plt.figure(figsize=(6,6))
     fig2.suptitle('s2n map')
-    ax2 = fig2.add_axes([0.1,0.1,0.8,0.8])    
+    ax2 = fig2.add_axes([0.15,0.1,0.7,0.7])    
     fig3 = plt.figure(figsize=(6,6))
     fig3.suptitle('flux vs radius')
-    ax3 = fig3.add_axes([0.1,0.1,0.8,0.8])
+    ax3 = fig3.add_axes([0.15,0.1,0.7,0.7])
     fig4 = plt.figure(figsize=(6,6))
     fig4.suptitle('s2n vs radius')
-    ax4 = fig4.add_axes([0.1,0.1,0.8,0.8])
+    ax4 = fig4.add_axes([0.15,0.1,0.7,0.7])
 
     #Now loop over the fibers and plot things!
     for ifiber in range(nfibers):
@@ -222,15 +224,43 @@ for data_path in things_to_plot:
                  str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
                  horizontalalignment='center',verticalalignment='center')
         ax3.text(rcoords[ifiber],logfluxes[ifiber],
-                 str(ifuset.spectrumset.ids[ifiber]))
+                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+                 horizontalalignment='center',verticalalignment='center')
         ax4.text(rcoords[ifiber],logs2n[ifiber],
-                 str(ifuset.spectrumset.ids[ifiber]))
+                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+                 horizontalalignment='center',verticalalignment='center')
+    #Fix axes bounds
     ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
     ax2.axis([-squaremax,squaremax,-squaremax,squaremax])
     ax3.axis([min(rcoords),max(rcoords),min(logfluxes),max(logfluxes)])
     ax4.axis([min(rcoords),max(rcoords),min(logs2n),max(logs2n)])
-
-
+    #Make labels
+    label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
+    label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
+    label_r = r'radius ({})'.format(coordunit)
+    label_flux = r'flux (log 10 [{}])'.format(fluxunit)
+    label_s2n = r's2n (log 10)'
+    ax1.set_xlabel(label_x)
+    ax1.set_ylabel(label_y)
+    ax2.set_xlabel(label_x)
+    ax2.set_ylabel(label_y)
+    ax3.set_xlabel(label_r)
+    ax3.set_ylabel(label_flux)
+    ax4.set_xlabel(label_r)
+    ax4.set_ylabel(label_s2n)
+    #Do colorbars
+    ax1C = fig1.add_axes([0.15,0.8,0.7,0.8])
+    ax1C.set_visible(False)
+    mappable_flux = plt.cm.ScalarMappable(cmap=fcmap)
+    mappable_flux.set_array([logfmin,logfmax])
+    fig1.colorbar(mappable_flux,orientation='horizontal',ax=ax1C,
+                  label=label_flux)
+    ax2C = fig2.add_axes([0.15,0.8,0.7,0.8])
+    ax2C.set_visible(False)
+    mappable_s2n = plt.cm.ScalarMappable(cmap=scmap)
+    mappable_s2n.set_array([logsmin,logsmax])
+    fig2.colorbar(mappable_s2n,orientation='horizontal',ax=ax2C,
+                  label=label_s2n)
 
     #Assemble all into multipage pdf!
     pdf = PdfPages(plot_path)

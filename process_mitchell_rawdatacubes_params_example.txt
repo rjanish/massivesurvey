@@ -7,8 +7,10 @@
 
 raw_mitchell_cube	../all_my_input/QnovallfibNGC1600_log.fits
 target_positions	../all_my_input/target-positions.txt
+skip_rerun		no
 
 ###Output###
 #Directory where processed datacube will be put
 
 destination_dir		../all_my_output/
+gal_name		NGC0057

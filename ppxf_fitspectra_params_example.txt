@@ -20,6 +20,7 @@ bins_to_fit		all
 #bins_to_fit		[4]
 #num_trials		100	# appropriate for actual results
 num_trials		5	# use for quicker testing
+skip_rerun		no
 
 add_deg			0
 mul_deg			7

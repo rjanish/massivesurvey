@@ -17,8 +17,12 @@ output:
 import os
 import re
 import argparse
+import pickle
 
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+import pandas as pd
 
 import utilities as utl
 import massivepy.constants as const
@@ -35,6 +39,8 @@ parser.add_argument("paramfiles", nargs='*', type=str,
 args = parser.parse_args()
 all_paramfile_paths = args.paramfiles
 
+# empty list for outputs to plot
+things_to_plot = []
 
 for paramfile_path in all_paramfile_paths:
     # parse input parameter file
@@ -43,6 +49,32 @@ for paramfile_path in all_paramfile_paths:
     if not os.path.isfile(binned_cube_path):
         raise ValueError("Invalid datacube path {}, "
                          "must be .fits file".format(binned_cube_path))
+    run_name = str(input_params['run_name'])
+    destination_dir = input_params['destination_dir']
+    if not os.path.isdir(destination_dir):
+        raise ValueError("Invalid destination dir {}".format(destination_dir))
+
+    #This output paths are coded seperately in the driver write_outputs()
+    # function, which is bad. Should consolidate code and determine names
+    # here for everything.
+    output_paths = {}
+    output_paths['main'] = os.path.join(destination_dir,
+                                        '{}-main.fits'.format(run_name))
+    output_paths['mc'] = os.path.join(destination_dir,
+                                        '{}-mc.fits'.format(run_name))
+    output_paths['bin_fitsfile'] = binned_cube_path
+    things_to_plot.append(output_paths)
+    #Check only for the main fits file, the only one guaranteed to exist
+    if os.path.isfile(output_paths['main']):
+        if input_params['skip_rerun']=='yes':
+            print '\nSkipping re-run of {}, plotting only'.format(run_name)
+            continue
+        elif input_params['skip_rerun']=='no':
+            print '\nRunning {} again, will overwrite output'.format(run_name)
+        else:
+            raise Exception("skip_rerun must be yes or no")
+
+    #If the run is not skipped to just plot, finish parsing params file
     fit_settings = {'add_deg': input_params['add_deg'],
                     'mul_deg': input_params['mul_deg'],
                     'num_moments': input_params['num_moments'],
@@ -52,7 +84,6 @@ for paramfile_path in all_paramfile_paths:
     fit_range = eval(input_params['fit_range'])
     gh_init = eval(input_params['gh_init'])
     num_trials = int(input_params['num_trials'])
-    run_name = str(input_params['run_name'])
     if not input_params['bins_to_fit']=='all':
         bins_to_fit = eval(input_params['bins_to_fit'])
     else:
@@ -69,9 +100,6 @@ for paramfile_path in all_paramfile_paths:
         template_library = full_template_library.get_subset(temps_to_use)
     print ("loaded library of {} templates"
            "".format(template_library.spectrumset.num_spectra))
-    destination_dir = input_params['destination_dir']
-    if not os.path.isdir(destination_dir):
-        raise ValueError("Invalid destination dir {}".format(destination_dir))
     # get data
     print "reading spectra to fit..."
     specset = spec.read_datacube(binned_cube_path)
@@ -100,3 +128,43 @@ for paramfile_path in all_paramfile_paths:
                                   **fit_settings)
     driver.run_fit()
     driver.write_outputs(destination_dir, run_name)
+
+
+for data_paths in things_to_plot:
+    plot_path = "{}.pdf".format(data_paths['main'][:-5])
+
+    main_data, main_headers = utl.fits_quickread(data_paths['main'])
+    moments, lsq, scaledlsq = main_data[0]
+    nbins = moments.shape[0]
+    nmoments = moments.shape[1]
+    templates, weights, fluxes, fluxweights = main_data[1]
+    #Some hacky stuff to get template star information
+    catalogfile = '../all_my_output/miles-processed/catalog.txt'
+    catalog = np.genfromtxt(catalogfile,delimiter=',',invalid_raise=False,
+                            names=True,usecols=(3,4,5,6,7,8),
+                            dtype="S4,i4,S17,S11,S7,S6")
+    print catalog.dtype.names
+
+
+    pdf = PdfPages(plot_path)
+    #If this is a binned fit, we care about moment vs radius
+    if nbins > 1:
+        #This is terrible and will get better when we reorganize the output
+        # of the binning code.
+        bins_path = '{}_fluxcenters.p'.format(data_paths['bin_fitsfile'][:-5])
+        bincenters_pickle = pickle.load(open(bins_path,'r'))
+        for i in range(nmoments):
+            fig = plt.figure(figsize=(6,5))
+            fig.suptitle('Moment vs radius (h{})'.format(i+1))
+            ax = fig.add_axes([0.15,0.1,0.8,0.8])
+            ax.plot(bincenters_pickle[:,2],moments[:,i],ls='',marker='o')
+            ax.set_xlabel('radius')
+            ax.set_ylabel('h{}'.format(i+1))
+            pdf.savefig(fig)
+    #If there is only one bin, we care about templates
+    else:
+        fig = plt.figure(figsize=(6,5))
+        fig.suptitle('Skipping moment plots since only one bin')
+        ax = fig.add_axes([0.15,0.1,0.8,0.8])
+        pdf.savefig(fig)
+    pdf.close()

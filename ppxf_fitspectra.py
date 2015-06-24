@@ -137,14 +137,6 @@ for data_paths in things_to_plot:
     moments, lsq, scaledlsq = main_data[0]
     nbins = moments.shape[0]
     nmoments = moments.shape[1]
-    templates, weights, fluxes, fluxweights = main_data[1]
-    #Some hacky stuff to get template star information
-    catalogfile = '../all_my_output/miles-processed/catalog.txt'
-    catalog = np.genfromtxt(catalogfile,delimiter=',',invalid_raise=False,
-                            names=True,usecols=(3,4,5,6,7,8),
-                            dtype="S4,i4,S17,S11,S7,S6")
-    print catalog.dtype.names
-
 
     pdf = PdfPages(plot_path)
     #If this is a binned fit, we care about moment vs radius
@@ -163,8 +155,29 @@ for data_paths in things_to_plot:
             pdf.savefig(fig)
     #If there is only one bin, we care about templates
     else:
-        fig = plt.figure(figsize=(6,5))
-        fig.suptitle('Skipping moment plots since only one bin')
-        ax = fig.add_axes([0.15,0.1,0.8,0.8])
+        fig = plt.figure(figsize=(6,6))
+        fig.suptitle('Template stuff')
+        ax = fig.add_axes([0.17,0.1,0.7,0.7])
+
+        #Should have the fits file save only nonzero in the first place
+        ii = np.nonzero(main_data[1][1,0,:])
+        templates, weights, fluxes, fluxweights = main_data[1][:,0,ii]
+
+        #Some hacky stuff to get template star information
+        catalogfile = '../all_my_output/miles-processed/catalog.txt'
+        catalog2 = pd.read_csv(catalogfile,index_col='miles_id')
+        templates = templates[0].astype(int)
+        spectype_colors = {'A':'aqua','B':'blue','G':'green','F':'lime',
+                           'I':'indigo','M':'magenta','K':'crimson',
+                           '-':'black','S':'orange','0':'gray','s':'tan',
+                           'R':'yellow','H':'gold'}
+        spectype = catalog2['spt'][templates]
+        pielabels = ["{} ({})".format(s,t) for s,t in zip(spectype,templates)]
+        piecolors = [spectype_colors[s[0]] for s in spectype]
+        #print catalog.dtype.names
+        patches, labels = ax.pie(weights[0],labels=pielabels,colors=piecolors,
+                                 labeldistance=1.3,wedgeprops={'lw':0.2})
+        for label in labels: label.set_fontsize(7)
         pdf.savefig(fig)
+
     pdf.close()

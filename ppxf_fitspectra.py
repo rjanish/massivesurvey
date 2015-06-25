@@ -63,6 +63,7 @@ for paramfile_path in all_paramfile_paths:
     output_paths['mc'] = os.path.join(destination_dir,
                                         '{}-mc.fits'.format(run_name))
     output_paths['bin_fitsfile'] = binned_cube_path
+    output_paths['comparison_file'] = input_params['comparison_file']
     things_to_plot.append(output_paths)
     #Check only for the main fits file, the only one guaranteed to exist
     if os.path.isfile(output_paths['main']):
@@ -93,10 +94,10 @@ for paramfile_path in all_paramfile_paths:
     templates_dir = input_params['templates_dir']
     print "loading library {}...".format(templates_dir)
     full_template_library = temps.read_miles_library(templates_dir)
-    if input_params['template_list']=='all':
+    if input_params['template_file']=='use_all':
         template_library = full_template_library
     else:
-        temps_to_use = eval(input_params["template_list"])
+        temps_to_use = np.genfromtxt(input_params['template_file'],usecols=0)
         template_library = full_template_library.get_subset(temps_to_use)
     print ("loaded library of {} templates"
            "".format(template_library.spectrumset.num_spectra))
@@ -137,6 +138,22 @@ for data_paths in things_to_plot:
     moments, lsq, scaledlsq = main_data[0]
     nbins = moments.shape[0]
     nmoments = moments.shape[1]
+    moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
+    moment_names[0] = 'V'
+    moment_names[1] = 'sigma'
+
+    #For now, a comparison is required, but don't keep it that way.
+    if not data_paths['comparison_file']=='none':
+        do_comparison = True
+    else:
+        do_comparison = False
+    if do_comparison:
+        fid_data,fid_headers = utl.fits_quickread(data_paths['comparison_file'])
+        fid_moments, fid_lsq, fid_scaledlsq = fid_data[0]
+        if not nbins==fid_moments.shape[0]:
+            raise Exception('Comparing to something with different bins, oops!')
+
+    
 
     pdf = PdfPages(plot_path)
     #If this is a binned fit, we care about moment vs radius
@@ -147,12 +164,18 @@ for data_paths in things_to_plot:
         bincenters_pickle = pickle.load(open(bins_path,'r'))
         for i in range(nmoments):
             fig = plt.figure(figsize=(6,5))
-            fig.suptitle('Moment vs radius (h{})'.format(i+1))
+            fig.suptitle('Moment vs radius ({})'.format(moment_names[i]))
             ax = fig.add_axes([0.15,0.1,0.8,0.8])
-            ax.plot(bincenters_pickle[:,2],moments[:,i],ls='',marker='o')
+            ax.plot(bincenters_pickle[:,2],moments[:,i],ls='',marker='o',
+                    c='b',ms=5.0,alpha=0.8)
+            if do_comparison:
+                ax.plot(bincenters_pickle[:,2],fid_moments[:,i],ls='',
+                        marker='s',c='g',ms=5.0,alpha=0.8,label='old stuff')
+                ax.legend()
             ax.set_xlabel('radius')
             ax.set_ylabel('h{}'.format(i+1))
             pdf.savefig(fig)
+            plt.close(fig)            
     #If there is only one bin, we care about templates
     else:
         fig = plt.figure(figsize=(6,6))
@@ -179,5 +202,27 @@ for data_paths in things_to_plot:
                                  labeldistance=1.3,wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
         pdf.savefig(fig)
+    #Now do spectra for each bin, no matter how many bins
+    spec, noise, usepix, modelspec, mulpoly, addpoly = main_data[2]
+    for b in range(nbins):
+        fig = plt.figure(figsize=(6,5))
+        fig.suptitle('Spectra for bin {}'.format(b+1))
+        ax = fig.add_axes([0.15,0.1,0.8,0.8])
+        ax.plot(spec[b,:],c='k',label='spectrum')
+        ax.plot(modelspec[b,:],c='r',label='model spectrum')
+        #Find regions to mask
+        maskpix = np.where(usepix[b,:]==0)[0]
+        ibreaks = np.where(np.diff(maskpix)!=1)[0]
+        maskpix_starts = [maskpix[0]]
+        maskpix_starts.extend(maskpix[ibreaks+1])
+        maskpix_ends = list(maskpix[ibreaks])
+        maskpix_ends.append(maskpix[-1])
+        for startpix,endpix in zip(maskpix_starts,maskpix_ends):
+            ax.axvspan(startpix,endpix,fc='k',ec='none',alpha=0.5,lw=0)
+        ax.legend()
+        ax.set_xlabel('pixel')
+        ax.set_ylabel('flux')
+        pdf.savefig(fig)
+        plt.close(fig)
 
     pdf.close()

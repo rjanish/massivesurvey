@@ -18,6 +18,8 @@ import re
 import argparse
 import functools
 
+import pickle
+
 import numpy as np
 import pandas as pd
 import shapely.geometry as geo
@@ -42,6 +44,8 @@ parser.add_argument("paramfiles", nargs='*', type=str,
 args = parser.parse_args()
 all_paramfile_paths = args.paramfiles
 
+# empty list for outputs to plot
+things_to_plot = []
 
 for paramfile_path in all_paramfile_paths:
     # parse input parameter file
@@ -60,6 +64,23 @@ for paramfile_path in all_paramfile_paths:
     if not os.path.isdir(destination_dir):
         raise ValueError("Invalid destination dir {}".format(destination_dir))
     binning_name = input_params['binning_name']
+
+    #New system for galaxy name, just taking from param file!!
+    gal_name = os.path.basename(paramfile_path)[0:7]
+    output_paths = {}
+    output_paths['fits'] = os.path.join(destination_dir,
+                                    "{}-{}.fits".format(gal_name,binning_name))
+    output_paths['proc_cube'] = proc_cube_path
+    output_paths['target_positions_path']=input_params['target_positions_path']
+    things_to_plot.append(output_paths)
+    if os.path.isfile(output_paths['fits']):
+        if input_params['skip_rerun']=='yes':
+            print '\nSkipping re-run of {}, plotting only'.format(gal_name)
+            continue
+        elif input_params['skip_rerun']=='no':
+            print '\nRunning {} again, will overwrite output'.format(gal_name)
+        else:
+            raise Exception("skip_rerun must be yes or no")
 
     # get bin layout
     ifuset = ifu.read_mitchell_datacube(proc_cube_path)
@@ -177,23 +198,56 @@ for paramfile_path in all_paramfile_paths:
         angle_path = "{}_angularbounds-{}.p".format(output_base, anulus_iter)
         utl.save_pickle(angle_bounds, angle_path)
     ###End of pickle file territory
-    # plot bins
-    # TO DO: move this to a MASSVIE plotting module
+    print 'You may ignore the weird underflow error, it is not important.'
+
+for data_paths in things_to_plot:
+    basepath = data_paths['fits'][:-5]
+    plot_path = "{}.pdf".format(basepath)
+    binfiberpath = "{}_binfibers.p".format(basepath)
+    bincoordpath = "{}_fluxcenters.p".format(basepath)
+    proc_cube_path = data_paths['proc_cube']
+    rad_path = "{}_radialbounds.p".format(basepath)
+    gal_name = os.path.basename(basepath)[0:7]
+
+    specset = spec.read_datacube(data_paths['fits'])
+    #print specset.__dict__.keys()
+    grouped_ids = pickle.load(open(binfiberpath,'r'))
+    ifuset = ifu.read_mitchell_datacube(proc_cube_path)
     fiber_coords = ifuset.coords.copy()
+    fibersize = const.mitchell_fiber_radius.value #Assuming units match!
+    bin_coords = pickle.load(open(bincoordpath,'r'))
     fiber_coords[:, 0] *= -1  # east-west reflect
     bin_coords[:, 0] *= -1
-    # plots - each fiber colored by bin membership
-    colors = ['b', 'g', 'r', 'c', 'm']
+    squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
+    radial_bounds = pickle.load(open(rad_path,'r'))
+    ang_paths = ["{}_angularbounds-{}.p".format(basepath,i) 
+                 for i in range(len(radial_bounds))]
+    angular_bounds = []
+    for angpath in ang_paths:
+        angular_bounds.append(pickle.load(open(angpath,'r')))
+
+    target_positions = pd.read_csv(data_paths['target_positions_path'],
+                                   comment='#', sep="[ \t]+",
+                                   engine='python')
+    gal_position = target_positions[target_positions.Name == gal_name]
+    gal_pa = gal_position.PA_best.iat[0]
+    ma_bin = np.pi/2 - np.deg2rad(gal_pa)
+    ma_xy = np.pi/2 + np.deg2rad(gal_pa)
+
+
+    fig = plt.figure(figsize=(6,6))
+    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+
+    mycolors = ['b','g','c','m','r','y']
+
     used_fibers = []
-    fig, ax = plt.subplots()
     for n, fibers  in enumerate(grouped_ids):
-        bin_color = colors[n % len(colors)]
+        bin_color = mycolors[n % len(mycolors)]
         for fiber in fibers:
             used_fibers.append(fiber)
-            ax.add_patch(patches.Circle(fiber_coords[fiber, :], fiber_radius,
+            ax.add_patch(patches.Circle(fiber_coords[fiber, :], fibersize,
                                 facecolor=bin_color, zorder=0,
                                 linewidth=0.25, alpha=0.8))
-        ax.set_aspect('equal')
         #Plot flux-weighted bin centers (adjust size of stars for bin size)
         ms = 7.0 + 0.5*len(fibers)
         if ms > 20.0: ms = 20.0
@@ -205,7 +259,7 @@ for paramfile_path in all_paramfile_paths:
     for unused_fiber in range(fiber_coords.shape[0]):
         if unused_fiber not in used_fibers:
             ax.add_patch(patches.Circle(fiber_coords[unused_fiber, :],
-                                        fiber_radius, facecolor='k', zorder=0,
+                                        fibersize, facecolor='k', zorder=0,
                                         linewidth=0.25, alpha=0.3))
     # plot bin outlines
     for n, (rmin, rmax) in enumerate(radial_bounds):
@@ -219,19 +273,15 @@ for paramfile_path in all_paramfile_paths:
                 ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
                                                     linestyle='solid',
                                                     linewidth=1.5))
-    ax.add_artist(patches.Circle((0, 0), radial_bounds[0][0], edgecolor='k',
-                  facecolor='none'))
     ax.plot([-rmax*1.1*np.cos(ma_xy), rmax*1.1*np.cos(ma_xy)],
             [-rmax*1.1*np.sin(ma_xy), rmax*1.1*np.sin(ma_xy)],
             linewidth=1.5, color='r')
-    ax.set_title("{} polar folded binning - s/n = {}, Darc/Drad = {}"
-                 "".format(ngc_name, s2n_threshold, aspect_ratio))
+    #These are hard coded in right now and that is bad!! fix it!!
+    ax.set_title("binning - s/n = {}, Darc/Drad = {}"
+                 "".format(s2n_threshold, aspect_ratio))
     ax.set_xlabel("arcsec")
     ax.set_ylabel("arcsec")
-    ax.autoscale_view()
-    ax.set_aspect('equal')
-    plot_path = "{}-binoutlines.pdf".format(output_base)
+    ax.axis([-squaremax,squaremax,-squaremax,squaremax])
+    #ax.autoscale_view()
     fig.savefig(plot_path)
     plt.close(fig)
-
-print 'You may ignore the weird underflow error, it is not important.'

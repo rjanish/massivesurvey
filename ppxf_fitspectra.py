@@ -170,8 +170,13 @@ for data_paths in things_to_plot:
                     c='b',ms=5.0,alpha=0.8)
             if do_comparison:
                 ax.plot(bincenters_pickle[:,2],fid_moments[:,i],ls='',
-                        marker='s',c='g',ms=5.0,alpha=0.8,label='old stuff')
+                        marker='s',c='g',ms=5.0,alpha=0.8,
+                        label='(old run)')
                 ax.legend()
+            #Symmetrize y axis for all but v and sigma
+            if not i in (0,1):
+                ylim = max(np.abs(ax.get_ylim()))
+                ax.set_ylim(ymin=-ylim,ymax=ylim)
             ax.set_xlabel('radius')
             ax.set_ylabel('h{}'.format(i+1))
             pdf.savefig(fig)
@@ -186,6 +191,11 @@ for data_paths in things_to_plot:
         ii = np.nonzero(main_data[1][1,0,:])
         templates, weights, fluxes, fluxweights = main_data[1][:,0,ii]
 
+        #Should also have the fits file save it sorted in the first place
+        jj = np.argsort(weights)
+        templates = templates[0,jj]
+        weights = weights[0,jj]
+
         #Some hacky stuff to get template star information
         catalogfile = '../all_my_output/miles-processed/catalog.txt'
         catalog2 = pd.read_csv(catalogfile,index_col='miles_id')
@@ -198,8 +208,9 @@ for data_paths in things_to_plot:
         pielabels = ["{} ({})".format(s,t) for s,t in zip(spectype,templates)]
         piecolors = [spectype_colors[s[0]] for s in spectype]
         #print catalog.dtype.names
-        patches, labels = ax.pie(weights[0],labels=pielabels,colors=piecolors,
-                                 labeldistance=1.3,wedgeprops={'lw':0.2})
+        patches, labels, txt = ax.pie(weights[0],labels=pielabels,
+                                      colors=piecolors,labeldistance=1.1,
+                                      autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
         pdf.savefig(fig)
     #Now do spectra for each bin, no matter how many bins
@@ -219,7 +230,6 @@ for data_paths in things_to_plot:
         maskpix_ends.append(maskpix[-1])
         for startpix,endpix in zip(maskpix_starts,maskpix_ends):
             ax.axvspan(startpix,endpix,fc='k',ec='none',alpha=0.5,lw=0)
-        ax.legend()
         ax.set_xlabel('pixel')
         ax.set_ylabel('flux')
         pdf.savefig(fig)

@@ -12,9 +12,9 @@ proc_mitchell_cube	../all_my_output/NGC1600_mitchellcube.fits
 target_positions_path	../all_my_input/target-positions.txt
 aspect_ratio		1.5
 s2n_threshold		20
+bin_type        	folded	#must be 'folded' or 'unfolded'
 
 ###Output###
 #Folder to put output in. (Folder should already exist.)
 
-binning_name        polar_folded_s2n20
 destination_dir		../all_my_output/

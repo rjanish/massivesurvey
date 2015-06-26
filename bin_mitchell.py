@@ -26,6 +26,7 @@ import shapely.geometry as geo
 import descartes
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from matplotlib.backends.backend_pdf import PdfPages
 
 
 import utilities as utl
@@ -63,13 +64,13 @@ for paramfile_path in all_paramfile_paths:
     destination_dir = input_params['destination_dir']
     if not os.path.isdir(destination_dir):
         raise ValueError("Invalid destination dir {}".format(destination_dir))
-    binning_name = input_params['binning_name']
+    bin_type = input_params['bin_type']
 
     #New system for galaxy name, just taking from param file!!
     gal_name = os.path.basename(paramfile_path)[0:7]
     output_paths = {}
     output_paths['fits'] = os.path.join(destination_dir,
-                                    "{}-{}.fits".format(gal_name,binning_name))
+                                    "{}-{}.fits".format(gal_name,bin_type))
     output_paths['proc_cube'] = proc_cube_path
     output_paths['target_positions_path']=input_params['target_positions_path']
     things_to_plot.append(output_paths)
@@ -98,16 +99,24 @@ for paramfile_path in all_paramfile_paths:
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
     fiber_radius = const.mitchell_fiber_radius.value
-    folded = functools.partial(binning.partition_quadparity_folded,
-                               major_axis=ma_bin, aspect_ratio=aspect_ratio)
+    if bin_type=='unfolded':
+        apf = functools.partial(binning.partition_quadparity,
+                                major_axis=ma_bin, aspect_ratio=aspect_ratio)
+    elif bin_type=='folded':
+        apf = functools.partial(binning.partition_quadparity_folded,
+                                major_axis=ma_bin, aspect_ratio=aspect_ratio)
+    else:
+        raise Exception('Bin type must be folded or unfolded, try again.')
     binning_func = functools.partial(binning.polar_threshold_binning,
-                                     angle_partition_func=folded)
+                                     angle_partition_func=apf)
     binned = ifuset.s2n_fluxweighted_binning(get_bins=binning_func,
                                              threshold=s2n_threshold)
+    print 'yaydone'
     grouped_ids, radial_bounds, angular_bounds = binned
     # results
     number_bins = len(grouped_ids)
     bin_ids = np.arange(number_bins, dtype=int) + 1  # bin 0 is full galaxy
+    #Prep stuff for adding to new specset and metadata for each bin
     binned_data_shape = (number_bins, ifuset.spectrumset.num_samples)
     binned_data = {"spectra":np.zeros(binned_data_shape),
                    "bad_data":np.zeros(binned_data_shape),
@@ -116,11 +125,11 @@ for paramfile_path in all_paramfile_paths:
                    "spectra_ids":bin_ids, # TO DO: add radial sorting
                    "wavelengths":ifuset.spectrumset.waves}
     bin_coords = np.zeros((number_bins, 4))  # flux weighted x, y, r, theta
+    delta_lambda = (ifuset.spectrumset.spec_region[1] -
+                    ifuset.spectrumset.spec_region[0])
     for bin_iter, fibers in enumerate(grouped_ids):
         bin_number = bin_iter + 1
         subset = ifuset.get_subset(fibers)
-        delta_lambda = (ifuset.spectrumset.spec_region[1] -
-                        ifuset.spectrumset.spec_region[0])
         binned = subset.spectrumset.collapse(
                                  weight_func=spec.SpectrumSet.compute_flux,
                                  norm_func=spec.SpectrumSet.compute_flux,
@@ -129,45 +138,19 @@ for paramfile_path in all_paramfile_paths:
         binned_data["bad_data"][bin_iter, :] = binned.metaspectra["bad_data"]
         binned_data["noise"][bin_iter, :] = binned.metaspectra["noise"]
         binned_data["ir"][bin_iter, :] = binned.metaspectra["ir"]
-        binned_comments = subset.spectrumset.comments.copy()
-        binned_comments["binning"] = "spectra have been spatially binned"
-        spec_unit = spectra_unit=subset.spectrumset.spec_unit
-        wave_unit = wavelength_unit=subset.spectrumset.wave_unit
-        binned_specset = spec.SpectrumSet(spectra_unit=spec_unit,
-                                          wavelength_unit=wave_unit,
-                                          comments=binned_comments,
-                                          name=binning_name,
-                                          **binned_data)
-        bin_xs, bin_ys = subset.coords.T
-        #Reflect all fibers below ma in the folded case
-        # (replace this logic later when folded-unfolded option is made nice)
-        if True:
-            if len(fibers)>1:
-                #Reflect all fibers below ma for multi-fiber bins
-                bin_ys_ma_line = bin_xs*np.tan(ma_bin)
-                ii = np.where(bin_ys < bin_ys_ma_line)[0]
-            else:
-                if np.sqrt(bin_xs[0]**2+bin_ys[0]**2) < np.min(radial_bounds):
-                    #Don't reflect "inner" single fiber bins.
-                    ii = []
-                else:
-                    print "There is a lonely fiber in an outer bin!",
-                    print " ( bin number ",bin_number,")"
-                    #Do reflect the single fiber if below ma
-                    if bin_ys[0] < bin_xs[0]*np.tan(ma_bin): ii = [0]
-                    else: ii = []
-            #Math for reflecting point over line y = m*x:
-            # xnew = A - x, ynew = A*m - y, where A = 2 (x + m*y) / (1 + m^2)
-            A = 2*(bin_xs[ii]+bin_ys[ii]*np.tan(ma_bin))/(1+np.tan(ma_bin)**2)
-            bin_xs[ii] = A - bin_xs[ii]
-            bin_ys[ii] = A*np.tan(ma_bin) - bin_ys[ii]
+        xs, ys = subset.coords.T
         fluxes = subset.spectrumset.compute_flux()
-        total_flux = fluxes.sum()
-        x_com = np.sum(bin_xs*fluxes)/total_flux
-        y_com = np.sum(bin_ys*fluxes)/total_flux
-        r_com = np.sqrt(x_com**2 + y_com**2)
-        th_com = np.arctan2(y_com, x_com)
-        bin_coords[bin_iter, :] = np.asarray([x_com, y_com, r_com, th_com])
+        bin_coords[bin_iter,:] = binning.calc_bin_center(xs,ys,fluxes,bin_type,
+                                        ma=ma_bin,rmin=np.min(radial_bounds))
+    spec_unit = ifuset.spectrumset.spec_unit
+    wave_unit = ifuset.spectrumset.wave_unit
+    binned_comments = ifuset.spectrumset.comments.copy()
+    binned_comments["binning"] = "spectra have been spatially binned"
+    binned_specset = spec.SpectrumSet(spectra_unit=spec_unit,
+                                      wavelength_unit=wave_unit,
+                                      comments=binned_comments,
+                                      name=bin_type,
+                                      **binned_data)
     fiber_ids = ifuset.spectrumset.ids
     single_fiber_bins = [l for l in grouped_ids if len(l) == 1]
     flat_binned_fibers = [f for l in grouped_ids for f in l]
@@ -182,7 +165,7 @@ for paramfile_path in all_paramfile_paths:
         print ("   {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
                "".format(iter + 1, rin, rout, len(angles)))
     output_base = os.path.join(destination_dir,
-                               "{}-{}".format(ngc_name, binning_name))
+                               "{}-{}".format(ngc_name, bin_type))
     binned_data_path = "{}.fits".format(output_base)
     binned_specset.write_to_fits(binned_data_path)
     ###Here be pickle files, BEWARE
@@ -212,6 +195,7 @@ for data_paths in things_to_plot:
     specset = spec.read_datacube(data_paths['fits'])
     #print specset.__dict__.keys()
     grouped_ids = pickle.load(open(binfiberpath,'r'))
+    nbins = len(grouped_ids)
     ifuset = ifu.read_mitchell_datacube(proc_cube_path)
     fiber_coords = ifuset.coords.copy()
     fibersize = const.mitchell_fiber_radius.value #Assuming units match!
@@ -234,12 +218,12 @@ for data_paths in things_to_plot:
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
 
+    ###Plotting begins!!!
+    pdf = PdfPages(plot_path)
 
     fig = plt.figure(figsize=(6,6))
     ax = fig.add_axes([0.15,0.1,0.7,0.7])
-
     mycolors = ['b','g','c','m','r','y']
-
     used_fibers = []
     for n, fibers  in enumerate(grouped_ids):
         bin_color = mycolors[n % len(mycolors)]
@@ -282,6 +266,18 @@ for data_paths in things_to_plot:
     ax.set_xlabel("arcsec")
     ax.set_ylabel("arcsec")
     ax.axis([-squaremax,squaremax,-squaremax,squaremax])
-    #ax.autoscale_view()
-    fig.savefig(plot_path)
+    pdf.savefig(fig)
     plt.close(fig)
+
+    #Ok, now gonna plot each spectrum. For now I guess just jam them 
+    # all onto one page to make my life easier, pretty it up later.
+    fig = plt.figure(figsize=(6,0.5*nbins))
+    ax = fig.add_axes([0.05,0.05,0.9,0.9])
+    for ibin in range(nbins):
+        ax.plot(specset.waves,specset.spectra[ibin,:]+ibin,c='k')
+    ax.autoscale(tight=True)
+    pdf.savefig(fig)
+    plt.close(fig)
+        
+
+    pdf.close()

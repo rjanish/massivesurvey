@@ -199,6 +199,9 @@ for data_paths in things_to_plot:
     rad_path = "{}_radialbounds.p".format(basepath)
     gal_name = os.path.basename(basepath)[0:7]
 
+    fiberinfo_path = "{}_fiberinfo.txt".format(basepath)
+    fiberids, binids = np.genfromtxt(fiberinfo_path,dtype=int,unpack=True)
+
     specset = spec.read_datacube(data_paths['fits'])
     #print specset.__dict__.keys()
     grouped_ids = pickle.load(open(binfiberpath,'r'))
@@ -228,6 +231,25 @@ for data_paths in things_to_plot:
     ###Plotting begins!!!
     pdf = PdfPages(plot_path)
 
+    fig = plt.figure(figsize=(6,6))
+    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    #Define colors for each bin
+    mycolors = ['b','g','c','m','r','y']
+    bincolors = {}
+    for binid in set(binids):
+        bincolors[binid] = mycolors[binid % len(mycolors)]
+    bincolors[const.badfiber_bin_id] = 'w'
+    bincolors[const.unusedfiber_bin_id] = '0.7'
+    #Loop over fibers
+    for fiberid,binid in zip(fiberids,binids):
+        ax.add_patch(patches.Circle(fiber_coords[fiberid,:],fibersize,
+                                    fc=bincolors[binid],ec='none',alpha=0.8))
+    #Loop over bins
+    ax.axis([-squaremax,squaremax,-squaremax,squaremax])
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    #This is the old version of the bin plot, get rid of it
     fig = plt.figure(figsize=(6,6))
     ax = fig.add_axes([0.15,0.1,0.7,0.7])
     mycolors = ['b','g','c','m','r','y']

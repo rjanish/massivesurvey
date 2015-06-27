@@ -203,32 +203,24 @@ for paramfile_path in all_paramfile_paths:
 for data_paths in things_to_plot:
     basepath = data_paths['fits'][:-5]
     plot_path = "{}.pdf".format(basepath)
-    binfiberpath = "{}_binfibers.p".format(basepath)
-    bincoordpath = "{}_fluxcenters.p".format(basepath)
     proc_cube_path = data_paths['proc_cube']
-    rad_path = "{}_radialbounds.p".format(basepath)
     gal_name = os.path.basename(basepath)[0:7]
 
     fiberinfo_path = "{}_fiberinfo.txt".format(basepath)
     fiberids, binids = np.genfromtxt(fiberinfo_path,dtype=int,unpack=True)
+    bininfo_path = "{}_bininfo.txt".format(basepath)
+    bininfo = np.genfromtxt(bininfo_path)
+    bininfo[:, 1] *= -1  #east-west reflect
 
     specset = spec.read_datacube(data_paths['fits'])
     #print specset.__dict__.keys()
-    grouped_ids = pickle.load(open(binfiberpath,'r'))
-    nbins = len(grouped_ids)
+    nbins = len(bininfo)
     ifuset = ifu.read_mitchell_datacube(proc_cube_path)
     fiber_coords = ifuset.coords.copy()
+    coordunit = ifuset.coord_comments['coordunit']
     fibersize = const.mitchell_fiber_radius.value #Assuming units match!
-    bin_coords = pickle.load(open(bincoordpath,'r'))
     fiber_coords[:, 0] *= -1  # east-west reflect
-    bin_coords[:, 0] *= -1
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
-    radial_bounds = pickle.load(open(rad_path,'r'))
-    ang_paths = ["{}_angularbounds-{}.p".format(basepath,i) 
-                 for i in range(len(radial_bounds))]
-    angular_bounds = []
-    for angpath in ang_paths:
-        angular_bounds.append(pickle.load(open(angpath,'r')))
 
     target_positions = pd.read_csv(data_paths['target_positions_path'],
                                    comment='#', sep="[ \t]+",
@@ -242,6 +234,7 @@ for data_paths in things_to_plot:
     pdf = PdfPages(plot_path)
 
     fig = plt.figure(figsize=(6,6))
+    fig.suptitle('Bin map (add s2n and ar here)')
     ax = fig.add_axes([0.15,0.1,0.7,0.7])
     #Define colors for each bin
     mycolors = ['b','g','c','m','r','y']
@@ -255,56 +248,37 @@ for data_paths in things_to_plot:
         ax.add_patch(patches.Circle(fiber_coords[fiberid,:],fibersize,
                                     fc=bincolors[binid],ec='none',alpha=0.8))
     #Loop over bins
-    ax.axis([-squaremax,squaremax,-squaremax,squaremax])
-    pdf.savefig(fig)
-    plt.close(fig)
-
-    #This is the old version of the bin plot, get rid of it
-    fig = plt.figure(figsize=(6,6))
-    ax = fig.add_axes([0.15,0.1,0.7,0.7])
-    mycolors = ['b','g','c','m','r','y']
-    used_fibers = []
-    for n, fibers  in enumerate(grouped_ids):
-        bin_color = mycolors[n % len(mycolors)]
-        for fiber in fibers:
-            used_fibers.append(fiber)
-            ax.add_patch(patches.Circle(fiber_coords[fiber, :], fibersize,
-                                facecolor=bin_color, zorder=0,
-                                linewidth=0.25, alpha=0.8))
-        #Plot flux-weighted bin centers (adjust size of stars for bin size)
-        ms = 7.0 + 0.5*len(fibers)
+    for bin_iter,bin_id in enumerate(bininfo[:,0]):
+        #Draw star at bincenter
+        #This is gonna break, need to add it to bininfo text file
+        nfibers = 3
+        ms = 7.0 + 0.5*nfibers
         if ms > 20.0: ms = 20.0
-        mew = 1.0 + 0.05*len(fibers)
+        mew = 1.0 + 0.05*nfibers
         if mew > 2.0: mew = 2.0
-        ax.plot(bin_coords[n][0],bin_coords[n][1],ls='',marker='*',
-                mew=mew,ms=ms,mec='k',mfc=bin_color)
-    # gray-out unbinned fibers
-    for unused_fiber in range(fiber_coords.shape[0]):
-        if unused_fiber not in used_fibers:
-            ax.add_patch(patches.Circle(fiber_coords[unused_fiber, :],
-                                        fibersize, facecolor='k', zorder=0,
-                                        linewidth=0.25, alpha=0.3))
-    # plot bin outlines
-    for n, (rmin, rmax) in enumerate(radial_bounds):
-        for angular_bins in angular_bounds[n]:
-            for amin_NofE, amax_NofE in angular_bins:
-                amin_xy = np.pi - amax_NofE
-                amax_xy = np.pi - amin_NofE
-                bin_poly = geo_utils.polar_box(rmin, rmax,
-                                               np.rad2deg(amin_xy),
-                                               np.rad2deg(amax_xy))
-                ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
-                                                    linestyle='solid',
-                                                    linewidth=1.5))
+        ax.plot(bininfo[bin_iter,1],bininfo[bin_iter,2],ls='',marker='*',
+                mew=mew,ms=ms,mec='k',mfc=bincolors[int(bin_id)])
+        #Draw bin outline
+        if not np.isnan(bininfo[bin_iter,-1]):
+            amax_xy = np.pi - bininfo[bin_iter,7]
+            amin_xy = np.pi - bininfo[bin_iter,8]
+            bin_poly = geo_utils.polar_box(bininfo[bin_iter,5], 
+                                           bininfo[bin_iter,6],
+                                           np.rad2deg(amin_xy),
+                                           np.rad2deg(amax_xy))
+            ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
+                                                linestyle='solid',
+                                                linewidth=1.5))
+    #Draw ma
+    rmax = np.nanmax(bininfo[:,6])
     ax.plot([-rmax*1.1*np.cos(ma_xy), rmax*1.1*np.cos(ma_xy)],
             [-rmax*1.1*np.sin(ma_xy), rmax*1.1*np.sin(ma_xy)],
             linewidth=1.5, color='r')
-    #These are hard coded in right now and that is bad!! fix it!!
-    ax.set_title("binning - s/n = {}, Darc/Drad = {}"
-                 "".format(s2n_threshold, aspect_ratio))
-    ax.set_xlabel("arcsec")
-    ax.set_ylabel("arcsec")
     ax.axis([-squaremax,squaremax,-squaremax,squaremax])
+    label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
+    label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
+    ax.set_xlabel(label_x)
+    ax.set_ylabel(label_y)
     pdf.savefig(fig)
     plt.close(fig)
 

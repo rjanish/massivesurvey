@@ -111,7 +111,6 @@ for paramfile_path in all_paramfile_paths:
                                      angle_partition_func=apf)
     binned = ifuset.s2n_fluxweighted_binning(get_bins=binning_func,
                                              threshold=s2n_threshold)
-    print 'yaydone'
     grouped_ids, radial_bounds, angular_bounds = binned
     # results
     number_bins = len(grouped_ids)
@@ -127,13 +126,15 @@ for paramfile_path in all_paramfile_paths:
     bin_coords = np.zeros((number_bins, 4))  # flux weighted x, y, r, theta
     delta_lambda = (ifuset.spectrumset.spec_region[1] -
                     ifuset.spectrumset.spec_region[0])
+    fiber_ids = ifuset.spectrumset.ids
+    fiber_binnumbers = {f: const.unusedfiber_bin_id for f in fiber_ids}
     for bin_iter, fibers in enumerate(grouped_ids):
-        bin_number = bin_iter + 1
+        fiber_binnumbers.update({f: bin_ids[bin_iter] for f in fibers})
         subset = ifuset.get_subset(fibers)
         binned = subset.spectrumset.collapse(
                                  weight_func=spec.SpectrumSet.compute_flux,
                                  norm_func=spec.SpectrumSet.compute_flux,
-                                 norm_value=delta_lambda, id=bin_number)
+                                 norm_value=delta_lambda,id='666') #unused id
         binned_data["spectra"][bin_iter, :] = binned.spectra
         binned_data["bad_data"][bin_iter, :] = binned.metaspectra["bad_data"]
         binned_data["noise"][bin_iter, :] = binned.metaspectra["noise"]
@@ -151,7 +152,6 @@ for paramfile_path in all_paramfile_paths:
                                       comments=binned_comments,
                                       name=bin_type,
                                       **binned_data)
-    fiber_ids = ifuset.spectrumset.ids
     single_fiber_bins = [l for l in grouped_ids if len(l) == 1]
     flat_binned_fibers = [f for l in grouped_ids for f in l]
     unbinned_fibers = [f for f in fiber_ids if f not in flat_binned_fibers]
@@ -169,6 +169,13 @@ for paramfile_path in all_paramfile_paths:
     binned_data_path = "{}.fits".format(output_base)
     binned_specset.write_to_fits(binned_data_path)
     ###Here be pickle files, BEWARE
+    #Save fiber number vs bin number, sorted
+    fiberinfo_path = "{}_fiberinfo.txt".format(output_base)
+    fiberinfo_header = "Fiber id vs bin id. "
+    fiberinfo = np.array([np.array(fiber_binnumbers.keys()),
+                          np.array(fiber_binnumbers.values())])
+    isort = np.argsort(fiberinfo[0,:])
+    np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t')
     binned_path = "{}_binfibers.p".format(output_base)
     utl.save_pickle(grouped_ids, binned_path)
     unbinned_path = "{}_unbinnedfibers.p".format(output_base)
@@ -274,7 +281,10 @@ for data_paths in things_to_plot:
     fig = plt.figure(figsize=(6,0.5*nbins))
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     for ibin in range(nbins):
-        ax.plot(specset.waves,specset.spectra[ibin,:]+ibin,c='k')
+        spectrum = specset.spectra[ibin,:] 
+        ax.plot(specset.waves,spectrum-spectrum[0]+specset.ids[ibin],c='k')
+    ax.set_xlabel('wavelength ({})'.format(specset.wave_unit))
+    ax.set_ylabel('bin number')
     ax.autoscale(tight=True)
     pdf.savefig(fig)
     plt.close(fig)

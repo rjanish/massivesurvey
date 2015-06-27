@@ -111,11 +111,10 @@ for paramfile_path in all_paramfile_paths:
                                      angle_partition_func=apf)
     binned = ifuset.s2n_fluxweighted_binning(get_bins=binning_func,
                                              threshold=s2n_threshold)
-    grouped_ids, radial_bounds, angular_bounds = binned
+    grouped_ids, radial_bounds, angular_bounds, bin_bounds = binned
     # results
     number_bins = len(grouped_ids)
     bin_ids = np.arange(number_bins, dtype=int) + 1  # bin 0 is full galaxy
-    #Prep stuff for adding to new specset and metadata for each bin
     binned_data_shape = (number_bins, ifuset.spectrumset.num_samples)
     binned_data = {"spectra":np.zeros(binned_data_shape),
                    "bad_data":np.zeros(binned_data_shape),
@@ -128,13 +127,14 @@ for paramfile_path in all_paramfile_paths:
                     ifuset.spectrumset.spec_region[0])
     fiber_ids = ifuset.spectrumset.ids
     fiber_binnumbers = {f: const.unusedfiber_bin_id for f in fiber_ids}
+    #Loop over bins to get collapsed spectra, and record fiber and bin info
     for bin_iter, fibers in enumerate(grouped_ids):
         fiber_binnumbers.update({f: bin_ids[bin_iter] for f in fibers})
         subset = ifuset.get_subset(fibers)
         binned = subset.spectrumset.collapse(
                                  weight_func=spec.SpectrumSet.compute_flux,
                                  norm_func=spec.SpectrumSet.compute_flux,
-                                 norm_value=delta_lambda,id='666') #unused id
+                                 norm_value=delta_lambda,id='666') #dummy id
         binned_data["spectra"][bin_iter, :] = binned.spectra
         binned_data["bad_data"][bin_iter, :] = binned.metaspectra["bad_data"]
         binned_data["noise"][bin_iter, :] = binned.metaspectra["noise"]
@@ -168,14 +168,24 @@ for paramfile_path in all_paramfile_paths:
                                "{}-{}".format(ngc_name, bin_type))
     binned_data_path = "{}.fits".format(output_base)
     binned_specset.write_to_fits(binned_data_path)
-    ###Here be pickle files, BEWARE
     #Save fiber number vs bin number, sorted
     fiberinfo_path = "{}_fiberinfo.txt".format(output_base)
     fiberinfo_header = "Fiber id vs bin id. "
     fiberinfo = np.array([np.array(fiber_binnumbers.keys()),
                           np.array(fiber_binnumbers.values())])
     isort = np.argsort(fiberinfo[0,:])
-    np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t')
+    np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t',
+               header=fiberinfo_header)
+    #Save bin number vs bin center coords and bin boundaries
+    bininfo_path = "{}_bininfo.txt".format(output_base)
+    bininfo = np.zeros((number_bins,9))
+    bininfo[:,0] = bin_ids
+    bininfo[:,1:5] = bin_coords
+    bininfo[:,-4:] = bin_bounds.T
+    bininfo_header = "Bin id, x/y/r/th coords, rmin/rmax/thmin/thmax bounds"
+    np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=['%1i']+8*['%9.5f'],
+               header=bininfo_header)
+    ###Here be pickle files, BEWARE
     binned_path = "{}_binfibers.p".format(output_base)
     utl.save_pickle(grouped_ids, binned_path)
     unbinned_path = "{}_unbinnedfibers.p".format(output_base)

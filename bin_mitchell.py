@@ -176,28 +176,20 @@ for paramfile_path in all_paramfile_paths:
     isort = np.argsort(fiberinfo[0,:])
     np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t',
                header=fiberinfo_header)
-    #Save bin number vs bin center coords and bin boundaries
+    #Save bin number vs number of fibers, bin center coords, and bin boundaries
     bininfo_path = "{}_bininfo.txt".format(output_base)
-    bininfo = np.zeros((number_bins,9))
-    bininfo[:,0] = bin_ids
-    bininfo[:,1:5] = bin_coords
-    bininfo[:,-4:] = bin_bounds.T
-    bininfo_header = "Bin id, x/y/r/th coords, rmin/rmax/thmin/thmax bounds"
-    np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=['%1i']+8*['%9.5f'],
-               header=bininfo_header)
-    ###Here be pickle files, BEWARE
-    binned_path = "{}_binfibers.p".format(output_base)
-    utl.save_pickle(grouped_ids, binned_path)
-    unbinned_path = "{}_unbinnedfibers.p".format(output_base)
-    utl.save_pickle(unbinned_fibers, unbinned_path)
-    rad_path = "{}_radialbounds.p".format(output_base)
-    utl.save_pickle(radial_bounds, rad_path)
-    coord_path = "{}_fluxcenters.p".format(output_base)
-    utl.save_pickle(bin_coords, coord_path)
-    for anulus_iter, angle_bounds in enumerate(angular_bounds):
-        angle_path = "{}_angularbounds-{}.p".format(output_base, anulus_iter)
-        utl.save_pickle(angle_bounds, angle_path)
-    ###End of pickle file territory
+    dt = {'names':['binid','nfibers','x','y','r','th',
+                   'rmin','rmax','thmin','thmax'],
+          'formats':2*['i4']+8*['f32']}
+    bininfo = np.zeros(number_bins,dtype=dt)
+    bininfo['binid'] = bin_ids
+    bininfo['nfibers'] = [len(fibers) for fibers in grouped_ids]
+    for i,coord in enumerate(['x','y','r','th']):
+        bininfo[coord] = bin_coords[:,i]
+    for i,bound in enumerate(['rmin','rmax','thmin','thmax']):
+        bininfo[bound] = bin_bounds[i,:]
+    np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=2*['%1i']+8*['%9.5f'],
+               header=' '.join(dt['names']))
     print 'You may ignore the weird underflow error, it is not important.'
 
 for data_paths in things_to_plot:
@@ -209,11 +201,9 @@ for data_paths in things_to_plot:
     fiberinfo_path = "{}_fiberinfo.txt".format(basepath)
     fiberids, binids = np.genfromtxt(fiberinfo_path,dtype=int,unpack=True)
     bininfo_path = "{}_bininfo.txt".format(basepath)
-    bininfo = np.genfromtxt(bininfo_path)
-    bininfo[:, 1] *= -1  #east-west reflect
+    bininfo = np.genfromtxt(bininfo_path,names=True)
+    bininfo['x'] *= -1  #east-west reflect
 
-    specset = spec.read_datacube(data_paths['fits'])
-    #print specset.__dict__.keys()
     nbins = len(bininfo)
     ifuset = ifu.read_mitchell_datacube(proc_cube_path)
     fiber_coords = ifuset.coords.copy()
@@ -229,6 +219,8 @@ for data_paths in things_to_plot:
     gal_pa = gal_position.PA_best.iat[0]
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
+
+    specset = spec.read_datacube(data_paths['fits'])
 
     ###Plotting begins!!!
     pdf = PdfPages(plot_path)
@@ -248,29 +240,30 @@ for data_paths in things_to_plot:
         ax.add_patch(patches.Circle(fiber_coords[fiberid,:],fibersize,
                                     fc=bincolors[binid],ec='none',alpha=0.8))
     #Loop over bins
-    for bin_iter,bin_id in enumerate(bininfo[:,0]):
+    for bin_iter,bin_id in enumerate(bininfo['binid']):
+        bincolor = bincolors[int(bin_id)]
         #Draw star at bincenter
-        #This is gonna break, need to add it to bininfo text file
-        nfibers = 3
-        ms = 7.0 + 0.5*nfibers
+        ms = 7.0 + 0.5*bininfo['nfibers'][bin_iter]
         if ms > 20.0: ms = 20.0
-        mew = 1.0 + 0.05*nfibers
+        mew = 1.0 + 0.05*bininfo['nfibers'][bin_iter]
         if mew > 2.0: mew = 2.0
-        ax.plot(bininfo[bin_iter,1],bininfo[bin_iter,2],ls='',marker='*',
-                mew=mew,ms=ms,mec='k',mfc=bincolors[int(bin_id)])
+        ax.plot(bininfo['x'][bin_iter],bininfo['y'][bin_iter],ls='',
+                marker='*',mew=mew,ms=ms,mec='k',mfc=bincolor)
         #Draw bin outline
-        if not np.isnan(bininfo[bin_iter,-1]):
-            amax_xy = np.pi - bininfo[bin_iter,7]
-            amin_xy = np.pi - bininfo[bin_iter,8]
-            bin_poly = geo_utils.polar_box(bininfo[bin_iter,5], 
-                                           bininfo[bin_iter,6],
+        if not np.isnan(bininfo['rmin'][bin_iter]):
+            amax_xy = np.pi - bininfo['thmin'][bin_iter] #east-west reflect
+            amin_xy = np.pi - bininfo['thmax'][bin_iter] #east-west reflect
+            bin_poly = geo_utils.polar_box(bininfo['rmin'][bin_iter], 
+                                           bininfo['rmax'][bin_iter],
                                            np.rad2deg(amin_xy),
                                            np.rad2deg(amax_xy))
-            ax.add_patch(descartes.PolygonPatch(bin_poly, facecolor='none',
-                                                linestyle='solid',
-                                                linewidth=1.5))
+            #Also do a transparent fill in bincolor to make sure bins match
+            #If the storage of bin boundaries breaks, this will help notice
+            ax.add_patch(descartes.PolygonPatch(bin_poly,fc=bincolor,
+                                                ec='none',alpha=0.5))
+            ax.add_patch(descartes.PolygonPatch(bin_poly,fc='none',lw=1.5))
     #Draw ma
-    rmax = np.nanmax(bininfo[:,6])
+    rmax = np.nanmax(bininfo['rmax'])
     ax.plot([-rmax*1.1*np.cos(ma_xy), rmax*1.1*np.cos(ma_xy)],
             [-rmax*1.1*np.sin(ma_xy), rmax*1.1*np.sin(ma_xy)],
             linewidth=1.5, color='r')
@@ -295,5 +288,4 @@ for data_paths in things_to_plot:
     pdf.savefig(fig)
     plt.close(fig)
         
-
     pdf.close()

@@ -62,6 +62,7 @@ for paramfile_path in all_paramfile_paths:
                                    comment='#', sep="[ \t]+",
                                    engine='python')
     destination_dir = input_params['destination_dir']
+    bad_fibers_path = input_params['bad_fibers_path']
     if not os.path.isdir(destination_dir):
         raise ValueError("Invalid destination dir {}".format(destination_dir))
     bin_type = input_params['bin_type']
@@ -84,7 +85,12 @@ for paramfile_path in all_paramfile_paths:
             raise Exception("skip_rerun must be yes or no")
 
     # get bin layout
-    ifuset = ifu.read_mitchell_datacube(proc_cube_path)
+    ifuset_all = ifu.read_mitchell_datacube(proc_cube_path)
+    badfibers = np.genfromtxt(bad_fibers_path,dtype=int)
+    goodfibers = list(ifuset_all.spectrumset.ids)
+    for badfiber in badfibers:
+        goodfibers.remove(badfiber)
+    ifuset = ifuset_all.get_subset(goodfibers)
     ngc_match = re.search(const.re_ngc, proc_cube_path)
     if ngc_match is None:
         msg = "No galaxy name found for path {}".format(proc_cube_path)
@@ -99,6 +105,22 @@ for paramfile_path in all_paramfile_paths:
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
     fiber_radius = const.mitchell_fiber_radius.value
+
+    delta_lambda = (ifuset.spectrumset.spec_region[1] -
+                    ifuset.spectrumset.spec_region[0])
+    #Do the full galaxy bin here because it is so fast.
+    full_galaxy = ifuset.spectrumset.collapse(
+                                  weight_func=spec.SpectrumSet.compute_flux,
+                                  norm_func=spec.SpectrumSet.compute_flux,
+                                  norm_value=delta_lambda, id=0)
+    full_galaxy.comments["Binning"] = ("this spectrum is the coadditon "
+                                       "of all fibers in the galaxy")
+    fullbindesc = "fullgalaxybin"
+    full_galaxy.name = fullbindesc
+    fullbin_output_filename = '{}-{}.fits'.format(ngc_name,fullbindesc)
+    fullbin_output_path = os.path.join(destination_dir, fullbin_output_filename)
+    full_galaxy.write_to_fits(fullbin_output_path)
+    #Now do the bins
     if bin_type=='unfolded':
         apf = functools.partial(binning.partition_quadparity,
                                 major_axis=ma_bin, aspect_ratio=aspect_ratio)
@@ -123,10 +145,9 @@ for paramfile_path in all_paramfile_paths:
                    "spectra_ids":bin_ids, # TO DO: add radial sorting
                    "wavelengths":ifuset.spectrumset.waves}
     bin_coords = np.zeros((number_bins, 4))  # flux weighted x, y, r, theta
-    delta_lambda = (ifuset.spectrumset.spec_region[1] -
-                    ifuset.spectrumset.spec_region[0])
     fiber_ids = ifuset.spectrumset.ids
     fiber_binnumbers = {f: const.unusedfiber_bin_id for f in fiber_ids}
+    fiber_binnumbers.update({f: const.badfiber_bin_id for f in badfibers})
     #Loop over bins to get collapsed spectra, and record fiber and bin info
     for bin_iter, fibers in enumerate(grouped_ids):
         fiber_binnumbers.update({f: bin_ids[bin_iter] for f in fibers})
@@ -197,6 +218,8 @@ for data_paths in things_to_plot:
     plot_path = "{}.pdf".format(basepath)
     proc_cube_path = data_paths['proc_cube']
     gal_name = os.path.basename(basepath)[0:7]
+    fullbin_path = os.path.join(os.path.dirname(basepath),
+                                '{}-fullgalaxybin.fits'.format(gal_name))
 
     fiberinfo_path = "{}_fiberinfo.txt".format(basepath)
     fiberids, binids = np.genfromtxt(fiberinfo_path,dtype=int,unpack=True)
@@ -221,6 +244,7 @@ for data_paths in things_to_plot:
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
 
     specset = spec.read_datacube(data_paths['fits'])
+    specset_full = spec.read_datacube(fullbin_path)
 
     ###Plotting begins!!!
     pdf = PdfPages(plot_path)
@@ -233,12 +257,12 @@ for data_paths in things_to_plot:
     bincolors = {}
     for binid in set(binids):
         bincolors[binid] = mycolors[binid % len(mycolors)]
-    bincolors[const.badfiber_bin_id] = 'w'
+    bincolors[const.badfiber_bin_id] = 'k'
     bincolors[const.unusedfiber_bin_id] = '0.7'
     #Loop over fibers
-    for fiberid,binid in zip(fiberids,binids):
-        ax.add_patch(patches.Circle(fiber_coords[fiberid,:],fibersize,
-                                    fc=bincolors[binid],ec='none',alpha=0.8))
+    for fiber_id,bin_id in zip(fiberids,binids):
+        ax.add_patch(patches.Circle(fiber_coords[fiber_id,:],fibersize,
+                                    fc=bincolors[bin_id],ec='none',alpha=0.8))
     #Loop over bins
     for bin_iter,bin_id in enumerate(bininfo['binid']):
         bincolor = bincolors[int(bin_id)]
@@ -247,8 +271,15 @@ for data_paths in things_to_plot:
         if ms > 20.0: ms = 20.0
         mew = 1.0 + 0.05*bininfo['nfibers'][bin_iter]
         if mew > 2.0: mew = 2.0
+        #ax.plot(bininfo['x'][bin_iter],bininfo['y'][bin_iter],ls='',
+        #        marker='*',mew=mew,ms=ms,mec='k',mfc=bincolor)
+        ms = 8.0
+        mew = 1.0
         ax.plot(bininfo['x'][bin_iter],bininfo['y'][bin_iter],ls='',
-                marker='*',mew=mew,ms=ms,mec='k',mfc=bincolor)
+                marker='s',mew=mew,ms=ms,mec='k',mfc=bincolor)
+        ax.text(bininfo['x'][bin_iter]-0.2,bininfo['y'][bin_iter]-0.1,
+                str(int(bin_id)),fontsize=6,
+                horizontalalignment='center',verticalalignment='center')
         #Draw bin outline
         if not np.isnan(bininfo['rmin'][bin_iter]):
             amax_xy = np.pi - bininfo['thmin'][bin_iter] #east-west reflect
@@ -277,14 +308,17 @@ for data_paths in things_to_plot:
 
     #Ok, now gonna plot each spectrum. For now I guess just jam them 
     # all onto one page to make my life easier, pretty it up later.
-    fig = plt.figure(figsize=(6,0.5*nbins))
+    fig = plt.figure(figsize=(6,nbins))
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     for ibin in range(nbins):
         spectrum = specset.spectra[ibin,:] 
         ax.plot(specset.waves,spectrum-spectrum[0]+specset.ids[ibin],c='k')
+    fullspectrum = specset_full.spectra[0,:] 
+    ax.plot(specset_full.waves,fullspectrum-fullspectrum[0],c='k') #id=0
     ax.set_xlabel('wavelength ({})'.format(specset.wave_unit))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)
+    ax.set_ylim(ymin=-1,ymax=nbins+2)
     pdf.savefig(fig)
     plt.close(fig)
         

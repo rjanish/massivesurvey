@@ -312,5 +312,56 @@ for data_paths in things_to_plot:
     ax.set_ylim(ymin=-1,ymax=nbins+2)
     pdf.savefig(fig)
     plt.close(fig)
+
+    #Okay, new plot: same stuff from process_mitchell with bad fibers
+    # removed to verify that I did it right.
+    fig1 = plt.figure(figsize=(6,6))
+    fig1.suptitle('flux map')
+    ax1 = fig1.add_axes([0.15,0.1,0.7,0.7])
+    fig2 = plt.figure(figsize=(6,6))
+    fig2.suptitle('flux vs radius')
+    ax2 = fig2.add_axes([0.15,0.1,0.7,0.7])
+    fig3 = plt.figure(figsize=(6,6))
+    fig3.suptitle('flux vs radius')
+    ax3 = fig3.add_axes([0.15,0.1,0.7,0.7])
+    #The first quantity we want is flux per fiber
+    logfluxes = np.log10(ifuset.spectrumset.compute_flux())
+    logfmax = max(logfluxes)
+    logfmin = min(logfluxes)
+    fluxunit = ifuset.spectrumset.integratedflux_unit
+    fcmap = plt.cm.get_cmap('Reds')
+    fgetcolor = lambda f: fcmap((f - logfmin)/(logfmax-logfmin))
+    fibertobindict = {f:b for (f,b) in zip(fiberids,binids)}
+    rcoords = np.sqrt(fiber_coords[:,0]**2 + fiber_coords[:,1]**2)
+    for ifiber in range(len(logfluxes)):
+        fiber_id = ifuset.spectrumset.ids[ifiber]
+        bin_id = fibertobindict[fiber_id]
+        if not bin_id==const.badfiber_bin_id:
+            ax1.add_patch(patches.Circle(fiber_coords[ifiber,:],
+                                         fibersize,lw=0.25,
+                                         fc=fgetcolor(logfluxes[ifiber])))
+            ax2.text(rcoords[ifiber],logfluxes[ifiber],str(fiber_id),fontsize=5,
+                     horizontalalignment='center',verticalalignment='center')
+            ax3.text(rcoords[ifiber],logfluxes[ifiber],str(fiber_id),fontsize=5,
+                     horizontalalignment='center',verticalalignment='center',
+                     alpha=0.3)
+        else:
+            ax3.text(rcoords[ifiber],logfluxes[ifiber],str(fiber_id),fontsize=5,
+                     horizontalalignment='center',verticalalignment='center')
+            ax3.plot(rcoords[ifiber],logfluxes[ifiber],ls='',marker='o',
+                     mec='r',mfc='none',ms=10,lw=1.0)
+        ax1.text(fiber_coords[ifiber,0],fiber_coords[ifiber,1],
+                 str(fiber_id),fontsize=5,
+                 horizontalalignment='center',verticalalignment='center')
+    ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
+    ax2.axis([min(rcoords),max(rcoords),min(logfluxes),max(logfluxes)])
+    ax3.axis([min(rcoords),max(rcoords),min(logfluxes),max(logfluxes)])
+    pdf.savefig(fig1)
+    pdf.savefig(fig2)
+    pdf.savefig(fig3)
+    plt.close(fig1)
+    plt.close(fig2)
+    plt.close(fig3)
+
         
     pdf.close()

@@ -105,14 +105,8 @@ for paramfile_path in all_paramfile_paths:
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
     fiber_radius = const.mitchell_fiber_radius.value
-
-    delta_lambda = (ifuset.spectrumset.spec_region[1] -
-                    ifuset.spectrumset.spec_region[0])
     #Do the full galaxy bin here because it is so fast.
-    full_galaxy = ifuset.spectrumset.collapse(
-                                  weight_func=spec.SpectrumSet.compute_flux,
-                                  norm_func=spec.SpectrumSet.compute_flux,
-                                  norm_value=delta_lambda, id=0)
+    full_galaxy = ifuset.spectrumset.collapse(id=0)
     full_galaxy.comments["Binning"] = ("this spectrum is the coadditon "
                                        "of all fibers in the galaxy")
     fullbindesc = "fullgalaxybin"
@@ -152,10 +146,7 @@ for paramfile_path in all_paramfile_paths:
     for bin_iter, fibers in enumerate(grouped_ids):
         fiber_binnumbers.update({f: bin_ids[bin_iter] for f in fibers})
         subset = ifuset.get_subset(fibers)
-        binned = subset.spectrumset.collapse(
-                                 weight_func=spec.SpectrumSet.compute_flux,
-                                 norm_func=spec.SpectrumSet.compute_flux,
-                                 norm_value=delta_lambda,id='666') #dummy id
+        binned = subset.spectrumset.collapse(id='666') #dummy id
         binned_data["spectra"][bin_iter, :] = binned.spectra
         binned_data["bad_data"][bin_iter, :] = binned.metaspectra["bad_data"]
         binned_data["noise"][bin_iter, :] = binned.metaspectra["noise"]

@@ -483,42 +483,38 @@ class SpectrumSet(object):
                            comments=extened_comments,
                            test_ir=self.test_ir, name=self.name)
 
-    def collapse(self, weight_func=None, id=None,
-                 norm_func=None, norm_value=None):
+    def collapse(self, weight_func=compute_flux, id=None,
+                 norm_func=compute_flux, norm_value=None):
         """
         Combine all spectra into a single spectrum, treating metadata
         consistently, returned as a new SpectrumSet object.
 
-        Each spectrum is first normalized such that all have equal
-        equal over the full spectral range. Weights for each spectrum
-        in the combination are determined by the passed weight_func
-        acting on the normalized spectra - weight_func must accept a
-        SpectrumSet and return an array of combination weights. The
-        combination is done via a clipped mean.
+        Each spectrum is first normalized to the same value. (By default
+        delta lambda is used so that numerical values for spectra ~1.0)
+        Weights for each spectrum in the combination are determined by
+        the passed weight_func acting on the UNnormalized spectra.
+        The combination is done via a clipped mean.
         """
-        delta = self.spec_region[1] - self.spec_region[0]
+        if norm_value is None:
+            norm_value = self.spec_region[1] - self.spec_region[0]
         fluxnormed_set = self.get_normalized(norm_func, norm_value)
-            # normalized by flux, with spectra numerical values ~ 1.0
-        # spec_median = lambda s: np.median(s.get_masked('spectra'), axis=1)
-        # fluxnormed_set = self.get_normalized(spec_median, 1)
-        weight = weight_func(fluxnormed_set)
+        weight = weight_func(self)
         if weight.ndim == 1:
             weight = np.vstack((weight,)*fluxnormed_set.num_samples).T
-                # array with each row a constant value
         comb = utl.clipped_mean(fluxnormed_set.spectra, weights=weight,
                                 noise=fluxnormed_set.metaspectra['noise'],
                                 mask=fluxnormed_set.metaspectra['bad_data'])
         comb_spectra, comb_noise, comb_bad_data, clipped = comb
         total_weight = weight.sum(axis=0)
         comb_ir = (self.metaspectra["ir"]*weight).sum(axis=0)/total_weight
-        extened_comments = self.comments.copy()
-        extened_comments["Binning"] = ("This spectrum was binned from {} "
+        extended_comments = self.comments.copy()
+        extended_comments["Binning"] = ("This spectrum was binned from {} "
                                        "spectra {} with weight function {}"
                                        "".format(self, self.ids,
                                                  weight_func.__name__))
         return SpectrumSet(spectra=comb_spectra, bad_data=comb_bad_data,
                            noise=comb_noise, ir=comb_ir, spectra_ids=[id],
-                           wavelengths=self.waves, comments=extened_comments,
+                           wavelengths=self.waves, comments=extended_comments,
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
                            test_ir=self.test_ir, name=self.name)

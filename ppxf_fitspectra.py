@@ -151,6 +151,7 @@ for data_paths in things_to_plot:
         fid_data,fid_headers = utl.fits_quickread(data_paths['comparison_file'])
         fid_moments, fid_lsq, fid_scaledlsq = fid_data[0]
         if not nbins==fid_moments.shape[0]:
+            print 'Current {}, fid {}'.format(nbins,fid_moments.shape[0])
             raise Exception('Comparing to something with different bins, oops!')
 
     
@@ -160,16 +161,16 @@ for data_paths in things_to_plot:
     if nbins > 1:
         #This is terrible and will get better when we reorganize the output
         # of the binning code.
-        bins_path = '{}_fluxcenters.p'.format(data_paths['bin_fitsfile'][:-5])
-        bincenters_pickle = pickle.load(open(bins_path,'r'))
+        bins_path = '{}_bininfo.txt'.format(data_paths['bin_fitsfile'][:-5])
+        bininfo = np.genfromtxt(bins_path,names=True)
         for i in range(nmoments):
             fig = plt.figure(figsize=(6,5))
             fig.suptitle('Moment vs radius ({})'.format(moment_names[i]))
             ax = fig.add_axes([0.15,0.1,0.8,0.8])
-            ax.plot(bincenters_pickle[:,2],moments[:,i],ls='',marker='o',
+            ax.plot(bininfo['r'],moments[:,i],ls='',marker='o',
                     c='b',ms=5.0,alpha=0.8)
             if do_comparison:
-                ax.plot(bincenters_pickle[:,2],fid_moments[:,i],ls='',
+                ax.plot(bininfo['r'],fid_moments[:,i],ls='',
                         marker='s',c='g',ms=5.0,alpha=0.8,
                         label='(old run)')
                 ax.legend()

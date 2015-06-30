@@ -9,12 +9,13 @@ The changes are:
 
 input:
   takes one command line argument, a path to the input parameter text file
-  process_mitchell_rawdatacubes_params_example.txt is an example
+  s1_process_mitchell_params_example.txt is an example
   can take multiple parameter files if you want to process multiple galaxies
   (give one param file per galaxy)
 
 output:
-    one processed data for each input raw datacube
+  one processed datacube for each input raw datacube
+  one pdf with diagnostic plots
 """
 
 
@@ -33,7 +34,7 @@ import utilities as utl
 import massivepy.constants as const
 import massivepy.spectralresolution as res
 import massivepy.IFUspectrum as ifu
-
+import massivepy.io as mpio
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
@@ -48,20 +49,23 @@ things_to_plot = []
 
 for paramfile_path in all_paramfile_paths:
     # parse input parameter file
+    output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
     raw_cube_path = input_params['raw_mitchell_cube']
     target_positions = pd.read_csv(input_params["target_positions"],
                                    comment='#', sep="[ \t]+",
                                    engine='python')
-    destination_dir = input_params['destination_dir']
-    gal_name = input_params['gal_name']
+    run_name = input_params['run_name']
+    # construct output file names
+    output_filename = "{}-s1-{}-mitchellcube.fits".format(gal_name,run_name)
+    plot_filename = "{}-s1-{}-mitchellcube.pdf".format(gal_name,run_name)
+    output_path = os.path.join(output_dir, output_filename)
+    plot_path = os.path.join(output_dir, plot_filename)
+    # save relevant info for plotting to a dict
+    plot_info = {'data_path': output_path, 'plot_path': plot_path}
+    things_to_plot.append(plot_info)
 
-    if not os.path.isdir(destination_dir):
-        raise ValueError("Invalid destination dir {}".format(destination_dir))
-    output_filename = lambda gal_name: "{}_mitchellcube.fits".format(gal_name)
-    output_path = os.path.join(destination_dir, output_filename(gal_name))
-
-    things_to_plot.append(output_path)
+    # decide whether to continue with script or skip to plotting
     if os.path.isfile(output_path):
         if input_params['skip_rerun']=='yes':
             print '\nSkipping re-run of {}, plotting only'.format(gal_name)
@@ -167,11 +171,9 @@ for paramfile_path in all_paramfile_paths:
     print "  wrote proc cube: {}".format(output_path)
 
 
-for data_path in things_to_plot:
-    plot_path = "{}.pdf".format(data_path[:-5])
-    ifuset = ifu.read_mitchell_datacube(data_path)
-    #print ifuset.__dict__.keys()
-    #print ifuset.spectrumset.__dict__.keys()
+for plot_info in things_to_plot:
+    print plot_info['data_path']
+    ifuset = ifu.read_mitchell_datacube(plot_info['data_path'])
 
     #Collect data to plot
     nfibers = len(ifuset.coords)
@@ -262,8 +264,8 @@ for data_path in things_to_plot:
     fig2.colorbar(mappable_s2n,orientation='horizontal',ax=ax2C,
                   label=label_s2n)
 
-    #Assemble all into multipage pdf!
-    pdf = PdfPages(plot_path)
+    #Assemble all into multipage pdf
+    pdf = PdfPages(plot_info['plot_path'])
     pdf.savefig(fig1)
     pdf.savefig(fig2)
     pdf.savefig(fig3)

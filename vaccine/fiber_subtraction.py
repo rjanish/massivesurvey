@@ -33,6 +33,12 @@ fiber_base = np.zeros_like(image1[0][0])
 difference = np.zeros_like(image1[0][0])
 fractional = np.zeros_like(image1[0][0])
 
+# testing
+print 'image1', len(image1), image1[0].shape
+print 'image_base', len(image_base), image_base[0].shape
+print 'fiber1', fiber1.shape
+print 'fiber_base', fiber_base.shape
+
 # Sum up all the rows to get a 1D array
 for i in range(1933,1937):
 	fiber1 = fiber1 + image1[0][i]
@@ -41,6 +47,9 @@ for i in range(1933,1937):
 # Take difference
 difference = fiber1 - fiber_base
 #print difference
+
+# testing
+print 'difference', difference.shape
 
 # Divide
 fractional = difference/fiber_base

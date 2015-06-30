@@ -1,0 +1,32 @@
+### Note that this parameter file MUST have e.g. NGC1600 as the first ###
+### 7 characters of the filename when it is used in an actual run.    ###
+### (For example, rename to NGC1600_s2_bin_mitchell_params).          ###
+### All output is stored in the same directory as the parameter file. ###
+
+### Input ###
+#Need three input files:
+#   the processed output from s1_process_mitchell_.py.
+#      (But, we might change the IO at some point so the processing step does not
+#      duplicate the old data, and only saves the processed stuff, in which case
+#      we will need to add separate inputs for the raw datacube and processing output.
+#   target positions file from Jenny
+#   list of bad fibers (chosen by hand after looking at process_mitchell output)
+#Also need to choose desired aspect ratio and signal to noise.
+
+proc_mitchell_cube	../all_my_output/NGC1600/NGC1600-s1-main-mitchellcube.fits
+target_positions_path	../all_my_input/target-positions.txt
+bad_fibers_path		../all_my_output/NGC1600/NGC1600_bad_fiber_list.txt
+
+### Settings ###
+#Two general settings, three binning-related settings:
+#   skip_rerun: 'no' will overwrite old output, 'yes' will do plot only (if possible)
+#   run_name: any string, e.g. 'test1' or 'nobadfibers', to be included in filenames
+#   aspect_ratio: limits how skinny (thin arcs or thin pizza slices) bins can be
+#   s2n_threshold: minimum signal to noise for each bin
+#   bin_type: 'folded' or 'unfolded'
+
+skip_rerun		no
+run_name		main
+aspect_ratio		1.5
+s2n_threshold		20
+bin_type		folded

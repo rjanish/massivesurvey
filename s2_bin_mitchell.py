@@ -34,6 +34,7 @@ import massivepy.constants as const
 import massivepy.IFUspectrum as ifu
 import massivepy.spectrum as spec
 import massivepy.binning as binning
+import massivepy.io as mpio
 import plotting.geo_utils as geo_utils
 
 
@@ -50,32 +51,41 @@ things_to_plot = []
 
 for paramfile_path in all_paramfile_paths:
     # parse input parameter file
+    output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
     proc_cube_path = input_params['proc_mitchell_cube']
-    if ((not os.path.isfile(proc_cube_path))
-        or (os.path.splitext(proc_cube_path)[-1] != ".fits")):
-        raise ValueError("Invalid raw datacube path {}, "
-                         "must be .fits file".format(proc_cube_path))
-    aspect_ratio = input_params['aspect_ratio']
-    s2n_threshold = input_params['s2n_threshold']
+    if not os.path.isfile(proc_cube_path):
+        raise Exception("Data cube {} does not exist".format(proc_cube_path))
+    elif os.path.splitext(proc_cube_path)[-1] != ".fits":
+        raise Exception("Invalid cube {}, must be .fits".format(proc_cube_path))
+    bad_fibers_path = input_params['bad_fibers_path']
+    if not os.path.isfile(bad_fibers_path):
+        raise Exception("File {} does not exist".format(bad_fibers_path))
     target_positions = pd.read_csv(input_params['target_positions_path'],
                                    comment='#', sep="[ \t]+",
                                    engine='python')
-    destination_dir = input_params['destination_dir']
-    bad_fibers_path = input_params['bad_fibers_path']
-    if not os.path.isdir(destination_dir):
-        raise ValueError("Invalid destination dir {}".format(destination_dir))
+    run_name = input_params['run_name']
+    aspect_ratio = input_params['aspect_ratio']
+    s2n_threshold = input_params['s2n_threshold']
     bin_type = input_params['bin_type']
+    # construct output file names
+    output_path_maker = lambda f,ext: os.path.join(output_dir,
+                "{}-s2-{}-{}-{}.{}".format(gal_name,run_name,bin_type,f,ext))
+    binspectra_path = output_path_maker('spectra','fits')
+    fullbin_path = output_path_maker('fullgalaxybin','fits')
+    bininfo_path = output_path_maker('bininfo','txt')
+    fiberinfo_path = output_path_maker('fiberinfo','txt')
+    plot_path = output_path_maker('maps','pdf')
+    # save relevant info for plotting to a dict
+    plot_info = {'binspectra_path': binspectra_path, 
+                 'fullbin_path': fullbin_path, 'plot_path': plot_path,
+                 'bininfo_path': bininfo_path, 'fiberinfo_path': fiberinfo_path,
+                 'targets_path': input_params['target_positions_path'],
+                 'proc_cube_path': proc_cube_path,'gal_name': gal_name}
+    things_to_plot.append(plot_info)
 
-    #New system for galaxy name, just taking from param file!!
-    gal_name = os.path.basename(paramfile_path)[0:7]
-    output_paths = {}
-    output_paths['fits'] = os.path.join(destination_dir,
-                                    "{}-{}.fits".format(gal_name,bin_type))
-    output_paths['proc_cube'] = proc_cube_path
-    output_paths['target_positions_path']=input_params['target_positions_path']
-    things_to_plot.append(output_paths)
-    if os.path.isfile(output_paths['fits']):
+    # decide whether to continue with script or skip to plotting
+    if os.path.isfile(binspectra_path):
         if input_params['skip_rerun']=='yes':
             print '\nSkipping re-run of {}, plotting only'.format(gal_name)
             continue
@@ -85,22 +95,14 @@ for paramfile_path in all_paramfile_paths:
             raise Exception("skip_rerun must be yes or no")
 
     # get bin layout
+    print "  binning..."
     ifuset_all = ifu.read_mitchell_datacube(proc_cube_path)
     badfibers = np.genfromtxt(bad_fibers_path,dtype=int)
     goodfibers = list(ifuset_all.spectrumset.ids)
     for badfiber in badfibers:
         goodfibers.remove(badfiber)
     ifuset = ifuset_all.get_subset(goodfibers)
-    ngc_match = re.search(const.re_ngc, proc_cube_path)
-    if ngc_match is None:
-        msg = "No galaxy name found for path {}".format(proc_cube_path)
-        raise RuntimeError(msg)
-    else:
-        ngc_num = ngc_match.groups()[0]
-    ngc_name = "NGC{}".format(ngc_num)
-    print "\n{}".format(ngc_name)
-    print "  binning..."
-    gal_position = target_positions[target_positions.Name == ngc_name]
+    gal_position = target_positions[target_positions.Name == gal_name]
     gal_pa = gal_position.PA_best.iat[0]
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
@@ -109,11 +111,8 @@ for paramfile_path in all_paramfile_paths:
     full_galaxy = ifuset.spectrumset.collapse(id=0)
     full_galaxy.comments["Binning"] = ("this spectrum is the coadditon "
                                        "of all fibers in the galaxy")
-    fullbindesc = "fullgalaxybin"
-    full_galaxy.name = fullbindesc
-    fullbin_output_filename = '{}-{}.fits'.format(ngc_name,fullbindesc)
-    fullbin_output_path = os.path.join(destination_dir, fullbin_output_filename)
-    full_galaxy.write_to_fits(fullbin_output_path)
+    full_galaxy.name = "fullgalaxybin"
+    full_galaxy.write_to_fits(fullbin_path)
     #Now do the bins
     if bin_type=='unfolded':
         apf = functools.partial(binning.partition_quadparity,
@@ -176,20 +175,16 @@ for paramfile_path in all_paramfile_paths:
                                                      angular_bounds)):
         print ("   {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
                "".format(iter + 1, rin, rout, len(angles)))
-    output_base = os.path.join(destination_dir,
-                               "{}-{}".format(ngc_name, bin_type))
-    binned_data_path = "{}.fits".format(output_base)
-    binned_specset.write_to_fits(binned_data_path)
-    #Save fiber number vs bin number, sorted
-    fiberinfo_path = "{}_fiberinfo.txt".format(output_base)
+    # save binned spectrum
+    binned_specset.write_to_fits(binspectra_path)
+    # save fiber number vs bin number, sorted
     fiberinfo_header = "Fiber id vs bin id. "
     fiberinfo = np.array([np.array(fiber_binnumbers.keys()),
                           np.array(fiber_binnumbers.values())])
     isort = np.argsort(fiberinfo[0,:])
     np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t',
                header=fiberinfo_header)
-    #Save bin number vs number of fibers, bin center coords, and bin boundaries
-    bininfo_path = "{}_bininfo.txt".format(output_base)
+    # save bin number vs number of fibers, bin center coords, and bin boundaries
     dt = {'names':['binid','nfibers','x','y','r','th',
                    'rmin','rmax','thmin','thmax'],
           'formats':2*['i4']+8*['f32']}
@@ -204,38 +199,31 @@ for paramfile_path in all_paramfile_paths:
                header=' '.join(dt['names']))
     print 'You may ignore the weird underflow error, it is not important.'
 
-for data_paths in things_to_plot:
-    basepath = data_paths['fits'][:-5]
-    plot_path = "{}.pdf".format(basepath)
-    proc_cube_path = data_paths['proc_cube']
-    gal_name = os.path.basename(basepath)[0:7]
-    fullbin_path = os.path.join(os.path.dirname(basepath),
-                                '{}-fullgalaxybin.fits'.format(gal_name))
-
-    fiberinfo_path = "{}_fiberinfo.txt".format(basepath)
-    fiberids, binids = np.genfromtxt(fiberinfo_path,dtype=int,unpack=True)
-    bininfo_path = "{}_bininfo.txt".format(basepath)
-    bininfo = np.genfromtxt(bininfo_path,names=True)
+for plot_info in things_to_plot:
+    fiberids, binids = np.genfromtxt(plot_info['fiberinfo_path'],
+                                     dtype=int,unpack=True)
+    bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True)
     bininfo['x'] *= -1  #east-west reflect
-
     nbins = len(bininfo)
-    ifuset = ifu.read_mitchell_datacube(proc_cube_path)
+
+    ifuset = ifu.read_mitchell_datacube(plot_info['proc_cube_path'])
     fiber_coords = ifuset.coords.copy()
     coordunit = ifuset.coord_comments['coordunit']
     fibersize = const.mitchell_fiber_radius.value #Assuming units match!
     fiber_coords[:, 0] *= -1  # east-west reflect
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
 
-    target_positions = pd.read_csv(data_paths['target_positions_path'],
+    target_positions = pd.read_csv(plot_info['targets_path'],
                                    comment='#', sep="[ \t]+",
                                    engine='python')
-    gal_position = target_positions[target_positions.Name == gal_name]
+    gal_position = target_positions[target_positions.Name == 
+                                    plot_info['gal_name']]
     gal_pa = gal_position.PA_best.iat[0]
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
     ma_xy = np.pi/2 + np.deg2rad(gal_pa)
 
-    specset = spec.read_datacube(data_paths['fits'])
-    specset_full = spec.read_datacube(fullbin_path)
+    specset = spec.read_datacube(plot_info['binspectra_path'])
+    specset_full = spec.read_datacube(plot_info['fullbin_path'])
 
     ###Plotting begins!!!
     pdf = PdfPages(plot_path)

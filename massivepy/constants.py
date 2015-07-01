@@ -82,3 +82,9 @@ gaussian_fwhm_over_sigma = 2*np.sqrt(2*np.log(2))
 # bin number conventions
 badfiber_bin_id = -99  #For fibers removed before binning step
 unusedfiber_bin_id = -1  #For fibers not used in binning step
+
+# template spectral type color conventions for plotting
+# based on first character of 'spt' in miles catalog
+spectype_colors = {'A':'aqua','B':'blue','G':'green','F':'lime','I':'indigo',
+                   'M':'magenta','K':'crimson','-':'black','S':'orange',
+                   '0':'gray','s':'tan','R':'yellow','H':'gold'}

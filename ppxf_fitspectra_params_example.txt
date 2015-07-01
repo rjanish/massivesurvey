@@ -13,13 +13,16 @@
 
 binned_cube_path	../all_my_output/NGC1600-polar_folded_s2n20.fits
 templates_dir		../all_my_output/miles-processed/
-#template_list		all
-template_list       const.fullMILES_1600fullgalaxy_optimized
+#template_file		use_all
+template_file		../all_my_output/NGC0057_20150623/NGC0057_testfull-temps.txt
+comparison_file		none
+#comparison_file	../all_my_output/NGC0057_20150623/NGC0057_testbins-main.fits
 bins_to_fit		all
 #bins_to_fit		[1,4,31,49]
 #bins_to_fit		[4]
 #num_trials		100	# appropriate for actual results
 num_trials		5	# use for quicker testing
+skip_rerun		no
 
 add_deg			0
 mul_deg			7

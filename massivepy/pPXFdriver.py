@@ -472,7 +472,7 @@ class pPXFDriver(object):
         # add type-processing of output dicts here
         return
 
-    def write_outputs(self,destination_dir,run_name):
+    def write_outputs(self,paths_dict):
         """
         Write driver outputs to file.
         Place all outputs in destination_dir, with run_name as 
@@ -544,7 +544,7 @@ class pPXFDriver(object):
             #Format first column (id number) as int
             fmt = ['%i']
             fmt.extend(['%-8g']*(len(template_info)-1))
-            np.savetxt(destination_dir+run_name+'-temps.txt',
+            np.savetxt(paths_dict['temps'],
                        t_array_nonzero,
                        header='columns are {}'.format(template_info_columns),
                        fmt=fmt,delimiter='\t')
@@ -570,7 +570,7 @@ class pPXFDriver(object):
                                  name='spectrum_info')
         #Now collect all the HDUs for the fits file
         hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps,hdu_spec])
-        hdu_all.writeto(destination_dir+run_name+'-main.fits', clobber=True)
+        hdu_all.writeto(paths_dict['reg'], clobber=True)
             
         ###
         #Notes about what I am saving of the main run!
@@ -642,7 +642,7 @@ class pPXFDriver(object):
                                     name='spectrum_info')
         #Now collect all the HDUs for the fits file
         mc_hdu_all = fits.HDUList(hdus=[mc_hdu_gh,mc_hdu_temps,mc_hdu_spec])
-        mc_hdu_all.writeto(destination_dir+run_name+'-mc.fits', clobber=True)
+        mc_hdu_all.writeto(paths_dict['mc'], clobber=True)
 
         ###
         #Notes about what I am saving of the mc runs!

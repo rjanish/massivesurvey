@@ -1,0 +1,20 @@
+### Note that this parameter file MUST have e.g. NGC1600 as the first ###
+### 7 characters of the filename when it is used in an actual run.    ###
+### (For example, rename to NGC1600_s1_process_mitchell_params).      ###
+### All output is stored in the same directory as the parameter file. ###
+
+### Input ###
+#Need two input files:
+#   raw datacube
+#   target positions file from Jenny
+
+raw_mitchell_cube	../all_my_input/QnovallfibNGC1600_log.fits
+target_positions	../all_my_input/target-positions.txt
+
+### Settings ###
+#Two settings:
+#   skip_rerun: 'no' will overwrite old output, 'yes' will do plot only (if possible)
+#   run_name: any string, e.g. 'test1' or 'new_ir_calc', to be included in filenames
+
+skip_rerun		yes
+run_name		main

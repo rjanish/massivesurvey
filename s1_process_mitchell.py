@@ -9,12 +9,13 @@ The changes are:
 
 input:
   takes one command line argument, a path to the input parameter text file
-  process_mitchell_rawdatacubes_params_example.txt is an example
+  s1_process_mitchell_params_example.txt is an example
   can take multiple parameter files if you want to process multiple galaxies
   (give one param file per galaxy)
 
 output:
-    one processed data for each input raw datacube
+  one processed datacube for each input raw datacube
+  one pdf with diagnostic plots
 """
 
 
@@ -25,12 +26,15 @@ import os
 import numpy as np
 import pandas as pd
 import shapely.geometry as geo
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.backends.backend_pdf import PdfPages
 
 import utilities as utl
 import massivepy.constants as const
 import massivepy.spectralresolution as res
 import massivepy.IFUspectrum as ifu
-
+import massivepy.io as mpio
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
@@ -40,45 +44,49 @@ parser.add_argument("paramfiles", nargs='*', type=str,
 args = parser.parse_args()
 all_paramfile_paths = args.paramfiles
 
+# empty list for outputs to plot
+things_to_plot = []
+
 for paramfile_path in all_paramfile_paths:
     # parse input parameter file
+    output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
     raw_cube_path = input_params['raw_mitchell_cube']
     target_positions = pd.read_csv(input_params["target_positions"],
                                    comment='#', sep="[ \t]+",
                                    engine='python')
-    destination_dir = input_params['destination_dir']
-    if not os.path.isdir(destination_dir):
-        raise ValueError("Invalid destination dir {}".format(destination_dir))
-    output_filename = lambda gal_name: "{}_mitchellcube.fits".format(gal_name)
+    run_name = input_params['run_name']
+    # construct output file names
+    output_filename = "{}-s1-{}-mitchellcube.fits".format(gal_name,run_name)
+    plot_filename = "{}-s1-{}-mitchellcube.pdf".format(gal_name,run_name)
+    output_path = os.path.join(output_dir, output_filename)
+    plot_path = os.path.join(output_dir, plot_filename)
+    # save relevant info for plotting to a dict
+    plot_info = {'data_path': output_path, 'plot_path': plot_path}
+    things_to_plot.append(plot_info)
+
+    # decide whether to continue with script or skip to plotting
+    if os.path.isfile(output_path):
+        if input_params['skip_rerun']=='yes':
+            print '\nSkipping re-run of {}, plotting only'.format(gal_name)
+            continue
+        elif input_params['skip_rerun']=='no':
+            print '\nRunning {} again, will overwrite output'.format(gal_name)
+        else:
+            raise Exception("skip_rerun must be yes or no")
 
     # start processing
-    # check galaxy name consistency
-    ngc_match = re.search(const.re_ngc, raw_cube_path)
-    if ngc_match is None:
-        msg = "No galaxy name found for path {}".format(raw_cube_path)
-        raise RuntimeError(msg)
-    else:
-        ngc_num = ngc_match.groups()[0]
     data, headers = utl.fits_quickread(raw_cube_path)
-    ngcs = [re.search(const.re_ngc, header["OBJECT"]).groups()[0]
-            for header in headers]
-    all_match = [num == ngc_num for num in ngcs] == [True]*len(ngcs)
-    if not all_match:
-        raise RuntimeError("Datacube headers do not match galaxy name "
-                           " 'NGC {}' found in path".format(ngc_num))
-    # TODO: add unit checking against header
     spec_unit = const.flux_per_angstrom  # assume spectrum units
     wave_unit = const.angstrom  # assume wavelength units
     fiber_radius = const.mitchell_fiber_radius.value  # arcsec
     fiber_circle = lambda center: geo.Point(center).buffer(fiber_radius)
     # get data
-    ngc_name = "NGC{}".format(ngc_num)
-    gal_position = target_positions[target_positions.Name == ngc_name]
+    gal_position = target_positions[target_positions.Name == gal_name]
     gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
     gal_pa = gal_position.PA_best.iat[0]
         # .ita[0] extracts scalar value from a 1-element dataframe
-    print "\n{}".format(ngc_name)
+    print "\n{}".format(gal_name)
     print "  raw datacube: {}".format(raw_cube_path)
     print "        center: {}, {}".format(*gal_center)
     print "            pa: {}".format(gal_pa)
@@ -119,7 +127,7 @@ for paramfile_path in all_paramfile_paths:
     fiber_numbers = np.arange(spectra.shape[0], dtype=int)
     vhelio = spectra_h["VHELIO"]
     comments = {
-        "target":ngc_name,
+        "target":gal_name,
         "heliocentric correction applied":"{} [km/s]".format(vhelio),
         "wavelengths":"wavelength in galaxy rest frame",
         "applied galaxy redshift":waves_h["Z"],
@@ -129,7 +137,7 @@ for paramfile_path in all_paramfile_paths:
                                "reported in the galaxy rest frame"
                                "".format(len(const.mitchell_arc_centers)))}
     coord_comments = {
-        "target":ngc_name,
+        "target":gal_name,
         "coord-system":("dimensionless distance in plane through galaxy "
                         "center and perpendicular to line-of-sight, "
                         "expressed in arcsec - physical distance is "
@@ -143,7 +151,7 @@ for paramfile_path in all_paramfile_paths:
         "galaxy major axis":"{} [degrees E of N]".format(gal_pa),
         "fiber shape":"circle",
         "fiber radius":"{} arcsec".format(const.mitchell_fiber_radius)}
-    name = "{}_mitchell_datacube".format(ngc_name.lower())
+    name = "{}_mitchell_datacube".format(gal_name.lower())
     ifuset = ifu.IFUspectrum(spectra=spectra[:, valid],
                              bad_data=bad_data[:, valid],
                              noise=noise[:, valid],
@@ -159,6 +167,107 @@ for paramfile_path in all_paramfile_paths:
                              linear_scale=fiber_radius,
                              footprint=fiber_circle,
                              name=name)
-    output_path = os.path.join(destination_dir, output_filename(ngc_name))
     ifuset.write_to_fits(output_path)
     print "  wrote proc cube: {}".format(output_path)
+
+
+for plot_info in things_to_plot:
+    print plot_info['data_path']
+    ifuset = ifu.read_mitchell_datacube(plot_info['data_path'])
+
+    #Collect data to plot
+    nfibers = len(ifuset.coords)
+    fibersize = const.mitchell_fiber_radius.value #Assuming units match!
+    xcoords = -ifuset.coords[:,0] #Flipping east-west to match pictures
+    ycoords = ifuset.coords[:,1]
+    squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
+    rcoords = np.sqrt(xcoords**2 + ycoords**2)
+    coordunit = ifuset.coord_comments['coordunit']
+    #The first quantity we want is flux per fiber
+    logfluxes = np.log10(ifuset.spectrumset.compute_flux())
+    logfmax = max(logfluxes)
+    logfmin = min(logfluxes)
+    fluxunit = ifuset.spectrumset.integratedflux_unit
+    fcmap = plt.cm.get_cmap('Reds')
+    fgetcolor = lambda f: fcmap((f - logfmin)/(logfmax-logfmin))
+    #The second quantity we want is s2n per fiber
+    logs2n = np.log10(ifuset.spectrumset.compute_mean_s2n())
+    logsmax = max(logs2n)
+    logsmin = min(logs2n)
+    scmap = plt.cm.get_cmap('Greens')
+    sgetcolor = lambda s: scmap((s - logsmin)/(logsmax-logsmin))
+
+    #Will create 4 figures, to do flux and s2n in both map and vs-radius form
+    fig1 = plt.figure(figsize=(6,6))
+    fig1.suptitle('flux map')
+    ax1 = fig1.add_axes([0.15,0.1,0.7,0.7])
+    fig2 = plt.figure(figsize=(6,6))
+    fig2.suptitle('s2n map')
+    ax2 = fig2.add_axes([0.15,0.1,0.7,0.7])    
+    fig3 = plt.figure(figsize=(6,6))
+    fig3.suptitle('flux vs radius')
+    ax3 = fig3.add_axes([0.15,0.1,0.7,0.7])
+    fig4 = plt.figure(figsize=(6,6))
+    fig4.suptitle('s2n vs radius')
+    ax4 = fig4.add_axes([0.15,0.1,0.7,0.7])
+
+    #Now loop over the fibers and plot things!
+    for ifiber in range(nfibers):
+        ax1.add_patch(patches.Circle((xcoords[ifiber],ycoords[ifiber]),
+                                     fibersize,lw=0.25,
+                                     fc=fgetcolor(logfluxes[ifiber])))
+        ax1.text(xcoords[ifiber],ycoords[ifiber],
+                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+                 horizontalalignment='center',verticalalignment='center')
+        ax2.add_patch(patches.Circle((xcoords[ifiber],ycoords[ifiber]),
+                                     fibersize,lw=0.25,
+                                     fc=sgetcolor(logs2n[ifiber])))
+        ax2.text(xcoords[ifiber],ycoords[ifiber],
+                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+                 horizontalalignment='center',verticalalignment='center')
+        ax3.text(rcoords[ifiber],logfluxes[ifiber],
+                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+                 horizontalalignment='center',verticalalignment='center')
+        ax4.text(rcoords[ifiber],logs2n[ifiber],
+                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+                 horizontalalignment='center',verticalalignment='center')
+    #Fix axes bounds
+    ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
+    ax2.axis([-squaremax,squaremax,-squaremax,squaremax])
+    ax3.axis([min(rcoords),max(rcoords),min(logfluxes),max(logfluxes)])
+    ax4.axis([min(rcoords),max(rcoords),min(logs2n),max(logs2n)])
+    #Make labels
+    label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
+    label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
+    label_r = r'radius ({})'.format(coordunit)
+    label_flux = r'flux (log 10 [{}])'.format(fluxunit)
+    label_s2n = r's2n (log 10)'
+    ax1.set_xlabel(label_x)
+    ax1.set_ylabel(label_y)
+    ax2.set_xlabel(label_x)
+    ax2.set_ylabel(label_y)
+    ax3.set_xlabel(label_r)
+    ax3.set_ylabel(label_flux)
+    ax4.set_xlabel(label_r)
+    ax4.set_ylabel(label_s2n)
+    #Do colorbars
+    ax1C = fig1.add_axes([0.15,0.8,0.7,0.8])
+    ax1C.set_visible(False)
+    mappable_flux = plt.cm.ScalarMappable(cmap=fcmap)
+    mappable_flux.set_array([logfmin,logfmax])
+    fig1.colorbar(mappable_flux,orientation='horizontal',ax=ax1C,
+                  label=label_flux)
+    ax2C = fig2.add_axes([0.15,0.8,0.7,0.8])
+    ax2C.set_visible(False)
+    mappable_s2n = plt.cm.ScalarMappable(cmap=scmap)
+    mappable_s2n.set_array([logsmin,logsmax])
+    fig2.colorbar(mappable_s2n,orientation='horizontal',ax=ax2C,
+                  label=label_s2n)
+
+    #Assemble all into multipage pdf
+    pdf = PdfPages(plot_info['plot_path'])
+    pdf.savefig(fig1)
+    pdf.savefig(fig2)
+    pdf.savefig(fig3)
+    pdf.savefig(fig4)
+    pdf.close()

@@ -174,6 +174,12 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
         specifying the partitioning of the annulus radial_bounds[j].
         Each entry angular_bounds[i] has the format returned by
         the angle_partition_func (see above).
+    grouped_bounds
+        An array with radial and angular bounds per bin. (Saves only one
+        set of bounds for each bin, even if the bin has multiple regions
+        as in the folded case.) Same length as grouped_ids, with nans for
+        the solitary fiber bins in the center. Note this might be fragile
+        to any reorganization of the binning procedure.
     """
     coords = np.asarray(coords, dtype=float)
     ids = np.asarray(ids, dtype=int)
@@ -266,4 +272,50 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             # for now, discard outer objects
             break
     grouped_ids = [[id] for id in solitary_ids] + binned_ids
-    return grouped_ids, radial_bounds, angular_bounds
+    #Adding an output to give bin bounds arranged by bin
+    binned_bounds = []
+    for (rmin,rmax),apartition in zip(radial_bounds,angular_bounds):
+        for abin in apartition:
+            # abin may have more than one region (i.e. in folded case)
+            # arbitrarily save the first one
+            binned_bounds.append([rmin,rmax,abin[0][0],abin[0][1]])
+    number_solitary_bins = len(grouped_ids) - len(binned_bounds)
+    grouped_bounds = np.zeros((4,len(grouped_ids)))
+    grouped_bounds[:,-len(binned_bounds):] = np.array(binned_bounds).T
+    grouped_bounds[:,:-len(binned_bounds)] = np.nan
+    return grouped_ids, radial_bounds, angular_bounds, grouped_bounds
+
+def calc_bin_center(xs,ys,fluxes,bintype,ma=None,rmin=None):
+    """
+    Calculate the flux-weighted bin center for a single bin, given the
+    coordinates of each fiber in the bin (xs,ys) and the flux for each
+    fiber (fluxes). If the bin type is folded, reflect all points across
+    ma (except single fiber bins within rmin) before binning. Return as 
+    an array for convenience.
+    Note that this computes the fluxweighted coordinates in cartesian
+    coordinates, then simply converts to r and theta. Perhaps it would make
+    sense to compute polar coordinates by directly finding the fluxweighted
+    average radius and angle instead.
+    """
+    if bintype=='unfolded':
+        pass
+    elif bintype=='folded':
+        ii = [] #List of fibers needing to be reflected
+        if len(xs)==1 and np.sqrt(xs[0]**2+ys[0]**2) < rmin:
+            pass
+        else:
+            ys_ma_line = xs*np.tan(ma)
+            ii = np.where(ys < ys_ma_line)[0]
+        #Math for reflecting point over line y = m*x:
+        # xnew = A - x, ynew = A*m - y, where A = 2 (x + m*y) / (1 + m^2)
+        A = 2*(xs[ii]+ys[ii]*np.tan(ma))/(1+np.tan(ma)**2)
+        xs[ii] = A - xs[ii]
+        ys[ii] = A*np.tan(ma) - ys[ii]
+    else:
+        raise Exception('Bin type must be folded or unfolded, try again.')
+    total_flux = fluxes.sum()
+    x_bin = np.sum(xs*fluxes)/total_flux
+    y_bin = np.sum(ys*fluxes)/total_flux
+    r_bin = np.sqrt(x_bin**2 + y_bin**2)
+    th_bin = np.arctan2(y_bin, x_bin)
+    return np.array([x_bin,y_bin,r_bin,th_bin])

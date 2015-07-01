@@ -5,7 +5,7 @@
 
 ### Input ###
 #Need three input files:
-#   the processed output from s1_process_mitchell_.py.
+#   the processed output from s1_process_mitchell.py.
 #      (But, we might change the IO at some point so the processing step does not
 #      duplicate the old data, and only saves the processed stuff, in which case
 #      we will need to add separate inputs for the raw datacube and processing output.

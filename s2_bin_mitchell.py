@@ -201,6 +201,7 @@ for paramfile_path in all_paramfile_paths:
     print 'You may ignore the weird underflow error, it is not important.'
 
 for plot_info in things_to_plot:
+    plot_path = plot_info['plot_path']
     fiberids, binids = np.genfromtxt(plot_info['fiberinfo_path'],
                                      dtype=int,unpack=True)
     bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True)

@@ -472,7 +472,7 @@ class pPXFDriver(object):
         # add type-processing of output dicts here
         return
 
-    def write_outputs(self,paths_dict):
+    def write_outputs(self,paths_dict,debug_mc=False):
         """
         Write driver outputs to file.
         Place all outputs in destination_dir, with run_name as 
@@ -490,8 +490,6 @@ class pPXFDriver(object):
         # are either saved to the .fits file or checked for being zero or
         # none EXCEPT main_procoutput['smoothed_temps'], because they are
         # extremely inconvenient, large, and probably not useful.
-        #Also still skipping main_input['lam'], should check that again.
-        #Still want to add wavelengths info!
         
         #Set up the main run fits file
         baseheader = fits.Header()
@@ -621,6 +619,10 @@ class pPXFDriver(object):
             
         # verify that the things I am throwing out are indeed zero/none
         # this should go away in the internal cleanup, or get put elsewhere
+        if not all([x is None for x in self.main_input['lam']]):
+            msg = 'Expected lam to be None, it is not. '
+            msg += 'lam = {}'.format(self.main_input['lam'])
+            warnings.warn(msg)
         if not all([x is None for x in self.main_input['sky_template']]):
             msg = 'Expected sky template to be None, it is not. '
             msg += 'Sky template = {}'.format(self.main_input['sky_template'])
@@ -662,11 +664,14 @@ class pPXFDriver(object):
         mc_hdu_gh = fits.PrimaryHDU(data=mc_moment_info,
                                     header=mc_header_gh)
         #HDU 2
+        mc_t_ids = []
+        for tlist in self.mc_input['templates']:
+            mc_t_ids.append([t.spectrumset.ids for t in tlist])
         mc_t_weights = self.mc_rawoutput['template_weights']
         mc_t_mflux = self.mc_procoutput['model_temps_fluxes']
         mc_t_fw = self.mc_procoutput['flux_template_weights']
-        mc_template_info = [mc_t_weights,mc_t_mflux,mc_t_fw]
-        mc_template_info_columns = "weight,modelflux,fluxweight"
+        mc_template_info = [mc_t_ids,mc_t_weights,mc_t_mflux,mc_t_fw]
+        mc_template_info_columns = "id,weight,modelflux,fluxweight"
         mc_header_temps = mc_baseheader.copy()
         mc_header_temps.append(("axis1", "template"))
         mc_header_temps.append(("axis2", "mcrun"))
@@ -690,20 +695,21 @@ class pPXFDriver(object):
                                     header=mc_header_spec,
                                     name='spectrum_info')
         #Now collect all the HDUs for the fits file
-        mc_hdu_all = fits.HDUList(hdus=[mc_hdu_gh,mc_hdu_temps,mc_hdu_spec])
-        mc_hdu_all.writeto(paths_dict['mc'], clobber=True)
+        if debug_mc:
+            mc_hdu_all = [mc_hdu_gh,mc_hdu_temps,mc_hdu_spec]
+        else:
+            mc_hdu_all = [mc_hdu_gh]
+        mc_fits = fits.HDUList(hdus=mc_hdu_all)
+        mc_fits.writeto(paths_dict['mc'], clobber=True)
 
         ###
         #Notes about what I am saving of the mc runs!
-        #--If it is skipped for the main run, it is skipped for mc runs
-        #--Additional things I am skipping (all from mc_input) because they 
-        #  should match what is in main_input: templates, regul, vsyst, clean,
-        #  oversample, add_deg, mul_deg, bias, num_moments, noise, pixels_used
-        #--This means the list of things I save is as follows:
         #   -from self.mc_input: spectrum
         #   -from self.mc_rawoutput: gh_params, template_weights, 
         #    unscaled_lsq_errors, best_model
         #   -from self.mc_procoutput: model_temps_fluxes, scaled_lsq_errors,
         #    mul_poly, flux_template_weights, add_poly
+        #Everything else is left out. If debug_mc=False, everything but the
+        # moment stuff is left out.
         ###
         return

@@ -553,7 +553,7 @@ class pPXFDriver(object):
                        t_array_nonzero,
                        header='columns are {}'.format(template_info_columns),
                        fmt=fmt,delimiter='\t')
-        #HDU 3: spectrum and other related things
+        #HDU 3: spectrum and other related things (per bin)
         spectrum = self.main_input['spectrum']
         noise = self.main_input['noise']
         pixels_used = []
@@ -575,12 +575,13 @@ class pPXFDriver(object):
                                  name='spectrum_info')
 
         #HDU 4: anything that goes one-number-per-bin
+        binids = self.specset.ids
         chisq_dof = self.main_rawoutput['chisq_dof']
         sampling_factor = self.main_rawoutput['sampling_factor']
         num_kin_components = self.main_rawoutput['num_kin_components']
         vsyst = self.main_input['vsyst']
-        bins_info = [chisq_dof,sampling_factor,num_kin_components,vsyst]
-        bins_info_columns = "chisq,sampfactor,numkincomp,vsyst"
+        bins_info = [binids,chisq_dof,sampling_factor,num_kin_components,vsyst]
+        bins_info_columns = "binid,chisq,sampfactor,numkincomp,vsyst"
         header_bins = baseheader.copy()
         header_bins.append(("axis1", "bin"))
         header_bins.append(("axis2", bins_info_columns))
@@ -612,9 +613,17 @@ class pPXFDriver(object):
                                    header=header_mtemps,
                                    name='model_temps')
 
+        #HDU 7: The wavelengths (same for all bins, so not in spectrum hdu)
+        header_waves = baseheader.copy()
+        hdu_waves = fits.ImageHDU(data=self.specset.waves,
+                                  header=header_waves,
+                                  name='wavelengths')
+        if not self.specset.waves.shape == self.main_input['spectrum'][0].shape:
+            warnings.warn("spectrum and wavelengths don't match")
+
         #Now collect all the HDUs for the fits file
         hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps,hdu_spec,hdu_bins,
-                                     hdu_addmul,hdu_mtemps])
+                                     hdu_addmul,hdu_mtemps,hdu_waves])
         hdu_all.writeto(paths_dict['reg'], clobber=True)
             
         # verify that the things I am throwing out are indeed zero/none

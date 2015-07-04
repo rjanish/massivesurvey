@@ -10,6 +10,7 @@
 #   optional, the file containing a list of templates to use. can say 'all' instead.
 #   optional, file from a previous ppxf run to compare in the plotting. can say 'none'.
 #   optional, bin info for above output file to use in plotting. can say 'none'.
+#   optional (needed for run_type=bins), the spatial bin info. can say 'none'
 
 binned_cube_path	../all_my_output/NGC0080/NGC0080-s2-main-folded-spectra.fits
 templates_dir		../all_my_output/miles-processed/
@@ -17,6 +18,7 @@ use_templates		all
 #use_templates		../all_my_output/NGC0080/NGC0080-s3-main-full-temps.txt
 compare_moments		none
 compare_bins		none
+bin_info_path		../all_my_output/NGC1600/NGC1600-s2-main-folded-bininfo.txt
 
 ### Settings ###
 #Two general settings, and a whole bunch of ppxf-related settings

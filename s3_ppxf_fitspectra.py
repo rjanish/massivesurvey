@@ -94,7 +94,8 @@ for paramfile_path in all_paramfile_paths:
                  'temps_output': output_paths_dict['temps'],
                  'plot_path': output_path_maker('plots','pdf'),
                  'binspectra_path': binned_cube_path,
-                 'run_type': run_type, 'templates_dir': templates_dir}
+                 'run_type': run_type, 'templates_dir': templates_dir,
+                 'bininfo_path': input_params['bin_info_path']}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
@@ -151,13 +152,25 @@ for paramfile_path in all_paramfile_paths:
 for plot_info in things_to_plot:
     plot_path = plot_info['plot_path']
 
-    reg_data, reg_headers = utl.fits_quickread(plot_info['reg_output'])
-    moments, lsq, scaledlsq = reg_data[0]
-    nbins = moments.shape[0]
-    nmoments = moments.shape[1]
+    # get data from fits files of ppxf fit output, and bins if needed
+    fitdata = mpio.get_friendly_ppxf_output(plot_info['reg_output'])
+    nbins = fitdata['params']['nbins']
+    nmoments = fitdata['params']['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
+    if plot_info['run_type']=='bins':
+        # assuming the binspectra path ends in spectra.fits, this is not ideal
+        bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True)
+        ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
+        ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
+
+    # save "friendly" text output for theorists
+
+
+    #here beings old code
+    #reg_data, reg_headers = utl.fits_quickread(plot_info['reg_output'])
+    #moments, lsq, scaledlsq = reg_data[0]
 
     # still need to clean up comparison plotting
     #if not plot_info['compare_moments']=='none':
@@ -174,17 +187,12 @@ for plot_info in things_to_plot:
     pdf = PdfPages(plot_path)
     # moments plots, for case of fitting all bins
     if plot_info['run_type']=='bins':
-        # assuming the binspectra path ends in spectra.fits, this is not ideal
-        bininfo_path = plot_info['binspectra_path'][0:-12]+'bininfo.txt'
-        bininfo = np.genfromtxt(bininfo_path,names=True)
-        if not len(bininfo)==nbins:
-            raise Exception("Bin mismatch {},{}".format(nbins,len(bininfo)))
         for i in range(nmoments):
             fig = plt.figure(figsize=(6,5))
             fig.suptitle('Moment vs radius ({})'.format(moment_names[i]))
             ax = fig.add_axes([0.15,0.1,0.8,0.8])
-            ax.plot(bininfo['r'],moments[:,i],ls='',marker='o',
-                    c='b',ms=5.0,alpha=0.8)
+            ax.plot(bininfo['r'][ibins],fitdata['gh']['moment'][:,i],ls='',
+                    marker='o',c='b',ms=5.0,alpha=0.8)
             # comparison plot ability needs updating
             #if do_comparison:
             #    ax.plot(bininfo['r'],fid_moments[:,i],ls='',
@@ -238,25 +246,49 @@ for plot_info in things_to_plot:
     ### want to change this to all spectra on one axis
     ### want to have bin ids, not just indexes
     ### want to have wavelength, not just pixel number
-    spec, noise, usepix, modelspec, mulpoly, addpoly = reg_data[2]
+
+    # plot each spectrum, y-axis also represents bin number
+    fig = plt.figure(figsize=(6,max(fitdata['bins']['id'])))
+    fig.suptitle('bin spectra by bin number')
+    ax = fig.add_axes([0.05,0.05,0.9,0.9])
+    for i,binid in enumerate(fitdata['bins']['id']):
+        spectrum = fitdata['spec']['spectrum'][i]
+        model = fitdata['spec']['bestmodel'][i]
+        waves = fitdata['waves']
+        ax.plot(waves,spectrum-spectrum[0]+binid,c='k')
+        ax.plot(waves,model-spectrum[0]+binid,c='r',lw=0.7)
+    # find regions to mask
+    # note the masking is currently saved per bin in fitoutput, this is silly!
+    # for now just use the mask for the last bin (i at end of above loop)
+    maskpix = np.where(fitdata['spec']['pixused'][i,:]==0)[0]
+    ibreaks = np.where(np.diff(maskpix)!=1)[0]
+    maskpix_starts = [maskpix[0]]
+    maskpix_starts.extend(maskpix[ibreaks+1])
+    maskpix_ends = list(maskpix[ibreaks])
+    maskpix_ends.append(maskpix[-1])
+    for startpix,endpix in zip(maskpix_starts,maskpix_ends):
+        ax.axvspan(fitdata['waves'][startpix],fitdata['waves'][endpix],
+                   fc='k',ec='none',alpha=0.5,lw=0)
+    ax.set_xlabel('wavelength ({})'.format("units"))
+    ax.set_ylabel('bin number')
+    ax.autoscale(tight=True)
+    ax.set_ylim(ymin=-1,ymax=max(fitdata['bins']['id'])+2)
+    ax.invert_yaxis()
+    ax.tick_params(labeltop='on',top='on')
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    '''
+    #spec, noise, usepix, modelspec, mulpoly, addpoly = reg_data[2]
     for b in range(nbins):
         fig = plt.figure(figsize=(6,5))
         fig.suptitle('Spectrum for bin {} of {}'.format(b+1, nbins))
         ax = fig.add_axes([0.15,0.1,0.8,0.8])
         ax.plot(spec[b,:],c='k',label='spectrum')
         ax.plot(modelspec[b,:],c='r',label='model spectrum')
-        # find regions to mask
-        maskpix = np.where(usepix[b,:]==0)[0]
-        ibreaks = np.where(np.diff(maskpix)!=1)[0]
-        maskpix_starts = [maskpix[0]]
-        maskpix_starts.extend(maskpix[ibreaks+1])
-        maskpix_ends = list(maskpix[ibreaks])
-        maskpix_ends.append(maskpix[-1])
-        for startpix,endpix in zip(maskpix_starts,maskpix_ends):
-            ax.axvspan(startpix,endpix,fc='k',ec='none',alpha=0.5,lw=0)
         ax.set_xlabel('pixel')
         ax.set_ylabel('flux')
         pdf.savefig(fig)
         plt.close(fig)
-
+    '''
     pdf.close()

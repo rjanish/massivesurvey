@@ -83,3 +83,22 @@ def get_friendly_ppxf_output(path):
     return friendly_data
 
 
+def get_friendly_ppxf_output_mc(path):
+    """
+    Returns a friendly dict- and recarray-based set of ppxf mc output.
+    Only return the data we actually use in plots and want in text files.
+    """
+    data, headers = utl.fits_quickread(path)
+    friendly_data = {}
+
+    nmoments = headers[0]['NAXIS1']
+    nruns = headers[0]['NAXIS2']
+    nbins = headers[0]['NAXIS3']
+    nthings = headers[0]['NAXIS4']
+
+    friendly_data['err'] = np.zeros((nbins,nmoments))
+    for ibin in range(nbins):
+        for imom in range(nmoments):
+            friendly_data['err'][ibin,imom] = np.std(data[0][0,ibin,:,imom])
+
+    return friendly_data

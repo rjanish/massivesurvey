@@ -165,12 +165,15 @@ for plot_info in things_to_plot:
         ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
         ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
 
+    if os.path.isfile(plot_info['mc_output']):
+        have_mc = True
+        mcdata = mpio.get_friendly_ppxf_output_mc(plot_info['mc_output'])
+    else:
+        have_mc = False
+
     # save "friendly" text output for theorists
 
 
-    #here beings old code
-    #reg_data, reg_headers = utl.fits_quickread(plot_info['reg_output'])
-    #moments, lsq, scaledlsq = reg_data[0]
 
     # still need to clean up comparison plotting
     #if not plot_info['compare_moments']=='none':
@@ -191,8 +194,16 @@ for plot_info in things_to_plot:
             fig = plt.figure(figsize=(6,5))
             fig.suptitle('Moment vs radius ({})'.format(moment_names[i]))
             ax = fig.add_axes([0.15,0.1,0.8,0.8])
-            ax.plot(bininfo['r'][ibins],fitdata['gh']['moment'][:,i],ls='',
-                    marker='o',c='b',ms=5.0,alpha=0.8)
+            moments = fitdata['gh']['moment'][:,i]
+            moments_r = bininfo['r'][ibins]
+            moments_err = fitdata['gh']['scalederr'][:,i]
+            ax.errorbar(moments_r,moments,yerr=moments_err,ls='',
+                        marker=None,ecolor='0.5',elinewidth=0.5)
+            if have_mc:
+                mc_err = mcdata['err']
+                ax.errorbar(moments_r,moments,yerr=mcdata['err'][:,i],ls='',
+                            marker=None,ecolor='k',elinewidth=0.5)
+            ax.plot(moments_r,moments,ls='',marker='o',mfc='b',ms=5.0,alpha=0.8)
             # comparison plot ability needs updating
             #if do_comparison:
             #    ax.plot(bininfo['r'],fid_moments[:,i],ls='',
@@ -242,10 +253,6 @@ for plot_info in things_to_plot:
                                       autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
         pdf.savefig(fig)
-    # spectra for each bin, same in both cases
-    ### want to change this to all spectra on one axis
-    ### want to have bin ids, not just indexes
-    ### want to have wavelength, not just pixel number
 
     # plot each spectrum, y-axis also represents bin number
     fig = plt.figure(figsize=(6,max(fitdata['bins']['id'])))
@@ -278,17 +285,4 @@ for plot_info in things_to_plot:
     pdf.savefig(fig)
     plt.close(fig)
 
-    '''
-    #spec, noise, usepix, modelspec, mulpoly, addpoly = reg_data[2]
-    for b in range(nbins):
-        fig = plt.figure(figsize=(6,5))
-        fig.suptitle('Spectrum for bin {} of {}'.format(b+1, nbins))
-        ax = fig.add_axes([0.15,0.1,0.8,0.8])
-        ax.plot(spec[b,:],c='k',label='spectrum')
-        ax.plot(modelspec[b,:],c='r',label='model spectrum')
-        ax.set_xlabel('pixel')
-        ax.set_ylabel('flux')
-        pdf.savefig(fig)
-        plt.close(fig)
-    '''
     pdf.close()

@@ -244,6 +244,7 @@ for plot_info in things_to_plot:
                                       autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
         pdf.savefig(fig)
+        plt.close(fig)
         # plot flux-normalized weights
         fig = plt.figure(figsize=(6,5))
         fig.suptitle('Templates (flux-normalized weights)')
@@ -253,9 +254,12 @@ for plot_info in things_to_plot:
                                       autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
         pdf.savefig(fig)
-
+        plt.close(fig)
+    
     # plot each spectrum, y-axis also represents bin number
-    fig = plt.figure(figsize=(6,max(fitdata['bins']['id'])))
+    figheight = max(fitdata['bins']['id'])
+    figheight = max(figheight,4)
+    fig = plt.figure(figsize=(6, figheight))
     fig.suptitle('bin spectra by bin number')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     for i,binid in enumerate(fitdata['bins']['id']):
@@ -284,5 +288,5 @@ for plot_info in things_to_plot:
     ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)
     plt.close(fig)
-
+    
     pdf.close()

@@ -85,11 +85,11 @@ for paramfile_path in all_paramfile_paths:
                 "{}-s3-{}-{}-{}.{}".format(gal_name,run_name,run_type,f,ext))
     output_paths_dict = {}
     output_paths_dict['temps'] = output_path_maker('temps','txt')
-    output_paths_dict['reg'] = output_path_maker('reg','fits')
+    output_paths_dict['main'] = output_path_maker('main','fits')
     output_paths_dict['mc'] = output_path_maker('mc','fits')
 
     # save relevant info for plotting to a dict
-    plot_info = {'reg_output': output_paths_dict['reg'],
+    plot_info = {'main_output': output_paths_dict['main'],
                  'mc_output': output_paths_dict['mc'],
                  'temps_output': output_paths_dict['temps'],
                  'plot_path': output_path_maker('plots','pdf'),
@@ -99,8 +99,8 @@ for paramfile_path in all_paramfile_paths:
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
-    # only checks for "regular" fits file, not whether params have changed
-    if os.path.isfile(output_paths_dict['reg']):
+    # only checks for "main" fits file, not whether params have changed
+    if os.path.isfile(output_paths_dict['main']):
         if input_params['skip_rerun']=='yes':
             print '\nSkipping re-run of {}, plotting only'.format(gal_name)
             continue
@@ -153,7 +153,7 @@ for plot_info in things_to_plot:
     plot_path = plot_info['plot_path']
 
     # get data from fits files of ppxf fit output, and bins if needed
-    fitdata = mpio.get_friendly_ppxf_output(plot_info['reg_output'])
+    fitdata = mpio.get_friendly_ppxf_output(plot_info['main_output'])
     nbins = fitdata['params']['nbins']
     nmoments = fitdata['params']['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
@@ -172,7 +172,10 @@ for plot_info in things_to_plot:
         have_mc = False
 
     # save "friendly" text output for theorists
-
+    if plot_info['run_type']=='full':
+        pass #Save template file here, not in ppxf driver save
+    elif plot_info['run_type']=='bins':
+        pass #Save gh moments text file.
 
 
     # still need to clean up comparison plotting

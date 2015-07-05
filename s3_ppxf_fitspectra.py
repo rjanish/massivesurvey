@@ -269,7 +269,7 @@ for plot_info in things_to_plot:
         spectrum = fitdata['spec']['spectrum'][i]
         model = fitdata['spec']['bestmodel'][i]
         waves = fitdata['waves']
-        ax.plot(waves,spectrum-spectrum[0]+binid,c='k')
+        ax.plot(waves,binid-spectrum+spectrum[0],c='k')
         ax.plot(waves,model-spectrum[0]+binid,c='r',lw=0.7)
     # find regions to mask
     # note the masking is currently saved per bin in fitoutput, this is silly!
@@ -286,7 +286,7 @@ for plot_info in things_to_plot:
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)
-    ax.set_ylim(ymin=-1,ymax=max(fitdata['bins']['id'])+2)
+    ax.set_ylim(ymin=-2,ymax=max(fitdata['bins']['id'])+1)
     ax.invert_yaxis()
     ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)

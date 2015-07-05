@@ -624,7 +624,7 @@ class pPXFDriver(object):
         #Now collect all the HDUs for the fits file
         hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps,hdu_spec,hdu_bins,
                                      hdu_addmul,hdu_mtemps,hdu_waves])
-        hdu_all.writeto(paths_dict['reg'], clobber=True)
+        hdu_all.writeto(paths_dict['main'], clobber=True)
             
         # verify that the things I am throwing out are indeed zero/none
         # this should go away in the internal cleanup, or get put elsewhere

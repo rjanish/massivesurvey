@@ -48,9 +48,11 @@ def get_friendly_ppxf_output(path):
     nbins = headers[0]['NAXIS2']
     nmoments = headers[0]['NAXIS1']
     npixels = headers[2]['NAXIS1']
-    friendly_data['params'] = {'nmoments':nmoments,
-                               'nbins':nbins,
-                               'npixels':npixels}
+    friendly_data['nmoments'] = nmoments
+    friendly_data['nbins'] = nbins
+    #friendly_data['npixels'] = npixels
+    friendly_data['add_deg'] = headers[0]['ADD_DEG']
+    friendly_data['mul_deg'] = headers[0]['MUL_DEG']
 
     # populate moment stuff
     dt = {'names':['moment','err','scalederr'],'formats':3*[np.float64]}
@@ -95,6 +97,8 @@ def get_friendly_ppxf_output_mc(path):
     nruns = headers[0]['NAXIS2']
     nbins = headers[0]['NAXIS3']
     nthings = headers[0]['NAXIS4']
+
+    friendly_data['nruns'] = nruns
 
     friendly_data['err'] = np.zeros((nbins,nmoments))
     for ibin in range(nbins):

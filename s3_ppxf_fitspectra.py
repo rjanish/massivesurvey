@@ -87,15 +87,18 @@ for paramfile_path in all_paramfile_paths:
     output_paths_dict['temps'] = output_path_maker('temps','txt')
     output_paths_dict['main'] = output_path_maker('main','fits')
     output_paths_dict['mc'] = output_path_maker('mc','fits')
+    moments_path = output_path_maker('moments','txt')
 
     # save relevant info for plotting to a dict
     plot_info = {'main_output': output_paths_dict['main'],
                  'mc_output': output_paths_dict['mc'],
                  'temps_output': output_paths_dict['temps'],
+                 'moments_output': moments_path,
                  'plot_path': output_path_maker('plots','pdf'),
                  'binspectra_path': binned_cube_path,
                  'run_type': run_type, 'templates_dir': templates_dir,
-                 'bininfo_path': input_params['bin_info_path']}
+                 'bininfo_path': input_params['bin_info_path'],
+                 'gal_name': gal_name}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
@@ -154,8 +157,8 @@ for plot_info in things_to_plot:
 
     # get data from fits files of ppxf fit output, and bins if needed
     fitdata = mpio.get_friendly_ppxf_output(plot_info['main_output'])
-    nbins = fitdata['params']['nbins']
-    nmoments = fitdata['params']['nmoments']
+    nbins = fitdata['nbins']
+    nmoments = fitdata['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
@@ -175,7 +178,22 @@ for plot_info in things_to_plot:
     if plot_info['run_type']=='full':
         pass #Save template file here, not in ppxf driver save
     elif plot_info['run_type']=='bins':
-        pass #Save gh moments text file.
+        txtfile_array = np.zeros((nbins,1+2*nmoments))
+        txtfile_header = 'Fit results for {}'.format(plot_info['gal_name'])
+        txtfile_header += '\nPPXF input parameters were as follows:'
+        for param in ['add_deg', 'mul_deg']:
+            txtfile_header += '\n {} = {}'.format(param,fitdata[param])
+        txtfile_array[:,0] = fitdata['bins']['id']
+        txtfile_array[:,1:1+nmoments] = fitdata['gh']['moment']
+        if have_mc:
+            txtfile_array[:,-nmoments:] = mcdata['err']
+            txtfile_header += '\nErrors from {} mc runs'.format(mcdata['nruns'])
+        else:
+            txtfile_array[:,-nmoments:] = fitdata['gh']['scalederr']
+            txtfile_header += '\nErrors from ppxf, scaled'
+        fmt = ['%i'] + 2*nmoments*['%-6f']
+        np.savetxt(plot_info['moments_output'],txtfile_array,fmt=fmt,
+                   delimiter='\t',header=txtfile_header)
 
 
     # still need to clean up comparison plotting
@@ -270,7 +288,7 @@ for plot_info in things_to_plot:
         model = fitdata['spec']['bestmodel'][i]
         waves = fitdata['waves']
         ax.plot(waves,binid-spectrum+spectrum[0],c='k')
-        ax.plot(waves,model-spectrum[0]+binid,c='r',lw=0.7)
+        ax.plot(waves,binid-model+spectrum[0],c='r',lw=0.7)
     # find regions to mask
     # note the masking is currently saved per bin in fitoutput, this is silly!
     # for now just use the mask for the last bin (i at end of above loop)

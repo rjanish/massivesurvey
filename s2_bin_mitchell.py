@@ -138,6 +138,7 @@ for paramfile_path in all_paramfile_paths:
                    "spectra_ids":bin_ids, # TO DO: add radial sorting
                    "wavelengths":ifuset.spectrumset.waves}
     bin_coords = np.zeros((number_bins, 4))  # flux weighted x, y, r, theta
+    bin_fluxes = np.zeros(number_bins)
     fiber_ids = ifuset.spectrumset.ids
     fiber_binnumbers = {f: const.unusedfiber_bin_id for f in fiber_ids}
     fiber_binnumbers.update({f: const.badfiber_bin_id for f in badfibers})
@@ -154,6 +155,7 @@ for paramfile_path in all_paramfile_paths:
         fluxes = subset.spectrumset.compute_flux()
         bin_coords[bin_iter,:] = binning.calc_bin_center(xs,ys,fluxes,bin_type,
                                         ma=ma_bin,rmin=np.min(radial_bounds))
+        bin_fluxes[bin_iter] = np.average(subset.spectrumset.compute_flux())
     spec_unit = ifuset.spectrumset.spec_unit
     wave_unit = ifuset.spectrumset.wave_unit
     binned_comments = ifuset.spectrumset.comments.copy()
@@ -192,13 +194,13 @@ for paramfile_path in all_paramfile_paths:
     bininfo = np.zeros(number_bins,dtype=dt)
     bininfo['binid'] = bin_ids
     bininfo['nfibers'] = [len(fibers) for fibers in grouped_ids]
-    bininfo['flux'] = binned_specset.compute_flux()
+    bininfo['flux'] = bin_fluxes
     for i,coord in enumerate(['x','y','r','th']):
         bininfo[coord] = bin_coords[:,i]
     for i,bound in enumerate(['rmin','rmax','thmin','thmax']):
         bininfo[bound] = bin_bounds[i,:]
     binheader = 'Coordinate definitions:'
-    #Do east-west reflect
+    # do east-west reflect
     ma_xy = np.pi - ma_bin
     bininfo['x'] = -bininfo['x']
     binheader += '\n x-direction is west, y-direction is north'
@@ -229,12 +231,22 @@ for plot_info in things_to_plot:
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
 
     specset = spec.read_datacube(plot_info['binspectra_path'])
-    logbinfluxes = np.log10(specset.compute_flux())
-    logfmax = max(logbinfluxes)
-    logfmin = min(logbinfluxes)
+    # note that the specset fluxes are all the same! :(
+    #logbinfluxes = np.log10(specset.compute_flux())
+    logbinfluxes = np.log10(bininfo['flux'])
+    # use colorbar limits from fiber maps, for continuity
+    logfiberfluxes = np.log10(ifuset.spectrumset.compute_flux())
+    logfmax = max(logfiberfluxes)
+    logfmin = min(logfiberfluxes)
     fluxunit = specset.integratedflux_unit
     fcmap = plt.cm.get_cmap('Reds')
     fgetcolor = lambda f: fcmap((f - logfmin)/(logfmax-logfmin))
+    logbins2n = np.log10(specset.compute_mean_s2n())
+    logfibers2n = np.log10(ifuset.spectrumset.compute_mean_s2n())
+    logsmax = max(logfibers2n)
+    logsmin = min(logfibers2n)
+    scmap = plt.cm.get_cmap('Greens')
+    sgetcolor = lambda s: scmap((s - logsmin)/(logsmax-logsmin))
 
     specset_full = spec.read_datacube(plot_info['fullbin_path'])
 
@@ -248,6 +260,9 @@ for plot_info in things_to_plot:
     fig2 = plt.figure(figsize=(6,6))
     fig2.suptitle('Bin flux map')
     ax2 = fig2.add_axes([0.15,0.1,0.7,0.7])
+    fig3 = plt.figure(figsize=(6,6))
+    fig3.suptitle('Bin s2n map')
+    ax3 = fig3.add_axes([0.15,0.1,0.7,0.7])
     mycolors = ['b','g','c','m','r','y']
     bincolors = {}
     for binid in set(binids):
@@ -282,10 +297,15 @@ for plot_info in things_to_plot:
             ax1.add_patch(descartes.PolygonPatch(bin_poly,fc='none',lw=1.5))
             ax2.add_patch(descartes.PolygonPatch(bin_poly,
                                 fc=fgetcolor(logbinfluxes[bin_iter]),lw=1.5))
+            ax3.add_patch(descartes.PolygonPatch(bin_poly,
+                                fc=sgetcolor(logbins2n[bin_iter]),lw=1.5))
         else:
             ax2.add_patch(patches.Circle((bininfo['x'][bin_iter],
                     bininfo['y'][bin_iter]),fibersize,lw=0.25,
                     fc=fgetcolor(logbinfluxes[bin_iter])))
+            ax3.add_patch(patches.Circle((bininfo['x'][bin_iter],
+                    bininfo['y'][bin_iter]),fibersize,lw=0.25,
+                    fc=sgetcolor(logbins2n[bin_iter])))
 
     # draw ma
     rmax = np.nanmax(bininfo['rmax'])
@@ -294,23 +314,32 @@ for plot_info in things_to_plot:
              linewidth=1.5, color='r')
     ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
     ax2.axis([-squaremax,squaremax,-squaremax,squaremax])
+    ax3.axis([-squaremax,squaremax,-squaremax,squaremax])
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
     label_flux = r'flux (log 10 [{}])'.format(fluxunit)
+    label_s2n = r's2n (log 10)'
     ax1.set_xlabel(label_x)
     ax1.set_ylabel(label_y)
-    # do colorbar
+    # do colorbars
     ax2C = fig2.add_axes([0.15,0.8,0.7,0.8])
     ax2C.set_visible(False)
     mappable_flux = plt.cm.ScalarMappable(cmap=fcmap)
     mappable_flux.set_array([logfmin,logfmax])
     fig2.colorbar(mappable_flux,orientation='horizontal',ax=ax2C,
                   label=label_flux)
+    ax3C = fig3.add_axes([0.15,0.8,0.7,0.8])
+    ax3C.set_visible(False)
+    mappable_s2n = plt.cm.ScalarMappable(cmap=scmap)
+    mappable_s2n.set_array([logsmin,logsmax])
+    fig3.colorbar(mappable_s2n,orientation='horizontal',ax=ax3C,
+                  label=label_s2n)
     pdf.savefig(fig1)
     plt.close(fig1)
-    # don't save the flux map yet, it is a work in progress
-    #pdf.savefig(fig2)
+    pdf.savefig(fig2)
     plt.close(fig2)
+    pdf.savefig(fig3)
+    plt.close(fig3)
 
 
     # plot each spectrum, y-axis also represents bin number

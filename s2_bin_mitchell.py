@@ -106,7 +106,6 @@ for paramfile_path in all_paramfile_paths:
     gal_position = target_positions[target_positions.Name == gal_name]
     gal_pa = gal_position.PA_best.iat[0]
     ma_bin = np.pi/2 - np.deg2rad(gal_pa)
-    ma_xy = np.pi/2 + np.deg2rad(gal_pa)
     fiber_radius = const.mitchell_fiber_radius.value
     #Do the full galaxy bin here because it is so fast.
     full_galaxy = ifuset.spectrumset.collapse(id=0)
@@ -186,27 +185,41 @@ for paramfile_path in all_paramfile_paths:
     np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t',
                header=fiberinfo_header)
     # save bin number vs number of fibers, bin center coords, and bin boundaries
-    dt = {'names':['binid','nfibers','x','y','r','th',
+    dt = {'names':['binid','nfibers','flux','x','y','r','th',
                    'rmin','rmax','thmin','thmax'],
-          'formats':2*['i4']+8*['f32']}
+          'formats':2*['i4']+9*['f32']}
+    fmt = 2*['%1i']+9*['%9.5f']
     bininfo = np.zeros(number_bins,dtype=dt)
     bininfo['binid'] = bin_ids
     bininfo['nfibers'] = [len(fibers) for fibers in grouped_ids]
+    bininfo['flux'] = binned_specset.compute_flux()
     for i,coord in enumerate(['x','y','r','th']):
         bininfo[coord] = bin_coords[:,i]
     for i,bound in enumerate(['rmin','rmax','thmin','thmax']):
         bininfo[bound] = bin_bounds[i,:]
-    np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=2*['%1i']+8*['%9.5f'],
-               header=' '.join(dt['names']))
+    binheader = 'Coordinate definitions:'
+    #Do east-west reflect
+    ma_xy = np.pi - ma_bin
+    bininfo['x'] = -bininfo['x']
+    binheader += '\n x-direction is west, y-direction is north'
+    binheader += '\n theta=0 is defined at +x, increases counterclockwise'
+    binheader += '\n units are {}'.format(ifuset.coord_comments['coordunit'])
+    binheader += '\nCenter Ra/Dec are {}, {}'.format(gal_position.Ra.iat[0],
+                                                     gal_position.Dec.iat[0])
+    binheader += '\nPA (radians, above theta definition) is {}'.format(ma_xy)
+    binheader += '\nColumns are as follows:'
+    binheader += '\n' + ' '.join(dt['names'])
+    np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
     print 'You may ignore the weird underflow error, it is not important.'
 
 for plot_info in things_to_plot:
     plot_path = plot_info['plot_path']
     fiberids, binids = np.genfromtxt(plot_info['fiberinfo_path'],
                                      dtype=int,unpack=True)
-    bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True)
-    bininfo['x'] *= -1  #east-west reflect
+    bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,skip_header=7)
     nbins = len(bininfo)
+    ma_line = open(plot_info['bininfo_path'],'r').readlines()[5]
+    ma_theta = float(ma_line.strip().split()[-1])
 
     ifuset = ifu.read_mitchell_datacube(plot_info['proc_cube_path'])
     fiber_coords = ifuset.coords.copy()
@@ -214,15 +227,6 @@ for plot_info in things_to_plot:
     fibersize = const.mitchell_fiber_radius.value #Assuming units match!
     fiber_coords[:, 0] *= -1  # east-west reflect
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
-
-    target_positions = pd.read_csv(plot_info['targets_path'],
-                                   comment='#', sep="[ \t]+",
-                                   engine='python')
-    gal_position = target_positions[target_positions.Name == 
-                                    plot_info['gal_name']]
-    gal_pa = gal_position.PA_best.iat[0]
-    ma_bin = np.pi/2 - np.deg2rad(gal_pa)
-    ma_xy = np.pi/2 + np.deg2rad(gal_pa)
 
     specset = spec.read_datacube(plot_info['binspectra_path'])
     logbinfluxes = np.log10(specset.compute_flux())
@@ -285,9 +289,9 @@ for plot_info in things_to_plot:
 
     # draw ma
     rmax = np.nanmax(bininfo['rmax'])
-    ax1.plot([-rmax*1.1*np.cos(ma_xy), rmax*1.1*np.cos(ma_xy)],
-            [-rmax*1.1*np.sin(ma_xy), rmax*1.1*np.sin(ma_xy)],
-            linewidth=1.5, color='r')
+    ax1.plot([-rmax*1.1*np.cos(ma_theta), rmax*1.1*np.cos(ma_theta)],
+             [-rmax*1.1*np.sin(ma_theta), rmax*1.1*np.sin(ma_theta)],
+             linewidth=1.5, color='r')
     ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
     ax2.axis([-squaremax,squaremax,-squaremax,squaremax])
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)

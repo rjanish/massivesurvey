@@ -360,6 +360,24 @@ for plot_info in things_to_plot:
     pdf.savefig(fig)
     plt.close(fig)
 
+    # plot ir for each bin
+    fig = plt.figure(figsize=(6,6))
+    fig.suptitle('ir for each bin')
+    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    bcmap = plt.cm.get_cmap('cool')
+    for ibin in range(nbins):
+        ax.plot(specset.waves,specset.metaspectra['ir'][ibin,:],
+                c=bcmap(ibin/float(nbins)),alpha=0.7)
+    axC = fig.add_axes([0.15,0.8,0.7,0.8])
+    axC.set_visible(False)
+    mappable_bins = plt.cm.ScalarMappable(cmap=bcmap)
+    mappable_bins.set_array([0,nbins])
+    fig.colorbar(mappable_bins,orientation='horizontal',ax=axC,
+                 label='bin number')
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
     # reproduce process_mitchell flux plots with bad fibers highlighted
     fig1 = plt.figure(figsize=(6,6))
     fig1.suptitle('flux map')

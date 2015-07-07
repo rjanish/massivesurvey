@@ -191,6 +191,9 @@ for plot_info in things_to_plot:
         else:
             txtfile_array[:,-nmoments:] = fitdata['gh']['scalederr']
             txtfile_header += '\nErrors from ppxf, scaled'
+        txtfile_header += '\nColumns are as follows:'
+        colnames = ['bin'] + moment_names + [m+'err' for m in moment_names]
+        txtfile_header += '\n' + ' '.join(colnames)
         fmt = ['%i'] + 2*nmoments*['%-6f']
         np.savetxt(plot_info['moments_output'],txtfile_array,fmt=fmt,
                    delimiter='\t',header=txtfile_header)

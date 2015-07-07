@@ -293,14 +293,15 @@ for plot_info in things_to_plot:
     # note the masking is currently saved per bin in fitoutput, this is silly!
     # for now just use the mask for the last bin (i at end of above loop)
     maskpix = np.where(fitdata['spec']['pixused'][i,:]==0)[0]
-    ibreaks = np.where(np.diff(maskpix)!=1)[0]
-    maskpix_starts = [maskpix[0]]
-    maskpix_starts.extend(maskpix[ibreaks+1])
-    maskpix_ends = list(maskpix[ibreaks])
-    maskpix_ends.append(maskpix[-1])
-    for startpix,endpix in zip(maskpix_starts,maskpix_ends):
-        ax.axvspan(fitdata['waves'][startpix],fitdata['waves'][endpix],
-                   fc='k',ec='none',alpha=0.5,lw=0)
+    if not len(maskpix)==0:
+        ibreaks = np.where(np.diff(maskpix)!=1)[0]
+        maskpix_starts = [maskpix[0]]
+        maskpix_starts.extend(maskpix[ibreaks+1])
+        maskpix_ends = list(maskpix[ibreaks])
+        maskpix_ends.append(maskpix[-1])
+        for startpix,endpix in zip(maskpix_starts,maskpix_ends):
+            ax.axvspan(fitdata['waves'][startpix],fitdata['waves'][endpix],
+                       fc='k',ec='none',alpha=0.5,lw=0)
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)

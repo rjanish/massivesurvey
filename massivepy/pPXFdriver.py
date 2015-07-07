@@ -472,7 +472,7 @@ class pPXFDriver(object):
         # add type-processing of output dicts here
         return
 
-    def write_outputs(self,paths_dict):
+    def write_outputs(self,paths_dict,debug_mc=False):
         """
         Write driver outputs to file.
         Place all outputs in destination_dir, with run_name as 
@@ -486,12 +486,17 @@ class pPXFDriver(object):
           with the full Miles library, so the list can be used as
           input to further fits.)
         """
+        #Note: all contents from main_input, main_rawoutput, main_procoutput
+        # are either saved to the .fits file or checked for being zero or
+        # none EXCEPT main_procoutput['smoothed_temps'], because they are
+        # extremely inconvenient, large, and probably not useful.
+        
         #Set up the main run fits file
         baseheader = fits.Header()
         #Identify things that should be the same for all bins, and
         #save those in the header.
         main_input_matching = ['regul','clean','oversample','add_deg',
-                               'mul_deg','bias','vsyst','num_moments']
+                               'mul_deg','bias','num_moments']
         for match_key in main_input_matching:
             match_list = self.main_input[match_key]
             if not all([thing==match_list[0] for thing in match_list]):
@@ -548,7 +553,7 @@ class pPXFDriver(object):
                        t_array_nonzero,
                        header='columns are {}'.format(template_info_columns),
                        fmt=fmt,delimiter='\t')
-        #HDU 3: spectrum and other related things
+        #HDU 3: spectrum and other related things (per bin)
         spectrum = self.main_input['spectrum']
         noise = self.main_input['noise']
         pixels_used = []
@@ -568,26 +573,81 @@ class pPXFDriver(object):
         hdu_spec = fits.ImageHDU(data=spec_info,
                                  header=header_spec,
                                  name='spectrum_info')
+
+        #HDU 4: anything that goes one-number-per-bin
+        binids = self.specset.ids
+        chisq_dof = self.main_rawoutput['chisq_dof']
+        sampling_factor = self.main_rawoutput['sampling_factor']
+        num_kin_components = self.main_rawoutput['num_kin_components']
+        vsyst = self.main_input['vsyst']
+        bins_info = [binids,chisq_dof,sampling_factor,num_kin_components,vsyst]
+        bins_info_columns = "binid,chisq,sampfactor,numkincomp,vsyst"
+        header_bins = baseheader.copy()
+        header_bins.append(("axis1", "bin"))
+        header_bins.append(("axis2", bins_info_columns))
+        hdu_bins = fits.ImageHDU(data=bins_info,
+                                header=header_bins,
+                                name='bin_info')
+
+        #HDU 5: The add_weights, mul_weights
+        nbins = len(self.main_rawoutput['add_weights'])
+        addmul_info = []
+        for i in range(nbins):
+            add_weights = list(self.main_rawoutput['add_weights'][i])
+            mul_weights = list(self.main_rawoutput['mul_weights'][i])
+            flux_add_weights = list(self.main_procoutput['flux_add_weights'][i])
+            addmul_info.append(add_weights + flux_add_weights + mul_weights)
+        addmul_info_columns = "{}addweights,fluxaddweights,{}mulweights".format(len(add_weights),len(mul_weights))
+        header_addmul = baseheader.copy()
+        header_addmul.append(("axis1", addmul_info_columns))
+        header_addmul.append(("axis2", "bin"))
+        hdu_addmul = fits.ImageHDU(data=addmul_info,
+                                header=header_addmul,
+                                name='add_mul_weights')
+
+        #HDU 6: The model templates
+        header_mtemps = baseheader.copy()
+        header_mtemps.append(("axis1", "pixel"))
+        header_mtemps.append(("axis2", "template"))
+        hdu_mtemps = fits.ImageHDU(data=self.main_procoutput['model_temps'],
+                                   header=header_mtemps,
+                                   name='model_temps')
+
+        #HDU 7: The wavelengths (same for all bins, so not in spectrum hdu)
+        header_waves = baseheader.copy()
+        hdu_waves = fits.ImageHDU(data=self.specset.waves,
+                                  header=header_waves,
+                                  name='wavelengths')
+        if not self.specset.waves.shape == self.main_input['spectrum'][0].shape:
+            warnings.warn("spectrum and wavelengths don't match")
+
         #Now collect all the HDUs for the fits file
-        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps,hdu_spec])
-        hdu_all.writeto(paths_dict['reg'], clobber=True)
+        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps,hdu_spec,hdu_bins,
+                                     hdu_addmul,hdu_mtemps,hdu_waves])
+        hdu_all.writeto(paths_dict['main'], clobber=True)
             
-        ###
-        #Notes about what I am saving of the main run!
-        #--Things I am skipping entirely:
-        #   -from self.main_input: reg_dim, kin_components, lam, sky_template
-        #   -from self.main_rawoutput: chisq_dof, sampling_factor,
-        #    num_kin_components, reddening, add_weights, mul_weights
-        #   -from self.main_procoutput: flux_add_weights, smoothed_temps,
-        #    model_temps
-        #--Things I am skipping partially: everything in the template library
-        #  in main_input['templates'] except for the list of template ids.
-        ###
-        print 'The output fits files will be missing a few things:'
-        print ' (from input) reg_dim, kin_components, lam, sky_template'
-        print ' (from rawoutput) chisq_dof, sampling_factor',
-        print ', num_kin_components, reddening, add_weights, mul_weights'
-        print ' (from procoutput) flux_add_weights, smoothed_temps, model_temps'
+        # verify that the things I am throwing out are indeed zero/none
+        # this should go away in the internal cleanup, or get put elsewhere
+        if not all([x is None for x in self.main_input['lam']]):
+            msg = 'Expected lam to be None, it is not. '
+            msg += 'lam = {}'.format(self.main_input['lam'])
+            warnings.warn(msg)
+        if not all([x is None for x in self.main_input['sky_template']]):
+            msg = 'Expected sky template to be None, it is not. '
+            msg += 'Sky template = {}'.format(self.main_input['sky_template'])
+            warnings.warn(msg)
+        if not all([np.count_nonzero(x)==0 for x in self.main_input['kin_components']]):
+            msg = 'Expected kinetic components to be zero, it is not. '
+            msg += 'It is {}'.format(self.main_input['kin_components'])
+            warnings.warn(msg)
+        if not all([x==np.asarray(None) for x in self.main_input['reg_dim']]):
+            msg = 'Expected reg_dim to be none array, it is not. '
+            msg += 'It is {}'.format(self.main_input['reg_dim'])
+            warnings.warn(msg)
+        if not all([x is None for x in self.main_rawoutput['reddening']]):
+            msg = 'Expected reddening to be None, it is not. '
+            msg += 'reddening = {}'.format(self.main_rawoutput['reddening'])
+            warnings.warn(msg)
 
         #Now do everything again for the mc runs. Only save things that
         # actually change by run, i.e. input spectrum and all of the outputs
@@ -613,11 +673,14 @@ class pPXFDriver(object):
         mc_hdu_gh = fits.PrimaryHDU(data=mc_moment_info,
                                     header=mc_header_gh)
         #HDU 2
+        mc_t_ids = []
+        for tlist in self.mc_input['templates']:
+            mc_t_ids.append([t.spectrumset.ids for t in tlist])
         mc_t_weights = self.mc_rawoutput['template_weights']
         mc_t_mflux = self.mc_procoutput['model_temps_fluxes']
         mc_t_fw = self.mc_procoutput['flux_template_weights']
-        mc_template_info = [mc_t_weights,mc_t_mflux,mc_t_fw]
-        mc_template_info_columns = "weight,modelflux,fluxweight"
+        mc_template_info = [mc_t_ids,mc_t_weights,mc_t_mflux,mc_t_fw]
+        mc_template_info_columns = "id,weight,modelflux,fluxweight"
         mc_header_temps = mc_baseheader.copy()
         mc_header_temps.append(("axis1", "template"))
         mc_header_temps.append(("axis2", "mcrun"))
@@ -641,20 +704,21 @@ class pPXFDriver(object):
                                     header=mc_header_spec,
                                     name='spectrum_info')
         #Now collect all the HDUs for the fits file
-        mc_hdu_all = fits.HDUList(hdus=[mc_hdu_gh,mc_hdu_temps,mc_hdu_spec])
-        mc_hdu_all.writeto(paths_dict['mc'], clobber=True)
+        if debug_mc:
+            mc_hdu_all = [mc_hdu_gh,mc_hdu_temps,mc_hdu_spec]
+        else:
+            mc_hdu_all = [mc_hdu_gh]
+        mc_fits = fits.HDUList(hdus=mc_hdu_all)
+        mc_fits.writeto(paths_dict['mc'], clobber=True)
 
         ###
         #Notes about what I am saving of the mc runs!
-        #--If it is skipped for the main run, it is skipped for mc runs
-        #--Additional things I am skipping (all from mc_input) because they 
-        #  should match what is in main_input: templates, regul, vsyst, clean,
-        #  oversample, add_deg, mul_deg, bias, num_moments, noise, pixels_used
-        #--This means the list of things I save is as follows:
         #   -from self.mc_input: spectrum
         #   -from self.mc_rawoutput: gh_params, template_weights, 
         #    unscaled_lsq_errors, best_model
         #   -from self.mc_procoutput: model_temps_fluxes, scaled_lsq_errors,
         #    mul_poly, flux_template_weights, add_poly
+        #Everything else is left out. If debug_mc=False, everything but the
+        # moment stuff is left out.
         ###
         return

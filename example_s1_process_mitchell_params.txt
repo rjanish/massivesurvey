@@ -17,4 +17,4 @@ target_positions	../all_my_input/target-positions.txt
 #   run_name: any string, e.g. 'test1' or 'new_ir_calc', to be included in filenames
 
 skip_rerun		yes
-run_name		main
+run_name		run1

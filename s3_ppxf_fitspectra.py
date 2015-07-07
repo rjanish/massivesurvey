@@ -85,21 +85,25 @@ for paramfile_path in all_paramfile_paths:
                 "{}-s3-{}-{}-{}.{}".format(gal_name,run_name,run_type,f,ext))
     output_paths_dict = {}
     output_paths_dict['temps'] = output_path_maker('temps','txt')
-    output_paths_dict['reg'] = output_path_maker('reg','fits')
+    output_paths_dict['main'] = output_path_maker('main','fits')
     output_paths_dict['mc'] = output_path_maker('mc','fits')
+    moments_path = output_path_maker('moments','txt')
 
     # save relevant info for plotting to a dict
-    plot_info = {'reg_output': output_paths_dict['reg'],
+    plot_info = {'main_output': output_paths_dict['main'],
                  'mc_output': output_paths_dict['mc'],
                  'temps_output': output_paths_dict['temps'],
+                 'moments_output': moments_path,
                  'plot_path': output_path_maker('plots','pdf'),
                  'binspectra_path': binned_cube_path,
-                 'run_type': run_type, 'templates_dir': templates_dir}
+                 'run_type': run_type, 'templates_dir': templates_dir,
+                 'bininfo_path': input_params['bin_info_path'],
+                 'gal_name': gal_name}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
-    # only checks for "regular" fits file, not whether params have changed
-    if os.path.isfile(output_paths_dict['reg']):
+    # only checks for "main" fits file, not whether params have changed
+    if os.path.isfile(output_paths_dict['main']):
         if input_params['skip_rerun']=='yes':
             print '\nSkipping re-run of {}, plotting only'.format(gal_name)
             continue
@@ -151,13 +155,49 @@ for paramfile_path in all_paramfile_paths:
 for plot_info in things_to_plot:
     plot_path = plot_info['plot_path']
 
-    reg_data, reg_headers = utl.fits_quickread(plot_info['reg_output'])
-    moments, lsq, scaledlsq = reg_data[0]
-    nbins = moments.shape[0]
-    nmoments = moments.shape[1]
+    # get data from fits files of ppxf fit output, and bins if needed
+    fitdata = mpio.get_friendly_ppxf_output(plot_info['main_output'])
+    nbins = fitdata['nbins']
+    nmoments = fitdata['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
+    if plot_info['run_type']=='bins':
+        # assuming the binspectra path ends in spectra.fits, this is not ideal
+        bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True)
+        ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
+        ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
+
+    if os.path.isfile(plot_info['mc_output']):
+        have_mc = True
+        mcdata = mpio.get_friendly_ppxf_output_mc(plot_info['mc_output'])
+    else:
+        have_mc = False
+
+    # save "friendly" text output for theorists
+    if plot_info['run_type']=='full':
+        pass #Save template file here, not in ppxf driver save
+    elif plot_info['run_type']=='bins':
+        txtfile_array = np.zeros((nbins,1+2*nmoments))
+        txtfile_header = 'Fit results for {}'.format(plot_info['gal_name'])
+        txtfile_header += '\nPPXF input parameters were as follows:'
+        for param in ['add_deg', 'mul_deg']:
+            txtfile_header += '\n {} = {}'.format(param,fitdata[param])
+        txtfile_array[:,0] = fitdata['bins']['id']
+        txtfile_array[:,1:1+nmoments] = fitdata['gh']['moment']
+        if have_mc:
+            txtfile_array[:,-nmoments:] = mcdata['err']
+            txtfile_header += '\nErrors from {} mc runs'.format(mcdata['nruns'])
+        else:
+            txtfile_array[:,-nmoments:] = fitdata['gh']['scalederr']
+            txtfile_header += '\nErrors from ppxf, scaled'
+        txtfile_header += '\nColumns are as follows:'
+        colnames = ['bin'] + moment_names + [m+'err' for m in moment_names]
+        txtfile_header += '\n' + ' '.join(colnames)
+        fmt = ['%i'] + 2*nmoments*['%-6f']
+        np.savetxt(plot_info['moments_output'],txtfile_array,fmt=fmt,
+                   delimiter='\t',header=txtfile_header)
+
 
     # still need to clean up comparison plotting
     #if not plot_info['compare_moments']=='none':
@@ -174,17 +214,20 @@ for plot_info in things_to_plot:
     pdf = PdfPages(plot_path)
     # moments plots, for case of fitting all bins
     if plot_info['run_type']=='bins':
-        # assuming the binspectra path ends in spectra.fits, this is not ideal
-        bininfo_path = plot_info['binspectra_path'][0:-12]+'bininfo.txt'
-        bininfo = np.genfromtxt(bininfo_path,names=True)
-        if not len(bininfo)==nbins:
-            raise Exception("Bin mismatch {},{}".format(nbins,len(bininfo)))
         for i in range(nmoments):
             fig = plt.figure(figsize=(6,5))
             fig.suptitle('Moment vs radius ({})'.format(moment_names[i]))
             ax = fig.add_axes([0.15,0.1,0.8,0.8])
-            ax.plot(bininfo['r'],moments[:,i],ls='',marker='o',
-                    c='b',ms=5.0,alpha=0.8)
+            moments = fitdata['gh']['moment'][:,i]
+            moments_r = bininfo['r'][ibins]
+            moments_err = fitdata['gh']['scalederr'][:,i]
+            ax.errorbar(moments_r,moments,yerr=moments_err,ls='',
+                        marker=None,ecolor='0.5',elinewidth=0.5)
+            if have_mc:
+                mc_err = mcdata['err']
+                ax.errorbar(moments_r,moments,yerr=mcdata['err'][:,i],ls='',
+                            marker=None,ecolor='k',elinewidth=0.5)
+            ax.plot(moments_r,moments,ls='',marker='o',mfc='b',ms=5.0,alpha=0.8)
             # comparison plot ability needs updating
             #if do_comparison:
             #    ax.plot(bininfo['r'],fid_moments[:,i],ls='',
@@ -225,6 +268,7 @@ for plot_info in things_to_plot:
                                       autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
         pdf.savefig(fig)
+        plt.close(fig)
         # plot flux-normalized weights
         fig = plt.figure(figsize=(6,5))
         fig.suptitle('Templates (flux-normalized weights)')
@@ -234,29 +278,40 @@ for plot_info in things_to_plot:
                                       autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
         pdf.savefig(fig)
-    # spectra for each bin, same in both cases
-    ### want to change this to all spectra on one axis
-    ### want to have bin ids, not just indexes
-    ### want to have wavelength, not just pixel number
-    spec, noise, usepix, modelspec, mulpoly, addpoly = reg_data[2]
-    for b in range(nbins):
-        fig = plt.figure(figsize=(6,5))
-        fig.suptitle('Spectrum for bin {} of {}'.format(b+1, nbins))
-        ax = fig.add_axes([0.15,0.1,0.8,0.8])
-        ax.plot(spec[b,:],c='k',label='spectrum')
-        ax.plot(modelspec[b,:],c='r',label='model spectrum')
-        # find regions to mask
-        maskpix = np.where(usepix[b,:]==0)[0]
+        plt.close(fig)
+    
+    # plot each spectrum, y-axis also represents bin number
+    figheight = max(fitdata['bins']['id'])
+    figheight = max(figheight,4)
+    fig = plt.figure(figsize=(6, figheight))
+    fig.suptitle('bin spectra by bin number')
+    ax = fig.add_axes([0.05,0.05,0.9,0.9])
+    for i,binid in enumerate(fitdata['bins']['id']):
+        spectrum = fitdata['spec']['spectrum'][i]
+        model = fitdata['spec']['bestmodel'][i]
+        waves = fitdata['waves']
+        ax.plot(waves,binid-spectrum+spectrum[0],c='k')
+        ax.plot(waves,binid-model+spectrum[0],c='r',lw=0.7)
+    # find regions to mask
+    # note the masking is currently saved per bin in fitoutput, this is silly!
+    # for now just use the mask for the last bin (i at end of above loop)
+    maskpix = np.where(fitdata['spec']['pixused'][i,:]==0)[0]
+    if not len(maskpix)==0:
         ibreaks = np.where(np.diff(maskpix)!=1)[0]
         maskpix_starts = [maskpix[0]]
         maskpix_starts.extend(maskpix[ibreaks+1])
         maskpix_ends = list(maskpix[ibreaks])
         maskpix_ends.append(maskpix[-1])
         for startpix,endpix in zip(maskpix_starts,maskpix_ends):
-            ax.axvspan(startpix,endpix,fc='k',ec='none',alpha=0.5,lw=0)
-        ax.set_xlabel('pixel')
-        ax.set_ylabel('flux')
-        pdf.savefig(fig)
-        plt.close(fig)
-
+            ax.axvspan(fitdata['waves'][startpix],fitdata['waves'][endpix],
+                       fc='k',ec='none',alpha=0.5,lw=0)
+    ax.set_xlabel('wavelength ({})'.format("units"))
+    ax.set_ylabel('bin number')
+    ax.autoscale(tight=True)
+    ax.set_ylim(ymin=-2,ymax=max(fitdata['bins']['id'])+1)
+    ax.invert_yaxis()
+    ax.tick_params(labeltop='on',top='on')
+    pdf.savefig(fig)
+    plt.close(fig)
+    
     pdf.close()

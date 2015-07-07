@@ -348,13 +348,13 @@ for plot_info in things_to_plot:
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     for ibin in range(nbins):
         spectrum = specset.spectra[ibin,:] 
-        ax.plot(specset.waves,spectrum-spectrum[0]+specset.ids[ibin],c='k')
+        ax.plot(specset.waves,specset.ids[ibin]-spectrum+spectrum[0],c='k')
     fullspectrum = specset_full.spectra[0,:] 
-    ax.plot(specset_full.waves,fullspectrum-fullspectrum[0],c='k') #id=0
+    ax.plot(specset_full.waves,-fullspectrum+fullspectrum[0],c='k') #id=0
     ax.set_xlabel('wavelength ({})'.format(specset.wave_unit))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)
-    ax.set_ylim(ymin=-1,ymax=nbins+2)
+    ax.set_ylim(ymin=-2,ymax=nbins+1)
     ax.invert_yaxis()
     ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)

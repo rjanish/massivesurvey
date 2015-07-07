@@ -215,18 +215,18 @@ for plot_info in things_to_plot:
     # moments plots, for case of fitting all bins
     if plot_info['run_type']=='bins':
         for i in range(nmoments):
-            fig = plt.figure(figsize=(6,5))
+            fig = plt.figure(figsize=(6,6))
             fig.suptitle('Moment vs radius ({})'.format(moment_names[i]))
-            ax = fig.add_axes([0.15,0.1,0.8,0.8])
+            ax = fig.add_axes([0.15,0.1,0.8,0.7])
             moments = fitdata['gh']['moment'][:,i]
             moments_r = bininfo['r'][ibins]
             moments_err = fitdata['gh']['scalederr'][:,i]
             ax.errorbar(moments_r,moments,yerr=moments_err,ls='',
-                        marker=None,ecolor='0.5',elinewidth=0.5)
+                        marker=None,ecolor='0.7',elinewidth=0.7,label='ppxf')
             if have_mc:
                 mc_err = mcdata['err']
                 ax.errorbar(moments_r,moments,yerr=mcdata['err'][:,i],ls='',
-                            marker=None,ecolor='k',elinewidth=0.5)
+                            marker=None,ecolor='k',elinewidth=1.0,label='mc')
             ax.plot(moments_r,moments,ls='',marker='o',mfc='b',ms=5.0,alpha=0.8)
             # comparison plot ability needs updating
             #if do_comparison:
@@ -238,8 +238,9 @@ for plot_info in things_to_plot:
             if not i in (0,1):
                 ylim = max(np.abs(ax.get_ylim()))
                 ax.set_ylim(ymin=-ylim,ymax=ylim)
+            ax.legend(loc='lower center',bbox_to_anchor=(0.5,1),ncol=2)
             ax.set_xlabel('radius')
-            ax.set_ylabel('h{}'.format(i+1))
+            ax.set_ylabel(moment_names[i])
             pdf.savefig(fig)
             plt.close(fig)            
     # template plots, for full galaxy case
@@ -292,6 +293,8 @@ for plot_info in things_to_plot:
         waves = fitdata['waves']
         ax.plot(waves,binid-spectrum+spectrum[0],c='k')
         ax.plot(waves,binid-model+spectrum[0],c='r',lw=0.7)
+        ax.text(waves[0],binid-0.4,
+                r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][i]))
     # find regions to mask
     # note the masking is currently saved per bin in fitoutput, this is silly!
     # for now just use the mask for the last bin (i at end of above loop)

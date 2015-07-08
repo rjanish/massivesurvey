@@ -164,7 +164,8 @@ for plot_info in things_to_plot:
     moment_names[1] = 'sigma'
     if plot_info['run_type']=='bins':
         # assuming the binspectra path ends in spectra.fits, this is not ideal
-        bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True)
+        bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,
+                                skip_header=7)
         ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
         ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
 

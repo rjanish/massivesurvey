@@ -293,7 +293,7 @@ for plot_info in things_to_plot:
             # also do a transparent fill in bincolor to make sure bins match
             # if the storage of bin boundaries breaks, this will help notice
             ax1.add_patch(descartes.PolygonPatch(bin_poly,fc=bincolor,
-                                                 ec='none',alpha=0.5))
+                                                 ec='none',alpha=0.5,zorder=-1))
             ax1.add_patch(descartes.PolygonPatch(bin_poly,fc='none',lw=1.5))
             ax2.add_patch(descartes.PolygonPatch(bin_poly,
                                 fc=fgetcolor(logbinfluxes[bin_iter]),lw=1.5))

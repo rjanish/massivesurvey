@@ -105,7 +105,7 @@ for paramfile_path in all_paramfile_paths:
     ifuset = ifuset_all.get_subset(goodfibers)
     gal_position = target_positions[target_positions.Name == gal_name]
     gal_pa = gal_position.PA_best.iat[0]
-    ma_bin = np.pi/2 - np.deg2rad(gal_pa)
+    ma_bin = np.pi/2 - np.deg2rad(gal_pa) #theta=0 at +x (=east), ccwise
     fiber_radius = const.mitchell_fiber_radius.value
     #Do the full galaxy bin here because it is so fast.
     full_galaxy = ifuset.spectrumset.collapse(id=0)
@@ -153,9 +153,10 @@ for paramfile_path in all_paramfile_paths:
         binned_data["ir"][bin_iter, :] = binned.metaspectra["ir"]
         xs, ys = subset.coords.T
         fluxes = subset.spectrumset.compute_flux()
-        bin_coords[bin_iter,:] = binning.calc_bin_center(xs,ys,fluxes,bin_type,
-                                        ma=ma_bin,rmin=np.min(radial_bounds))
-        bin_fluxes[bin_iter] = np.average(subset.spectrumset.compute_flux())
+        #Final bin coords want +x=west (not east), so use -xs
+        bin_coords[bin_iter,:] = binning.calc_bin_center(-xs,ys,fluxes,bin_type,
+                                        pa=gal_pa,rmin=np.min(radial_bounds))
+        bin_fluxes[bin_iter] = np.average(fluxes)
     spec_unit = ifuset.spectrumset.spec_unit
     wave_unit = ifuset.spectrumset.wave_unit
     binned_comments = ifuset.spectrumset.comments.copy()
@@ -197,18 +198,25 @@ for paramfile_path in all_paramfile_paths:
     bininfo['flux'] = bin_fluxes
     for i,coord in enumerate(['x','y','r','th']):
         bininfo[coord] = bin_coords[:,i]
-    for i,bound in enumerate(['rmin','rmax','thmin','thmax']):
+    # convert thetas from "binning" units (ccwise from +x=east)
+    #  to "map" units (ccwise/towards -x/east from +y=north)
+    #  by switching min, max and doing th_map = pi/2 - th_binning
+    for i,bound in enumerate(['rmin','rmax','thmax','thmin']):
         bininfo[bound] = bin_bounds[i,:]
+    bininfo['thmin'] = np.pi/2 - bininfo['thmin']
+    bininfo['thmax'] = np.pi/2 - bininfo['thmax']
     binheader = 'Coordinate definitions:'
-    # do east-west reflect
-    ma_xy = np.pi - ma_bin
-    bininfo['x'] = -bininfo['x']
     binheader += '\n x-direction is west, y-direction is north'
-    binheader += '\n theta=0 is defined at +x, increases counterclockwise'
     binheader += '\n units are {}'.format(ifuset.coord_comments['coordunit'])
+    binheader += '\n theta=0 is defined at +y (north)'
+    binheader += '\n theta increases counterclockwise (towards east)'
+    binheader += '\n theta is expressed in radians'
     binheader += '\nCenter Ra/Dec are {}, {}'.format(gal_position.Ra.iat[0],
                                                      gal_position.Dec.iat[0])
-    binheader += '\nPA (radians, above theta definition) is {}'.format(ma_xy)
+    binheader += '\nPA (degrees, above theta definition) is {}'.format(gal_pa)
+    binheader += '\nNote that x,y are bin centers in cartesian coordinates,'
+    binheader += '\n while r,th are bin centers in polar coordinates,'
+    binheader += '\n and they do not represent the same points!'
     binheader += '\nColumns are as follows:'
     binheader += '\n' + ' '.join(dt['names'])
     np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
@@ -218,10 +226,10 @@ for plot_info in things_to_plot:
     plot_path = plot_info['plot_path']
     fiberids, binids = np.genfromtxt(plot_info['fiberinfo_path'],
                                      dtype=int,unpack=True)
-    bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,skip_header=7)
+    bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,skip_header=12)
     nbins = len(bininfo)
-    ma_line = open(plot_info['bininfo_path'],'r').readlines()[5]
-    ma_theta = float(ma_line.strip().split()[-1])
+    ma_line = open(plot_info['bininfo_path'],'r').readlines()[7]
+    ma_theta = np.pi/2 + np.deg2rad(float(ma_line.strip().split()[-1]))
 
     ifuset = ifu.read_mitchell_datacube(plot_info['proc_cube_path'])
     fiber_coords = ifuset.coords.copy()
@@ -245,8 +253,10 @@ for plot_info in things_to_plot:
     logfibers2n = np.log10(ifuset.spectrumset.compute_mean_s2n())
     logsmax = max(logfibers2n)
     logsmin = min(logfibers2n)
+    logsmin_bins = min(logbins2n)
     scmap = plt.cm.get_cmap('Greens')
     sgetcolor = lambda s: scmap((s - logsmin)/(logsmax-logsmin))
+    sgetcolor2 = lambda s: scmap((s - logsmin_bins)/(logsmax-logsmin_bins))
 
     specset_full = spec.read_datacube(plot_info['fullbin_path'])
 
@@ -263,6 +273,12 @@ for plot_info in things_to_plot:
     fig3 = plt.figure(figsize=(6,6))
     fig3.suptitle('Bin s2n map')
     ax3 = fig3.add_axes([0.15,0.1,0.7,0.7])
+    fig4 = plt.figure(figsize=(6,6))
+    fig4.suptitle('Bin s2n map (rescaled)')
+    ax4 = fig4.add_axes([0.15,0.1,0.7,0.7])
+    fig5 = plt.figure(figsize=(6,6))
+    fig5.suptitle('Bin centers comparison (cartesian vs polar)')
+    ax5 = fig5.add_axes([0.15,0.1,0.7,0.7])
     mycolors = ['b','g','c','m','r','y']
     bincolors = {}
     for binid in set(binids):
@@ -276,20 +292,23 @@ for plot_info in things_to_plot:
     # loop over bins
     for bin_iter,bin_id in enumerate(bininfo['binid']):
         bincolor = bincolors[int(bin_id)]
-        # draw bin number at bincenter
-        ax1.plot(bininfo['x'][bin_iter],bininfo['y'][bin_iter],ls='',
-                marker='s',mew=1.0,ms=7.0,mec='k',mfc=bincolor)
-        ax1.text(bininfo['x'][bin_iter]-0.2,bininfo['y'][bin_iter]-0.1,
-                str(int(bin_id)),fontsize=5,
+        # draw bin number at bin center
+        xbin = -bininfo['r'][bin_iter]*np.sin(bininfo['th'][bin_iter])
+        ybin = bininfo['r'][bin_iter]*np.cos(bininfo['th'][bin_iter])
+        ax1.plot(xbin,ybin,ls='',marker='o',mew=1.0,ms=8.0,mec='k',mfc=bincolor)
+        ax1.text(xbin-0.2,ybin-0.1,str(int(bin_id)),fontsize=5,
                 horizontalalignment='center',verticalalignment='center')
+        # draw bin center, both versions
+        ax5.plot(bininfo['x'][bin_iter],bininfo['y'][bin_iter],
+                 ls='',marker='s',mew=0,ms=5.0,mfc='r')
+        ax5.plot(xbin,ybin,ls='',marker='o',mew=0,ms=5.0,mfc='k')
         # draw bin outline and flux/s2n maps
         if not np.isnan(bininfo['rmin'][bin_iter]):
-            amax_xy = np.pi - bininfo['thmin'][bin_iter] #east-west reflect
-            amin_xy = np.pi - bininfo['thmax'][bin_iter] #east-west reflect
+            thmin = np.rad2deg(np.pi/2 + bininfo['thmin'][bin_iter])
+            thmax = np.rad2deg(np.pi/2 + bininfo['thmax'][bin_iter])
             bin_poly = geo_utils.polar_box(bininfo['rmin'][bin_iter], 
                                            bininfo['rmax'][bin_iter],
-                                           np.rad2deg(amin_xy),
-                                           np.rad2deg(amax_xy))
+                                           thmin,thmax)
             # also do a transparent fill in bincolor to make sure bins match
             # if the storage of bin boundaries breaks, this will help notice
             ax1.add_patch(descartes.PolygonPatch(bin_poly,fc=bincolor,
@@ -299,6 +318,9 @@ for plot_info in things_to_plot:
                                 fc=fgetcolor(logbinfluxes[bin_iter]),lw=1.5))
             ax3.add_patch(descartes.PolygonPatch(bin_poly,
                                 fc=sgetcolor(logbins2n[bin_iter]),lw=1.5))
+            ax4.add_patch(descartes.PolygonPatch(bin_poly,
+                                fc=sgetcolor2(logbins2n[bin_iter]),lw=1.5))
+            ax5.add_patch(descartes.PolygonPatch(bin_poly,fc='none',lw=1.5))
         else:
             ax2.add_patch(patches.Circle((bininfo['x'][bin_iter],
                     bininfo['y'][bin_iter]),fibersize,lw=0.25,
@@ -306,6 +328,9 @@ for plot_info in things_to_plot:
             ax3.add_patch(patches.Circle((bininfo['x'][bin_iter],
                     bininfo['y'][bin_iter]),fibersize,lw=0.25,
                     fc=sgetcolor(logbins2n[bin_iter])))
+            ax4.add_patch(patches.Circle((bininfo['x'][bin_iter],
+                    bininfo['y'][bin_iter]),fibersize,lw=0.25,
+                    fc=sgetcolor2(logbins2n[bin_iter])))
 
     # draw ma
     rmax = np.nanmax(bininfo['rmax'])
@@ -315,6 +340,8 @@ for plot_info in things_to_plot:
     ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
     ax2.axis([-squaremax,squaremax,-squaremax,squaremax])
     ax3.axis([-squaremax,squaremax,-squaremax,squaremax])
+    ax4.axis([-squaremax,squaremax,-squaremax,squaremax])
+    ax5.axis([-squaremax,squaremax,-squaremax,squaremax])
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
     label_flux = r'flux (log 10 [{}])'.format(fluxunit)
@@ -334,12 +361,22 @@ for plot_info in things_to_plot:
     mappable_s2n.set_array([logsmin,logsmax])
     fig3.colorbar(mappable_s2n,orientation='horizontal',ax=ax3C,
                   label=label_s2n)
+    ax4C = fig4.add_axes([0.15,0.8,0.7,0.8])
+    ax4C.set_visible(False)
+    mappable_s2n_bins = plt.cm.ScalarMappable(cmap=scmap)
+    mappable_s2n_bins.set_array([logsmin_bins,logsmax])
+    fig4.colorbar(mappable_s2n_bins,orientation='horizontal',ax=ax4C,
+                  label=label_s2n)
     pdf.savefig(fig1)
     plt.close(fig1)
     pdf.savefig(fig2)
     plt.close(fig2)
     pdf.savefig(fig3)
     plt.close(fig3)
+    pdf.savefig(fig4)
+    plt.close(fig4)
+    pdf.savefig(fig5)
+    plt.close(fig5)
 
 
     # plot each spectrum, y-axis also represents bin number

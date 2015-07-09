@@ -165,7 +165,7 @@ for plot_info in things_to_plot:
     if plot_info['run_type']=='bins':
         # assuming the binspectra path ends in spectra.fits, this is not ideal
         bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,
-                                skip_header=7)
+                                skip_header=12)
         ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
         ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
 

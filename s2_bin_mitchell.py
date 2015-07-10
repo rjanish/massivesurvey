@@ -100,6 +100,8 @@ for paramfile_path in all_paramfile_paths:
     ifuset_all = ifu.read_mitchell_datacube(proc_cube_path)
     badfibers = np.genfromtxt(bad_fibers_path,dtype=int)
     goodfibers = list(ifuset_all.spectrumset.ids)
+    num_badfibers = len(badfibers)
+    print "  ignoring fibers: {}".format(', '.join(map(str, badfibers)))
     for badfiber in badfibers:
         goodfibers.remove(badfiber)
     ifuset = ifuset_all.get_subset(goodfibers)

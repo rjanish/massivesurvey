@@ -128,5 +128,9 @@ new_index.sort(axis=0, inplace=True)
 new_index.to_csv(path_new_index, index=False)
 print "saved new index at {}".format(path_new_index)
 with open(path_new_ir, "w") as text_file:
+    ir_header = ("# This the the Gaussian full-width at half-max of the "
+                 "spectral resolution\n# of the MILES template library, "
+                 "in Angstroms, as reported on the MILES website.\n")
+    text_file.write(ir_header)
     text_file.write("library_fwhm\t{}".format(library_fwhm))
 print "saved ir in file at {}".format(path_new_ir)

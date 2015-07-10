@@ -15,6 +15,7 @@ output:
 """
 
 import os
+import shutil
 import re
 import argparse
 import pickle
@@ -87,13 +88,12 @@ for paramfile_path in all_paramfile_paths:
     output_paths_dict['temps'] = output_path_maker('temps','txt')
     output_paths_dict['main'] = output_path_maker('main','fits')
     output_paths_dict['mc'] = output_path_maker('mc','fits')
-    moments_path = output_path_maker('moments','txt')
-
     # save relevant info for plotting to a dict
     plot_info = {'main_output': output_paths_dict['main'],
                  'mc_output': output_paths_dict['mc'],
                  'temps_output': output_paths_dict['temps'],
-                 'moments_output': moments_path,
+                 'moments_output': output_path_maker('moments','txt'),
+                 'mcmoments_output': output_path_maker('mcmoments','')[:-1],
                  'plot_path': output_path_maker('plots','pdf'),
                  'binspectra_path': binned_cube_path,
                  'run_type': run_type, 'templates_dir': templates_dir,
@@ -198,8 +198,18 @@ for plot_info in things_to_plot:
         fmt = ['%i'] + 2*nmoments*['%-6f']
         np.savetxt(plot_info['moments_output'],txtfile_array,fmt=fmt,
                    delimiter='\t',header=txtfile_header)
-
-
+    if have_mc:
+        if os.path.isdir(plot_info['mcmoments_output']):
+            shutil.rmtree(plot_info['mcmoments_output'])
+        os.mkdir(plot_info['mcmoments_output'])
+        txtfile_header = 'Columns are as follows:'
+        txtfile_header += '\n' + ' '.join(moment_names)
+        fmt = nmoments*['%-6f']
+        for ibin,binid in enumerate(fitdata['bins']['id']):
+            binpath = os.path.join(plot_info['mcmoments_output'],
+                                   'bin{:d}.txt'.format(binid))
+            np.savetxt(binpath,mcdata['moments'][ibin].T,fmt=fmt,
+                       delimiter='\t',header=txtfile_header)
     # still need to clean up comparison plotting
     #if not plot_info['compare_moments']=='none':
     #    do_comparison = True

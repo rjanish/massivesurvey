@@ -100,6 +100,11 @@ def get_friendly_ppxf_output_mc(path):
 
     friendly_data['nruns'] = nruns
 
+    friendly_data['moments'] = np.zeros((nbins,nmoments,nruns))
+    for ibin in range(nbins):
+        for imom in range(nmoments):
+            friendly_data['moments'][ibin,imom,:] = data[0][0,ibin,:,imom]
+
     friendly_data['err'] = np.zeros((nbins,nmoments))
     for ibin in range(nbins):
         for imom in range(nmoments):

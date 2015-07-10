@@ -148,9 +148,9 @@ def read_miles_library(dirname):
         return all_waves
         raise ValueError("Spectra must have uniform wavelength sampling")
     waves = all_waves[0]
-    readme_path = os.path.join(dirname, "ir.txt")
-    readme_data = utl.read_dict_file(readme_path)
-    fwhm = readme_data["library_fwhm"]
+    irfile_path = os.path.join(dirname, "ir.txt")
+    irfile_data = utl.read_dict_file(irfile_path)
+    fwhm = irfile_data["library_fwhm"]
     resolution = np.ones(spectra.shape, dtype=float)*fwhm
         # assume uniform, wavelength-independent template resolution
     catalog_path = os.path.join(dirname, "catalog.txt")

@@ -207,14 +207,14 @@ for paramfile_path in all_paramfile_paths:
     #  by switching min, max and doing th_map = pi/2 - th_binning
     for i,bound in enumerate(['rmin','rmax','thmax','thmin']):
         bininfo[bound] = bin_bounds[i,:]
-    bininfo['thmin'] = np.pi/2 - bininfo['thmin']
-    bininfo['thmax'] = np.pi/2 - bininfo['thmax']
+    bininfo['thmin'] = np.rad2deg(np.pi/2 - bininfo['thmin'])
+    bininfo['thmax'] = np.rad2deg(np.pi/2 - bininfo['thmax'])
     binheader = 'Coordinate definitions:'
     binheader += '\n x-direction is west, y-direction is north'
     binheader += '\n units are {}'.format(ifuset.coord_comments['coordunit'])
     binheader += '\n theta=0 is defined at +y (north)'
     binheader += '\n theta increases counterclockwise (towards east)'
-    binheader += '\n theta is expressed in radians'
+    binheader += '\n theta is expressed in degrees'
     binheader += '\nCenter Ra/Dec are {}, {}'.format(gal_position.Ra.iat[0],
                                                      gal_position.Dec.iat[0])
     binheader += '\nPA (degrees, above theta definition) is {}'.format(gal_pa)
@@ -297,8 +297,8 @@ for plot_info in things_to_plot:
     for bin_iter,bin_id in enumerate(bininfo['binid']):
         bincolor = bincolors[int(bin_id)]
         # draw bin number at bin center
-        xbin = -bininfo['r'][bin_iter]*np.sin(bininfo['th'][bin_iter])
-        ybin = bininfo['r'][bin_iter]*np.cos(bininfo['th'][bin_iter])
+        xbin=-bininfo['r'][bin_iter]*np.sin(np.deg2rad(bininfo['th'][bin_iter]))
+        ybin=bininfo['r'][bin_iter]*np.cos(np.deg2rad(bininfo['th'][bin_iter]))
         ax1.plot(xbin,ybin,ls='',marker='o',mew=1.0,ms=8.0,mec='k',mfc=bincolor)
         ax1.text(xbin-0.2,ybin-0.1,str(int(bin_id)),fontsize=5,
                 horizontalalignment='center',verticalalignment='center')
@@ -308,8 +308,8 @@ for plot_info in things_to_plot:
         ax5.plot(xbin,ybin,ls='',marker='o',mew=0,ms=5.0,mfc='k')
         # draw bin outline and flux/s2n maps
         if not np.isnan(bininfo['rmin'][bin_iter]):
-            thmin = np.rad2deg(np.pi/2 + bininfo['thmin'][bin_iter])
-            thmax = np.rad2deg(np.pi/2 + bininfo['thmax'][bin_iter])
+            thmin = 90 + bininfo['thmin'][bin_iter]
+            thmax = 90 + bininfo['thmax'][bin_iter]
             bin_poly = geo_utils.polar_box(bininfo['rmin'][bin_iter], 
                                            bininfo['rmax'][bin_iter],
                                            thmin,thmax)

@@ -292,10 +292,8 @@ def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     fiber (fluxes). If the bin type is folded, reflect all points across
     ma (except single fiber bins within rmin) before binning. Return as 
     an array for convenience.
-    Note that this computes the fluxweighted coordinates in cartesian
-    coordinates, then simply converts to r and theta. Perhaps it would make
-    sense to compute polar coordinates by directly finding the fluxweighted
-    average radius and angle instead.
+    Outputs two points for bin center: x,y (fluxweighted average of xs, ys),
+    and r,th (fluxweighted average in polar coordinates)
     """
     # assume the following conventions for coordinates:
     #  xs, ys are given with +x = west and +y = north
@@ -328,5 +326,5 @@ def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     ths = -np.arctan2(xs,ys)
     # compute polar bin centers
     r_bin = np.sum(rs*fluxes)/total_flux
-    th_bin = np.sum(ths*fluxes)/total_flux
+    th_bin = np.rad2deg(np.sum(ths*fluxes)/total_flux)
     return np.array([x_bin,y_bin,r_bin,th_bin])

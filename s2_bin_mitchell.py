@@ -183,12 +183,14 @@ for paramfile_path in all_paramfile_paths:
     # save binned spectrum
     binned_specset.write_to_fits(binspectra_path)
     # save fiber number vs bin number, sorted
-    fiberinfo_header = "Fiber id vs bin id. "
+    fiberheader = "Fiber id vs bin id. "
+    fiberheader += "\n {} is for unused fibers".format(const.unusedfiber_bin_id)
+    fiberheader += "\n {} is for bad fibers".format(const.badfiber_bin_id)
     fiberinfo = np.array([np.array(fiber_binnumbers.keys()),
                           np.array(fiber_binnumbers.values())])
     isort = np.argsort(fiberinfo[0,:])
     np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t',
-               header=fiberinfo_header)
+               header=fiberheader)
     # save bin number vs number of fibers, bin center coords, and bin boundaries
     dt = {'names':['binid','nfibers','flux','x','y','r','th',
                    'rmin','rmax','thmin','thmax'],

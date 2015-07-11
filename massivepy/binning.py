@@ -285,18 +285,22 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
     grouped_bounds[:,:-len(binned_bounds)] = np.nan
     return grouped_ids, radial_bounds, angular_bounds, grouped_bounds
 
-def calc_bin_center(xs,ys,fluxes,bintype,ma=None,rmin=None):
+def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     """
     Calculate the flux-weighted bin center for a single bin, given the
     coordinates of each fiber in the bin (xs,ys) and the flux for each
     fiber (fluxes). If the bin type is folded, reflect all points across
     ma (except single fiber bins within rmin) before binning. Return as 
     an array for convenience.
-    Note that this computes the fluxweighted coordinates in cartesian
-    coordinates, then simply converts to r and theta. Perhaps it would make
-    sense to compute polar coordinates by directly finding the fluxweighted
-    average radius and angle instead.
+    Outputs two points for bin center: x,y (fluxweighted average of xs, ys),
+    and r,th (fluxweighted average in polar coordinates)
     """
+    # assume the following conventions for coordinates:
+    #  xs, ys are given with +x = west and +y = north
+    #  pa in degrees, theta=0 at +y/north, +theta towards -x/east/ccwise
+    # convert pa to "ma" defined with "conventional" theta (0 at +x, ccwise)
+    # (for use only in reflecting all points "above" ma)
+    ma = np.pi/2 + np.deg2rad(pa)
     if bintype=='unfolded':
         pass
     elif bintype=='folded':
@@ -314,8 +318,13 @@ def calc_bin_center(xs,ys,fluxes,bintype,ma=None,rmin=None):
     else:
         raise Exception('Bin type must be folded or unfolded, try again.')
     total_flux = fluxes.sum()
+    # compute cartesian bin centers
     x_bin = np.sum(xs*fluxes)/total_flux
     y_bin = np.sum(ys*fluxes)/total_flux
-    r_bin = np.sqrt(x_bin**2 + y_bin**2)
-    th_bin = np.arctan2(y_bin, x_bin)
+    # get r, theta (theta defined like pa, with 0 at north towards east)
+    rs = np.sqrt(xs**2 + ys**2)
+    ths = -np.arctan2(xs,ys)
+    # compute polar bin centers
+    r_bin = np.sum(rs*fluxes)/total_flux
+    th_bin = np.rad2deg(np.sum(ths*fluxes)/total_flux)
     return np.array([x_bin,y_bin,r_bin,th_bin])

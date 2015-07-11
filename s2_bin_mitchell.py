@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 import shapely.geometry as geo
 import descartes
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.backends.backend_pdf import PdfPages
@@ -243,69 +244,73 @@ for plot_info in things_to_plot:
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
 
     specset = spec.read_datacube(plot_info['binspectra_path'])
-    # note that the specset fluxes are all the same! :(
-    #logbinfluxes = np.log10(specset.compute_flux())
-    logbinfluxes = np.log10(bininfo['flux'])
     # use colorbar limits from fiber maps, for continuity
-    logfiberfluxes = np.log10(ifuset.spectrumset.compute_flux())
-    logfmax = max(logfiberfluxes)
-    logfmin = min(logfiberfluxes)
+    fiberfluxes = ifuset.spectrumset.compute_flux()
+    fluxmin = min(fiberfluxes)
+    fluxmax = max(fiberfluxes)
     fluxunit = specset.integratedflux_unit
-    fcmap = plt.cm.get_cmap('Reds')
-    fgetcolor = lambda f: fcmap((f - logfmin)/(logfmax-logfmin))
-    logbins2n = np.log10(specset.compute_mean_s2n())
-    logfibers2n = np.log10(ifuset.spectrumset.compute_mean_s2n())
-    logsmax = max(logfibers2n)
-    logsmin = min(logfibers2n)
-    logsmin_bins = min(logbins2n)
-    scmap = plt.cm.get_cmap('Greens')
-    sgetcolor = lambda s: scmap((s - logsmin)/(logsmax-logsmin))
-    sgetcolor2 = lambda s: scmap((s - logsmin_bins)/(logsmax-logsmin_bins))
+    cmap_flux = 'Reds'
+    bin_s2n = specset.compute_mean_s2n()
+    fiber_s2n = ifuset.spectrumset.compute_mean_s2n()
+    s2nmin = min(fiber_s2n)
+    s2nmax = max(fiber_s2n)
+    s2nmin_bin = min(bin_s2n)
+    s2nmax_bin = max(bin_s2n)
+    cmap_s2n = 'Greens'
 
     specset_full = spec.read_datacube(plot_info['fullbin_path'])
 
     ### plotting begins ###
     pdf = PdfPages(plot_path)
 
-    # plot bin map, bin flux, and bin s2n
-    fig1 = plt.figure(figsize=(6,6))
-    fig1.suptitle('Bin map (s2n {}, ar {})'.format(s2n_threshold, aspect_ratio))
-    ax1 = fig1.add_axes([0.15,0.1,0.7,0.7])
-    fig2 = plt.figure(figsize=(6,6))
-    fig2.suptitle('Bin flux map')
-    ax2 = fig2.add_axes([0.15,0.1,0.7,0.7])
-    fig3 = plt.figure(figsize=(6,6))
-    fig3.suptitle('Bin s2n map')
-    ax3 = fig3.add_axes([0.15,0.1,0.7,0.7])
-    fig4 = plt.figure(figsize=(6,6))
-    fig4.suptitle('Bin s2n map (rescaled)')
-    ax4 = fig4.add_axes([0.15,0.1,0.7,0.7])
-    fig5 = plt.figure(figsize=(6,6))
-    fig5.suptitle('Bin centers comparison (cartesian vs polar)')
-    ax5 = fig5.add_axes([0.15,0.1,0.7,0.7])
+    # plot bin map, bin flux, bin s2n (two versions), bin centers comparison
+    figs = {}
+    axs = {}
+    fignames = ['map','flux','s2n','s2nbin','centers']
+    figtitles = ['Bin map (s2n {}, ar {})'.format(s2n_threshold, aspect_ratio),
+                 'Bin flux map','Bin s2n map','Bin s2n map rescaled',
+                 'Bin centers comparison (cartesian vs polar)']
+    for figname, figtitle in zip(fignames,figtitles):
+        figs[figname] = plt.figure(figsize=(6,6))
+        figs[figname].suptitle(figtitle)
+        axs[figname] = figs[figname].add_axes([0.15,0.1,0.7,0.7])
+    # prep bin coloring (arbitrary colors, flux colormap, and s2n colormaps)
     mycolors = ['b','g','c','m','r','y']
     bincolors = {}
     for binid in set(binids):
         bincolors[binid] = mycolors[binid % len(mycolors)]
     bincolors[const.badfiber_bin_id] = 'k'
     bincolors[const.unusedfiber_bin_id] = '0.7'
+    norm_flux = mpl.colors.LogNorm(vmin=fluxmin,vmax=fluxmax)
+    mappable_flux = plt.cm.ScalarMappable(cmap=cmap_flux, norm=norm_flux)
+    mappable_flux.set_array([fluxmin,fluxmax])
+    fluxcolors = mappable_flux.to_rgba(bininfo['flux'])
+    norm_s2n = mpl.colors.LogNorm(vmin=s2nmin,vmax=s2nmax)
+    mappable_s2n = plt.cm.ScalarMappable(cmap=cmap_s2n, norm=norm_s2n)
+    mappable_s2n.set_array([s2nmin,s2nmax])
+    s2ncolors = mappable_s2n.to_rgba(bin_s2n)
+    norm_s2nbin = mpl.colors.LogNorm(vmin=s2nmin_bin,vmax=s2nmax_bin)
+    mappable_s2nbin = plt.cm.ScalarMappable(cmap=cmap_s2n, norm=norm_s2nbin)
+    mappable_s2nbin.set_array([s2nmin_bin,s2nmax_bin])
+    s2nbincolors = mappable_s2nbin.to_rgba(bin_s2n)
     # loop over fibers
     for fiber_id,bin_id in zip(fiberids,binids):
-        ax1.add_patch(patches.Circle(fiber_coords[fiber_id,:],fibersize,
-                                    fc=bincolors[bin_id],ec='none',alpha=0.8))
+        axs['map'].add_patch(patches.Circle(fiber_coords[fiber_id,:],fibersize,
+                                     fc=bincolors[bin_id],ec='none',alpha=0.8))
     # loop over bins
     for bin_iter,bin_id in enumerate(bininfo['binid']):
         bincolor = bincolors[int(bin_id)]
         # draw bin number at bin center
         xbin=-bininfo['r'][bin_iter]*np.sin(np.deg2rad(bininfo['th'][bin_iter]))
         ybin=bininfo['r'][bin_iter]*np.cos(np.deg2rad(bininfo['th'][bin_iter]))
-        ax1.plot(xbin,ybin,ls='',marker='o',mew=1.0,ms=8.0,mec='k',mfc=bincolor)
-        ax1.text(xbin-0.2,ybin-0.1,str(int(bin_id)),fontsize=5,
-                horizontalalignment='center',verticalalignment='center')
+        axs['map'].plot(xbin,ybin,ls='',marker='o',mew=1.0,ms=8.0,mec='k',
+                        mfc=bincolor)
+        axs['map'].text(xbin-0.2,ybin-0.1,str(int(bin_id)),fontsize=5,
+                 horizontalalignment='center',verticalalignment='center')
         # draw bin center, both versions
-        ax5.plot(bininfo['x'][bin_iter],bininfo['y'][bin_iter],
-                 ls='',marker='s',mew=0,ms=5.0,mfc='r')
-        ax5.plot(xbin,ybin,ls='',marker='o',mew=0,ms=5.0,mfc='k')
+        axs['centers'].plot(bininfo['x'][bin_iter],bininfo['y'][bin_iter],
+                            ls='',marker='s',mew=0,ms=5.0,mfc='r')
+        axs['centers'].plot(xbin,ybin,ls='',marker='o',mew=0,ms=5.0,mfc='k')
         # draw bin outline and flux/s2n maps
         if not np.isnan(bininfo['rmin'][bin_iter]):
             thmin = 90 + bininfo['thmin'][bin_iter]
@@ -315,72 +320,44 @@ for plot_info in things_to_plot:
                                            thmin,thmax)
             # also do a transparent fill in bincolor to make sure bins match
             # if the storage of bin boundaries breaks, this will help notice
-            ax1.add_patch(descartes.PolygonPatch(bin_poly,fc=bincolor,
-                                                 ec='none',alpha=0.5,zorder=-1))
-            ax1.add_patch(descartes.PolygonPatch(bin_poly,fc='none',lw=1.5))
-            ax2.add_patch(descartes.PolygonPatch(bin_poly,
-                                fc=fgetcolor(logbinfluxes[bin_iter]),lw=1.5))
-            ax3.add_patch(descartes.PolygonPatch(bin_poly,
-                                fc=sgetcolor(logbins2n[bin_iter]),lw=1.5))
-            ax4.add_patch(descartes.PolygonPatch(bin_poly,
-                                fc=sgetcolor2(logbins2n[bin_iter]),lw=1.5))
-            ax5.add_patch(descartes.PolygonPatch(bin_poly,fc='none',lw=1.5))
+            patch = functools.partial(descartes.PolygonPatch,bin_poly,lw=1.5)
+            axs['map'].add_patch(patch(fc=bincolor,
+                                       ec='none',alpha=0.5,zorder=-1))
+            axs['map'].add_patch(patch(fc='none'))
+            axs['flux'].add_patch(patch(fc=fluxcolors[bin_iter]))
+            axs['s2n'].add_patch(patch(fc=s2ncolors[bin_iter]))
+            axs['s2nbin'].add_patch(patch(fc=s2nbincolors[bin_iter]))
+            axs['centers'].add_patch(patch(fc='none'))
         else:
-            ax2.add_patch(patches.Circle((bininfo['x'][bin_iter],
-                    bininfo['y'][bin_iter]),fibersize,lw=0.25,
-                    fc=fgetcolor(logbinfluxes[bin_iter])))
-            ax3.add_patch(patches.Circle((bininfo['x'][bin_iter],
-                    bininfo['y'][bin_iter]),fibersize,lw=0.25,
-                    fc=sgetcolor(logbins2n[bin_iter])))
-            ax4.add_patch(patches.Circle((bininfo['x'][bin_iter],
-                    bininfo['y'][bin_iter]),fibersize,lw=0.25,
-                    fc=sgetcolor2(logbins2n[bin_iter])))
+            patch = functools.partial(patches.Circle,(bininfo['x'][bin_iter],
+                                    bininfo['y'][bin_iter]),fibersize,lw=0.25)
+            axs['flux'].add_patch(patch(fc=fluxcolors[bin_iter]))
+            axs['s2n'].add_patch(patch(fc=s2ncolors[bin_iter]))
+            axs['s2nbin'].add_patch(patch(fc=s2nbincolors[bin_iter]))
 
-    # draw ma
-    rmax = np.nanmax(bininfo['rmax'])
-    ax1.plot([-rmax*1.1*np.cos(ma_theta), rmax*1.1*np.cos(ma_theta)],
-             [-rmax*1.1*np.sin(ma_theta), rmax*1.1*np.sin(ma_theta)],
-             linewidth=1.5, color='r')
-    ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
-    ax2.axis([-squaremax,squaremax,-squaremax,squaremax])
-    ax3.axis([-squaremax,squaremax,-squaremax,squaremax])
-    ax4.axis([-squaremax,squaremax,-squaremax,squaremax])
-    ax5.axis([-squaremax,squaremax,-squaremax,squaremax])
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
-    label_flux = r'flux (log 10 [{}])'.format(fluxunit)
-    label_s2n = r's2n (log 10)'
-    ax1.set_xlabel(label_x)
-    ax1.set_ylabel(label_y)
+    label_flux = r'flux [{}]'.format(fluxunit)
+    label_s2n = r's2n'
     # do colorbars
-    ax2C = fig2.add_axes([0.15,0.8,0.7,0.8])
-    ax2C.set_visible(False)
-    mappable_flux = plt.cm.ScalarMappable(cmap=fcmap)
-    mappable_flux.set_array([logfmin,logfmax])
-    fig2.colorbar(mappable_flux,orientation='horizontal',ax=ax2C,
-                  label=label_flux)
-    ax3C = fig3.add_axes([0.15,0.8,0.7,0.8])
-    ax3C.set_visible(False)
-    mappable_s2n = plt.cm.ScalarMappable(cmap=scmap)
-    mappable_s2n.set_array([logsmin,logsmax])
-    fig3.colorbar(mappable_s2n,orientation='horizontal',ax=ax3C,
-                  label=label_s2n)
-    ax4C = fig4.add_axes([0.15,0.8,0.7,0.8])
-    ax4C.set_visible(False)
-    mappable_s2n_bins = plt.cm.ScalarMappable(cmap=scmap)
-    mappable_s2n_bins.set_array([logsmin_bins,logsmax])
-    fig4.colorbar(mappable_s2n_bins,orientation='horizontal',ax=ax4C,
-                  label=label_s2n)
-    pdf.savefig(fig1)
-    plt.close(fig1)
-    pdf.savefig(fig2)
-    plt.close(fig2)
-    pdf.savefig(fig3)
-    plt.close(fig3)
-    pdf.savefig(fig4)
-    plt.close(fig4)
-    pdf.savefig(fig5)
-    plt.close(fig5)
+    for fig,m,l in zip([figs['flux'],figs['s2n'],figs['s2nbin']],
+                       [mappable_flux,mappable_s2n,mappable_s2nbin],
+                       [label_flux,label_s2n,label_s2n]):
+        axC = fig.add_axes([0.15,0.8,0.7,0.8])
+        axC.set_visible(False)
+        cb = fig.colorbar(m,ax=axC,label=l,orientation='horizontal')
+    # draw ma, set labels, save and close figures
+    rmax = np.nanmax(bininfo['rmax'])
+    for fn in fignames:
+        axs[fn].plot([-rmax*1.1*np.cos(ma_theta), rmax*1.1*np.cos(ma_theta)],
+                     [-rmax*1.1*np.sin(ma_theta), rmax*1.1*np.sin(ma_theta)],
+                     linewidth=1.5, color='r')
+        axs[fn].axis([-squaremax,squaremax,-squaremax,squaremax])
+        axs[fn].set_xlabel(label_x)
+        axs[fn].set_ylabel(label_y)
+        pdf.savefig(figs[fn])
+        plt.close(figs[fn])
+
 
     # plot ir for each bin
     fig = plt.figure(figsize=(6,6))
@@ -417,6 +394,7 @@ for plot_info in things_to_plot:
     pdf.savefig(fig)
     plt.close(fig)
 
+    
     # reproduce process_mitchell flux plots with bad fibers highlighted
     fig1 = plt.figure(figsize=(6,6))
     fig1.suptitle('flux map')
@@ -427,38 +405,34 @@ for plot_info in things_to_plot:
     fig3 = plt.figure(figsize=(6,6))
     fig3.suptitle('flux vs radius')
     ax3 = fig3.add_axes([0.15,0.1,0.7,0.7])
-    #The first quantity we want is flux per fiber
-    logfluxes = np.log10(ifuset.spectrumset.compute_flux())
-    logfmax = max(logfluxes)
-    logfmin = min(logfluxes)
-    fluxunit = ifuset.spectrumset.integratedflux_unit
-    fcmap = plt.cm.get_cmap('Reds')
-    fgetcolor = lambda f: fcmap((f - logfmin)/(logfmax-logfmin))
     fibertobindict = {f:b for (f,b) in zip(fiberids,binids)}
     rcoords = np.sqrt(fiber_coords[:,0]**2 + fiber_coords[:,1]**2)
-    for ifiber in range(len(logfluxes)):
+    # reuse the flux color mapping from above on the fiber fluxes
+    fluxcolors = mappable_flux.to_rgba(fiberfluxes)
+    for ifiber in range(len(fiberfluxes)):
         fiber_id = ifuset.spectrumset.ids[ifiber]
         bin_id = fibertobindict[fiber_id]
+        logflux = np.log10(fiberfluxes[ifiber])
         if not bin_id==const.badfiber_bin_id:
             ax1.add_patch(patches.Circle(fiber_coords[ifiber,:],
                                          fibersize,lw=0.25,
-                                         fc=fgetcolor(logfluxes[ifiber])))
-            ax2.text(rcoords[ifiber],logfluxes[ifiber],str(fiber_id),fontsize=5,
+                                         fc=fluxcolors[ifiber]))
+            ax2.text(rcoords[ifiber],logflux,str(fiber_id),fontsize=5,
                      horizontalalignment='center',verticalalignment='center')
-            ax3.text(rcoords[ifiber],logfluxes[ifiber],str(fiber_id),fontsize=5,
+            ax3.text(rcoords[ifiber],logflux,str(fiber_id),fontsize=5,
                      horizontalalignment='center',verticalalignment='center',
                      alpha=0.3)
         else:
-            ax3.text(rcoords[ifiber],logfluxes[ifiber],str(fiber_id),fontsize=5,
+            ax3.text(rcoords[ifiber],logflux,str(fiber_id),fontsize=5,
                      horizontalalignment='center',verticalalignment='center')
-            ax3.plot(rcoords[ifiber],logfluxes[ifiber],ls='',marker='o',
+            ax3.plot(rcoords[ifiber],logflux,ls='',marker='o',
                      mec='r',mfc='none',ms=10,lw=1.0)
         ax1.text(fiber_coords[ifiber,0],fiber_coords[ifiber,1],
                  str(fiber_id),fontsize=5,
                  horizontalalignment='center',verticalalignment='center')
     ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
-    ax2.axis([min(rcoords),max(rcoords),min(logfluxes),max(logfluxes)])
-    ax3.axis([min(rcoords),max(rcoords),min(logfluxes),max(logfluxes)])
+    ax2.axis([min(rcoords),max(rcoords),np.log10(fluxmin),np.log10(fluxmax)])
+    ax3.axis([min(rcoords),max(rcoords),np.log10(fluxmin),np.log10(fluxmax)])
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
     label_r = r'radius ({})'.format(coordunit)
@@ -475,6 +449,5 @@ for plot_info in things_to_plot:
     plt.close(fig1)
     plt.close(fig2)
     plt.close(fig3)
-
         
     pdf.close()

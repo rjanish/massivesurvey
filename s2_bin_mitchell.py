@@ -345,7 +345,15 @@ for plot_info in things_to_plot:
                        [label_flux,label_s2n,label_s2n]):
         axC = fig.add_axes([0.15,0.8,0.7,0.8])
         axC.set_visible(False)
-        cb = fig.colorbar(m,ax=axC,label=l,orientation='horizontal')
+        cb = fig.colorbar(m,ax=axC,label=l,orientation='horizontal',
+                          ticks=mpl.ticker.LogLocator(subs=range(10)))
+        # do some annoying fiddling with ticks to get minor ticks, end labels
+        ticks = m.norm.inverse(cb.ax.xaxis.get_majorticklocs())
+        cb.set_ticks(ticks) # for some reason, required before setting labels
+        ticklabels = ['' for t in ticks]
+        ticklabels[0] = ticks[0]
+        ticklabels[-1] = ticks[-1]
+        cb.set_ticklabels(ticklabels)
     # draw ma, set labels, save and close figures
     rmax = np.nanmax(bininfo['rmax'])
     for fn in fignames:

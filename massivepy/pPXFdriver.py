@@ -127,10 +127,9 @@ class pPXFDriver(object):
         """
         # convolved template libraries
         temp_lib_shape = [self.num_temps, self.num_temp_samples]
-        self.matched_templates = {}
-        matched_templates["spectra"] = np.zeros(temp_lib_shape)
-        matched_templates["ir"] = np.zeros(temp_lib_shape)
-        matched_templates["waves"] = np.zeros(self.num_temp_samples)
+        self.matched_templates = {"spectra":  np.zeros(temp_lib_shape),
+                                  "ir":  np.zeros(temp_lib_shape),
+                                  "waves":  np.zeros(self.num_temp_samples)}
         # pPXF outputs
         num_spectra = self.spectra.num_spectra
         num_samples = self.spectra.num_samples
@@ -164,8 +163,9 @@ class pPXFDriver(object):
             self.bestfit_output = np.zeros([num_spectra] + shape)
             self.mc_output = np.zeros([num_spectra, num_trials] + shape)
         # trial noises and spectra
-        self.mc_noiselevels = np.zeros((num_spectra, num_trials))
-        self.mc_spectra = np.zeros((num_spectra, num_trials, num_samples))
+        self.mc_inputs = {
+            "noiselevels": np.zeros((num_spectra, num_trials)),
+            "spectra": np.zeros((num_spectra, num_trials, num_samples))}
         return
 
     def save_matched_templates(self, matched_lib, index):
@@ -471,9 +471,9 @@ class pPXFDriver(object):
                                          goodpixels=good_pix_indices,
                                          vsyst=velocity_offset, plot=False,
                                          quiet=True, **self.ppxf_kwargs)
-                self.mc_noiselevels[spec_iter, :] = noise_scale
-                self.mc_spectra[spec_iter, trial_iter, :] = trial_spectrum
-                fit_index = [spec_iter, trial_iter]
+                fit_index = (spec_iter, trial_iter)
+                self.mc_inputs["noiselevels"][spec_iter, :] = noise_scale
+                self.mc_inputs["spectra"][fit_index] = trial_spectrum
                 mc_output = self.get_raw_pPXF_results(trial_fitter)
                 utl.fill_dict(self.mc_output, mc_output, fit_index)
         return

@@ -104,13 +104,6 @@ class pPXFDriver(object):
                              "must match number of moments to fit {}"
                              "".format(self.initial_gh.shape,
                                        self.ppxf_kwargs["moments"]))
-        # output containers
-        self.main_input = {}
-        self.main_rawoutput = {}
-        self.main_procoutput = {}
-        self.mc_input = {}
-        self.mc_rawoutput = {}
-        self.mc_procoutput = {}
         # prep spectra
         print ("preparing {} spectra for fitting..."
                "".format(self.specset.num_spectra))
@@ -125,6 +118,65 @@ class pPXFDriver(object):
         self.specset = self.specset.get_normalized(
             norm_func=spec.SpectrumSet.compute_spectrum_median,
             norm_value=1.0)  # normalize only for sensible numerical values
+        # prep fit trackers
+        self.fit_complete = False
+
+    def init_output_containers(self):
+        """
+        Prepare containers for all pPXF outputs
+        """
+        # convolved template libraries
+        temp_lib_shape = [self.num_temps, self.num_temp_samples]
+        self.matched_templates = {}
+        matched_templates["spectra"] = np.zeros(temp_lib_shape)
+        matched_templates["ir"] = np.zeros(temp_lib_shape)
+        matched_templates["waves"] = np.zeros(self.num_temp_samples)
+        # pPXF outputs
+        num_spectra = self.spectra.num_spectra
+        num_samples = self.spectra.num_samples
+        num_trials = self.num_trials
+        num_add_weights = self.ppxf_kwargs['degree'] + 1  # deg 0 --> 1 const
+        num_mul_weights = self.ppxf_kwargs['mdegree'] + 1  
+        output_shapes = {
+            "best_model": [num_samples],
+            "gh_params": [self.ppxf_kwargs['moments']],
+            "chisq_dof": [1],
+            "template_weights": [num_templates],
+            "add_weights": [num_add_weights],
+            "mul_weights": [num_mul_weights],
+            "unscaled_lsq_errors": list(self.gh_params.shape),
+                # error estimate from least-square fit's covariance matrix
+            "scaled_lsq_errors": list(self.gh_params.shape),
+                # least-square error estimate scaled by best-fit chi-squared
+            "mul_poly": [num_samples],
+            "add_poly": [num_samples],
+            "smoothed_temps": [num_temps, num_temp_samples],
+                # templates smoothed by losvd
+            "model_temps": [num_temps, num_samples]
+                # smoothed templates also scaled by multiplicative polynomial
+            "model_temps_fluxes": [num_temps],
+            "add_fluxweights": [num_add_weights],
+                # weighted normalized to equal fractional flux level
+            "template_fluxweights": [num_temps]}
+        self.bestfit_output = {}
+        self.mc_output = {}
+        for output, shape in output_shapes.iteritems():
+            self.bestfit_output = np.zeros([num_spectra] + shape)
+            self.mc_output = np.zeros([num_spectra, num_trials] + shape)
+        # trial noises and spectra
+        self.mc_noiselevels = np.zeros((num_spectra, num_trials))
+        self.mc_spectra = np.zeros((num_spectra, num_trials, num_samples))
+        return
+
+    def save_matched_templates(self, matched_lib, index):
+        """
+        Save copy of the ir-matched template spectra, ir, and wavelengths.
+        All other TemplateLibrary info is the same for each bin. 
+        """
+        to_save = {"spectra": matched_lib.spectrumset.spectra,
+                   "ir": matched_lib.spectrumset.metaspectra["ir"],
+                   "waves": matched_lib.spectrumset.waves}
+        utl.fill_dict(self.matched_templates, to_save, index)
 
     def prepare_library(self, target_spec):
         """
@@ -142,6 +194,8 @@ class pPXFDriver(object):
         num_temps = self.templib.spectrumset.num_spectra
         ir_to_match = np.asarray([single_ir_to_match,]*num_temps)
         matched_library = self.templib.match_resolution(ir_to_match)
+        matched_library = (
+            matched_library.spectrumset.crop(self.valid_temp_range))
         matched_library.spectrumset.log_resample(self.logscale)
         matched_library.spectrumset = (
             matched_library.spectrumset.get_normalized(
@@ -151,38 +205,6 @@ class pPXFDriver(object):
             # proper flux-normalization in the fitting region can only be
             # done after the best-fit overall velocity shift is determined
         return matched_library
-
-    def get_pPXF_inputdict(self, ppxf_fitter, templib):
-        """
-        Saves a record of exact pPXF input parameters into dictionary
-        """
-        raw_inputs = {}
-        raw_inputs["spectrum"] = ppxf_fitter.galaxy # data spectrum
-        raw_inputs["noise"] = ppxf_fitter.noise
-        raw_inputs["templates"] = templib
-        raw_inputs["vsyst"] = ppxf_fitter.vsyst*self.velscale
-            # the template to data initial sampling shift - pPXF saves
-            # the value in units of pixels, restore velocity units here
-        raw_inputs["pixels_used"] = ppxf_fitter.goodpixels
-        raw_inputs["mul_deg"] = ppxf_fitter.mdegree
-        raw_inputs["add_deg"] = ppxf_fitter.degree
-        raw_inputs["num_moments"] = ppxf_fitter.moments
-        raw_inputs["bias"] = ppxf_fitter.bias  # bias towards Gaussian losvd
-        raw_inputs["lam"] = ppxf_fitter.lam
-            # the data spectrum sampling wavelengths, only needed
-            # if an extinction estimate is included in the fit
-        raw_inputs["regul"] = ppxf_fitter.regul
-        raw_inputs["reg_dim"] = ppxf_fitter.reg_dim
-            # factor used to regularize the template weights
-        raw_inputs["clean"] = ppxf_fitter.clean
-            # used if pPXF does an iterative outlier clipping with the fit
-        raw_inputs["sky_template"] = ppxf_fitter.sky # include sky in fit
-        raw_inputs["oversample"] = ppxf_fitter.oversample
-            # used if pPXF is to densely re-sample the input
-        raw_inputs["kin_components"] = ppxf_fitter.component
-            # for fits with multiple kinematic components, used to
-            # specify the component to which each template belongs
-        return raw_inputs
 
     def prepend_const_mweight(self, ppxf_fitter):
         """
@@ -198,28 +220,6 @@ class pPXFDriver(object):
             mul_weights = np.asarray([1])
                 # 'mpolyweights' is not defined in pPXF if only a constant
         return mul_weights
-
-    def get_pPXF_rawoutputdict(self, ppxf_fitter):
-        """
-        Saves an exact record of raw pPXF outputs into dictionary.
-        """
-        raw_outputs = {}
-        raw_outputs["best_model"] = ppxf_fitter.bestfit
-            # best-fit model spectrum, sampled identically to input data
-        raw_outputs["gh_params"] = ppxf_fitter.sol
-        raw_outputs["chisq_dof"] = ppxf_fitter.chi2 # is per dof, see ppxf.py
-        raw_outputs["add_weights"] = ppxf_fitter.polyweights
-        raw_outputs["template_weights"] = ppxf_fitter.weights
-        raw_outputs["mul_weights"] = self.prepend_const_mweight(ppxf_fitter)
-            # multiplicative weights need constant term
-        raw_outputs["unscaled_lsq_errors"] = ppxf_fitter.error
-            # error estimate from least-square algorithm's covariance matrix
-        raw_outputs["num_kin_components"] = ppxf_fitter.ncomp
-        raw_outputs["reddening"] = ppxf_fitter.reddening
-            # used if an extinction estimate is included in the fit
-        raw_outputs["sampling_factor"] = ppxf_fitter.factor
-            # used if pPXF re-samples the input to denser grid
-        return raw_outputs
 
     def scale_lsq_variance(self, ppxf_fitter):
         """
@@ -331,26 +331,47 @@ class pPXFDriver(object):
         flux_template_weights = fitter.weights*model_tmps_fluxes/total_flux
         return flux_add_weights, flux_template_weights
 
+    def get_raw_pPXF_results(self, fitter):
+        """
+        Compile useful pPXF direct outputs.
+        """
+        raw_outputs = {}
+        # raw ppxf outputs
+        raw_outputs["best_model"] = ppxf_fitter.bestfit
+            # best-fit model spectrum, sampled identically to input data
+        raw_outputs["gh_params"] = ppxf_fitter.sol
+        raw_outputs["chisq_dof"] = ppxf_fitter.chi2 # is per dof, see ppxf.py
+        raw_outputs["add_weights"] = ppxf_fitter.polyweights
+        raw_outputs["template_weights"] = ppxf_fitter.weights
+        raw_outputs["mul_weights"] = self.prepend_const_mweight(ppxf_fitter)
+            # multiplicative weights need constant term
+        raw_outputs["unscaled_lsq_errors"] = ppxf_fitter.error
+            # error estimate from least-square algorithm's covariance matrix
+        return raw_outputs
+
     def process_pPXF_results(self, fitter, losvd_sampling_factor):
         """
-        Compute all useful outputs not directly returned by pPXF.
+        Compute useful outputs not directly returned by pPXF.
         """
         proc_outputs = {}
         proc_outputs["scaled_lsq_errors"] = self.scale_lsq_variance(fitter)
+            # least-square error estimate scaled by fit chi-squared
         add_poly, mul_poly = self.evalute_continuum_polys(fitter)
         proc_outputs["mul_poly"] = mul_poly
         proc_outputs["add_poly"] = add_poly
         smoothed_tmps = self.convolve_templates(fitter, losvd_sampling_factor)
         proc_outputs["smoothed_temps"] = smoothed_tmps
+            # templates convolved by best-fit losvd
         [model_tmps, model_fluxes] = (
             self.compute_model_templates(fitter, smoothed_tmps, mul_poly))
         proc_outputs["model_temps"] = model_tmps
+            # losvd-smoothed templates also scaled by multiplicative poly
         proc_outputs["model_temps_fluxes"] = model_fluxes
         [flux_add_weights,
          flux_tmp_weights] = self.fluxnormalize_weights(fitter, model_fluxes)
-        proc_outputs["flux_add_weights"] = flux_add_weights
-        proc_outputs["flux_template_weights"] = flux_tmp_weights
-        # test reconstruction
+        proc_outputs["add_fluxweights"] = flux_add_weights
+        proc_outputs["template_fluxweights"] = flux_tmp_weights
+        # test best-fit model reconstruction
         reconstructed = add_poly + (model_tmps.T*fitter.weights).sum(axis=1)
         delta = (reconstructed - fitter.bestfit)/fitter.bestfit
         matches = np.absolute(delta).max() < const.relaxed_tol
@@ -361,7 +382,7 @@ class pPXFDriver(object):
                           "{:.2e}".format(*utl.quartiles(delta)))
         return proc_outputs
 
-    def run_fit(self):
+    def run_fit(self, crop_factor=7):
         """
         Perform the actual pPXF fit, along with processing of the fit
         output and Monte Carlo fits to determine errors. This driver
@@ -379,9 +400,22 @@ class pPXFDriver(object):
           mc_rawoutput - record of direct pPXF outputs
           mc_procoutput - processed pPXF outputs
         """
-        if self.main_rawoutput:
+        if self.fit_complete:
             raise RuntimeWarning("A pPXF fit to this set of spectra has "
                                  "already been computed - overwriting...")
+        # determine size of ir-convolved templates
+        all_ir = self.spectra.metaspectra["ir"]
+        max_edge_ir = all_ir[:, [0, -1]].max(axis=0) # max over templates
+        max_edge_sigma = max_edge_ir/const.gaussian_fwhm_over_sigma
+        self.valid_temp_range = (self.spectra.spec_region +
+                                 crop_factor*edge_sigmas*np.array([1, -1]))
+        first_spectrum = self.specset.get_subset([self.specset.ids[0]])
+        test_matched_library = self.prepare_library(first_spectrum)
+        self.num_temp_samples = test_matched_library.spectrumset.num_samples
+        self.num_temps = test_matched_library.spectrumset.num_spectra
+        # prep for fit
+        self.init_output_containers()
+        # run actual fit
         for spec_iter, target_id in enumerate(self.specset.ids):
             print ("fitting spectrum {} ({} of {})..."
                    "".format(target_id, spec_iter + 1,
@@ -411,30 +445,16 @@ class pPXFDriver(object):
                                goodpixels=good_pix_indices,
                                vsyst=velocity_offset, plot=False,
                                quiet=True, **self.ppxf_kwargs)
-            # save main results
-            inputs = self.get_pPXF_inputdict(fitter, matched_library)
-            self.main_input = utl.append_to_dict(self.main_input, inputs)
-            raw_outputs = self.get_pPXF_rawoutputdict(fitter)
-            self.main_rawoutput = utl.append_to_dict(self.main_rawoutput,
-                                                     raw_outputs)
-            proc_outputs = self.process_pPXF_results(fitter, self.VEL_FACTOR)
-            self.main_procoutput = utl.append_to_dict(self.main_procoutput,
-                                                      proc_outputs)
+            bestfit_output = self.get_raw_pPXF_results(fitter)
+            bestfit_output.update(self.process_pPXF_results(fitter))
+            utl.fill_dict(self.bestfit_output, bestfit_output, spec_iter)
+            self.save_matched_templates(matched_library, spec_iter)
             # construct error estimate from Monte Carlo trial spectra
             if not (self.num_trials > 1):
                 continue
-            base = np.asarray(self.main_rawoutput["best_model"][-1])
-                # index -1: grab most recent entry
-            chisq_dof = float(self.main_rawoutput["chisq_dof"][-1])
-            if chisq_dof >= 1:
-                warnings.warn("chi^2/dof = {:.2f} >= 1, "
-                              "inflating noise for Monte Carlo trials "
-                              "such that chi^2/dof = 1".format(chisq_dof))
-            else:
-                warnings.warn("chi^2/dof = {:.2f} < 1, "
-                              "deflating noise for Monte Carlo trials "
-                              "such that chi^2/dof = 1".format(chisq_dof))
-            noise_scale = np.asarray(self.main_input["noise"][-1])
+            base = self.bestfit_output["best_model"][spec_iter, :]
+            chisq_dof = self.bestfit_output["chisq_dof"][spec_iter]
+            noise_scale = target_spec.metaspectra["noise"][0]
             noise_scale *= np.sqrt(chisq_dof)
                 # this sets the noise level for the Monte Carlo trials to be
                 # roughly the size of the actual fit residuals - i.e., we
@@ -443,33 +463,19 @@ class pPXFDriver(object):
             noise_draw = np.random.randn(self.num_trials, *base.shape)
                 # uniform, uncorrelated Gaussian pixel noise
             trial_spectra = base + noise_draw*noise_scale
-            base_gh_params = np.asarray(self.main_rawoutput["gh_params"][-1])
-            trialset_input = {} # stores all results for this set of trials
-            trialset_rawoutput = {}
-            trialset_procoutput = {}
-            for trial_spectrum in trial_spectra:
+            base_gh_params = self.bestfit_output["gh_params"][spec_iter, :])
+            for trial_iter, trial_spectrum in enumerate(trial_spectra):
                 trial_fitter = ppxf.ppxf(library_spectra_cols,
                                          trial_spectrum, noise_scale,
                                          self.velscale, base_gh_params,
                                          goodpixels=good_pix_indices,
                                          vsyst=velocity_offset, plot=False,
                                          quiet=True, **self.ppxf_kwargs)
-                inputs = self.get_pPXF_inputdict(trial_fitter,
-                                                 matched_library)
-                trialset_input = utl.append_to_dict(trialset_input, inputs)
-                raw_outputs = self.get_pPXF_rawoutputdict(trial_fitter)
-                trialset_rawoutput = utl.append_to_dict(trialset_rawoutput,
-                                                        raw_outputs)
-                proc_outputs = self.process_pPXF_results(trial_fitter,
-                                                         self.VEL_FACTOR)
-                trialset_procoutput = utl.append_to_dict(trialset_procoutput,
-                                                         proc_outputs)
-            self.mc_input = utl.append_to_dict(self.mc_input, trialset_input)
-            self.mc_rawoutput = utl.append_to_dict(self.mc_rawoutput,
-                                                   trialset_rawoutput)
-            self.mc_procoutput = utl.append_to_dict(self.mc_procoutput,
-                                                    trialset_procoutput)
-        # add type-processing of output dicts here
+                self.mc_noiselevels[spec_iter, :] = noise_scale
+                self.mc_spectra[spec_iter, trial_iter, :] = trial_spectrum
+                fit_index = [spec_iter, trial_iter]
+                mc_output = self.get_raw_pPXF_results(trial_fitter)
+                utl.fill_dict(self.mc_output, mc_output, fit_index)
         return
 
     def write_outputs(self,paths_dict,debug_mc=False):

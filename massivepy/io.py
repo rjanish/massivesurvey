@@ -71,12 +71,9 @@ def get_friendly_ppxf_output(path):
 
     # populate spectrum stuff
     # pretty sure this can go away since its all in the bin output!
-    dt = {'names':['spectrum','noise','pixused','bestmodel'],
-          'formats':4*['<f8']}
+    dt = {'names':['bestmodel'], 'formats':['<f8']}
     friendly_data['spec'] = np.zeros((nbins,npixels),dtype=dt)
-    for ibin in range(nbins):
-        for ipix in range(npixels):
-            friendly_data['spec'][ibin,ipix] = tuple(data[2][:4,ibin,ipix])
+    friendly_data['spec']['bestmodel'] = data[2][0, ...]
 
     # populate waves 
     # pretty sure this can go away since its all in the bin output!

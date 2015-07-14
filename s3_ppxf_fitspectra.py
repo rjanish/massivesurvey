@@ -298,7 +298,9 @@ for plot_info in things_to_plot:
     fig.suptitle('bin spectra by bin number')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     for i,binid in enumerate(fitdata['bins']['id']):
-        spectrum = fitdata['spec']['spectrum'][i]
+        target_specset = specset_to_fit.crop(fit_range)
+        spectrum = target_specset.get_subset([binid]).spectra[0]
+        spectrum = spectrum/np.median(spectrum)
         model = fitdata['spec']['bestmodel'][i]
         waves = fitdata['waves']
         ax.plot(waves,binid-spectrum+spectrum[0],c='k')
@@ -308,7 +310,7 @@ for plot_info in things_to_plot:
     # find regions to mask
     # note the masking is currently saved per bin in fitoutput, this is silly!
     # for now just use the mask for the last bin (i at end of above loop)
-    maskpix = np.where(fitdata['spec']['pixused'][i,:]==0)[0]
+    maskpix = target_specset.get_subset([binid]).metaspectra['bad_data'][0]
     if not len(maskpix)==0:
         ibreaks = np.where(np.diff(maskpix)!=1)[0]
         maskpix_starts = [maskpix[0]]

@@ -125,17 +125,17 @@ class pPXFDriver(object):
         """
         Prepare containers for all pPXF outputs
         """
-        # convolved template libraries
-        temp_lib_shape = [self.num_temps, self.num_temp_samples]
-        self.matched_templates = {"spectra":  np.zeros(temp_lib_shape),
-                                  "ir":  np.zeros(temp_lib_shape),
-                                  "waves":  np.zeros(self.num_temp_samples)}
-        # pPXF outputs
         num_spectra = self.specset.num_spectra
         num_samples = self.specset.num_samples
         num_trials = self.num_trials
         num_add_weights = self.ppxf_kwargs['degree'] + 1  # deg 0 --> 1 const
         num_mul_weights = self.ppxf_kwargs['mdegree'] + 1  
+        # convolved template libraries
+        temp_lib_shape = [num_spectra, self.num_temps, self.num_temp_samples]
+        self.matched_templates = {"spectra":  np.zeros(temp_lib_shape),
+                                  "ir":  np.zeros(temp_lib_shape),
+                                  "waves":  np.zeros(self.num_temp_samples)}
+        # pPXF outputs
         output_shapes = {
             "best_model": [num_samples],
             "gh_params": [self.ppxf_kwargs['moments']],
@@ -160,11 +160,12 @@ class pPXFDriver(object):
         self.bestfit_output = {}
         self.mc_output = {}
         for output, shape in output_shapes.iteritems():
-            self.bestfit_output = np.zeros([num_spectra] + shape)
-            self.mc_output = np.zeros([num_spectra, num_trials] + shape)
+            self.bestfit_output[output] = np.zeros([num_spectra] + shape)
+            self.mc_output[output] = np.zeros([num_spectra, num_trials]
+                                              + shape)
         # trial noises and spectra
         self.mc_inputs = {
-            "noiselevels": np.zeros((num_spectra, num_trials)),
+            "noiselevels": np.zeros((num_spectra, num_samples)),
             "spectra": np.zeros((num_spectra, num_trials, num_samples))}
         return
 
@@ -173,10 +174,20 @@ class pPXFDriver(object):
         Save copy of the ir-matched template spectra, ir, and wavelengths.
         All other TemplateLibrary info is the same for each bin. 
         """
-        to_save = {"spectra": matched_lib.spectrumset.spectra,
-                   "ir": matched_lib.spectrumset.metaspectra["ir"],
-                   "waves": matched_lib.spectrumset.waves}
-        utl.fill_dict(self.matched_templates, to_save, index)
+        per_bin = {"spectra": matched_lib.spectrumset.spectra,
+                   "ir": matched_lib.spectrumset.metaspectra["ir"]}
+        utl.fill_dict(self.matched_templates, per_bin, index)
+        first_update = (index == 0)
+        if first_update:
+            self.matched_templates['waves'] = matched_lib.spectrumset.waves
+        else:
+            resid = np.absolute(self.matched_templates['waves'] -
+                                matched_lib.spectrumset.waves)
+            waves_match = np.all(resid < const.float_tol)
+            if not waves_match:
+                raise RuntimeError("IR-matched template library sampling "
+                                   "does not agree across spectra to fit!")
+            self.matched_templates['waves'] = matched_lib.spectrumset.waves
 
     def prepare_library(self, target_spec):
         """

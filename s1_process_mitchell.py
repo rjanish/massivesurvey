@@ -29,12 +29,14 @@ import shapely.geometry as geo
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.backends.backend_pdf import PdfPages
+import astropy.io.fits as fits
 
 import utilities as utl
 import massivepy.constants as const
 import massivepy.spectralresolution as res
 import massivepy.IFUspectrum as ifu
 import massivepy.io as mpio
+import massivepy.gausshermite as gh
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
@@ -59,10 +61,17 @@ for paramfile_path in all_paramfile_paths:
     # construct output file names
     output_filename = "{}-s1-{}-mitchellcube.fits".format(gal_name,run_name)
     plot_filename = "{}-s1-{}-mitchellcube.pdf".format(gal_name,run_name)
+    ir_filename = "{}-s1-{}-ir.txt".format(gal_name,run_name)
+    ir_fitsfilename = "{}-s1-{}-ir.fits".format(gal_name,run_name)
     output_path = os.path.join(output_dir, output_filename)
+    ir_path = os.path.join(output_dir, ir_filename)
+    ir_fitspath = os.path.join(output_dir, ir_fitsfilename)
     plot_path = os.path.join(output_dir, plot_filename)
     # save relevant info for plotting to a dict
-    plot_info = {'data_path': output_path, 'plot_path': plot_path}
+    plot_info = {'data_path': output_path, 'plot_path': plot_path,
+                 'ir_path': ir_path, 'raw_cube_path': raw_cube_path,
+                 'targets_path': input_params['target_positions'],
+                 'gal_name':gal_name}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
@@ -79,8 +88,6 @@ for paramfile_path in all_paramfile_paths:
     data, headers = utl.fits_quickread(raw_cube_path)
     spec_unit = const.flux_per_angstrom  # assume spectrum units
     wave_unit = const.angstrom  # assume wavelength units
-    fiber_radius = const.mitchell_fiber_radius.value  # arcsec
-    fiber_circle = lambda center: geo.Point(center).buffer(fiber_radius)
     # get data
     gal_position = target_positions[target_positions.Name == gal_name]
     gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
@@ -105,84 +112,42 @@ for paramfile_path in all_paramfile_paths:
         gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
         redshift = waves_h['z']  # assumed redshift of galaxy
         inst_waves = gal_waves*(1 + redshift)  # instrument rest frame
-    print "  re-scaling coordinates..."
-    cart_coords = ifu.center_coordinates(coords, gal_center)
     print "  fitting arc frames..."
     spec_res_samples = res.fit_arcset(inst_waves, arcs,
                                       const.mitchell_arc_centers,
                                       const.mitchell_nominal_spec_resolution)
-    spec_res_full = np.nan*np.ones(spectra.shape)
-    print "  interpolating spectral resolution..."
-    for fiber_iter, fiber_res_samples in enumerate(spec_res_samples):
-        galframe_samples = fiber_res_samples/(1 + redshift)
-        gal_interp_func = utl.interp1d_constextrap(*galframe_samples.T)
-        spec_res_full[fiber_iter] = gal_interp_func(gal_waves)
-            # This scales the ir into the galaxy rest frame
-    print ("cropping to {}-{} A (galaxy rest frame)..."
-           "".format(*const.mitchell_crop_region))
-    valid = utl.in_linear_interval(gal_waves, const.mitchell_crop_region)
-    # TO DO: actual masking of sky lines, check for nonsense values
-    bad_data = np.zeros(spectra.shape, dtype=bool)
-    # save data
-    fiber_numbers = np.arange(spectra.shape[0], dtype=int)
-    vhelio = spectra_h["VHELIO"]
-    comments = {
-        "target":gal_name,
-        "heliocentric correction applied":"{} [km/s]".format(vhelio),
-        "wavelengths":"wavelength in galaxy rest frame",
-        "applied galaxy redshift":waves_h["Z"],
-        "galaxy center":"{}, {} [RA, DEC degrees]".format(*gal_center),
-        "galaxy position angle":"{} [degrees E of N]".format(gal_pa),
-        "spectral resolution":("interpolated from {} arc lamp measurements, "
-                               "reported in the galaxy rest frame"
-                               "".format(len(const.mitchell_arc_centers)))}
-    coord_comments = {
-        "target":gal_name,
-        "coord-system":("dimensionless distance in plane through galaxy "
-                        "center and perpendicular to line-of-sight, "
-                        "expressed in arcsec - physical distance is "
-                        "(given coords)*pi/(180*3600)*length_factor, "
-                        "with length_factor the distance to the galaxy"),
-        "distance scale factor":"line-of-sight distance to galaxy",
-        "origin":"coordinate system origin at galaxy center",
-        "origin":"{}, {} [RA, DEC degrees]".format(*gal_center),
-        "x-direction":"East",
-        "y-direction":"North",
-        "galaxy major axis":"{} [degrees E of N]".format(gal_pa),
-        "fiber shape":"circle",
-        "fiber radius":"{} arcsec".format(const.mitchell_fiber_radius)}
-    name = "{}_mitchell_datacube".format(gal_name.lower())
-    ifuset = ifu.IFUspectrum(spectra=spectra[:, valid],
-                             bad_data=bad_data[:, valid],
-                             noise=noise[:, valid],
-                             ir=spec_res_full[:, valid],
-                             spectra_ids=fiber_numbers,
-                             wavelengths=gal_waves[valid],
-                             spectra_unit=spec_unit,
-                             wavelength_unit=wave_unit,
-                             comments=comments,
-                             coords=cart_coords,
-                             coords_unit=const.arcsec,
-                             coord_comments=coord_comments,
-                             linear_scale=fiber_radius,
-                             footprint=fiber_circle,
-                             name=name)
-    ifuset.write_to_fits(output_path)
-    print "  wrote proc cube: {}".format(output_path)
+    # NEW PLAN: save the IR in a simple text file, don't copy the cube
+    nfibers, nlines, ncols = spec_res_samples.shape
+    ir_header = "Fits of arc frames for each fiber"
+    ir_header += "\n interpolated from {} arc lamp lines".format(nlines)
+    ir_header += "\n reported in instrument rest frame"
+    ir_header += "\nFour columns for each line, as follows:"
+    ir_header += "\n fiducial center, fit center, fit fwhm, fit height"
+    ir_savearray = np.zeros((nfibers, 4*nlines))
+    fmt = nlines*['%-7.6g','%-7.6g','%-7.4g','%-7.4g']
+    ir_savearray[:,0::4] = const.mitchell_arc_centers
+    ir_savearray[:,1::4] = spec_res_samples[:,:,0]
+    ir_savearray[:,2::4] = spec_res_samples[:,:,1]
+    ir_savearray[:,3::4] = spec_res_samples[:,:,2]
+    np.savetxt(ir_path, ir_savearray, fmt=fmt, delimiter='\t', header=ir_header)
 
 
 for plot_info in things_to_plot:
     print plot_info['data_path']
-    ifuset = ifu.read_mitchell_datacube(plot_info['data_path'])
 
     #Collect data to plot
-    nfibers = len(ifuset.coords)
-    fibersize = const.mitchell_fiber_radius.value #Assuming units match!
+    ifuset = ifu.read_raw_datacube(plot_info['raw_cube_path'],
+                                   plot_info['targets_path'],
+                                   plot_info['gal_name'],
+                                   ir_path=plot_info['ir_path'])
+    print ifuset.spectrumset.comments
+    nfibers = ifuset.spectrumset.comments['nfibers']
+    fibersize = ifuset.linear_scale
     xcoords = -ifuset.coords[:,0] #Flipping east-west to match pictures
     ycoords = ifuset.coords[:,1]
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
     rcoords = np.sqrt(xcoords**2 + ycoords**2)
-    coordunit = ifuset.coord_comments['coordunit']
+    coordunit = ifuset.coords_unit
     #The first quantity we want is flux per fiber
     logfluxes = np.log10(ifuset.spectrumset.compute_flux())
     logfmax = max(logfluxes)
@@ -270,4 +235,73 @@ for plot_info in things_to_plot:
     pdf.savefig(fig2)
     pdf.savefig(fig3)
     pdf.savefig(fig4)
+
+    # new ir testing plots!
+    skipnumber = 40 #only do 1 of every skipnumber fibers
+    # load up the arc frames - this should go as part of the ifu
+    data, headers = utl.fits_quickread(plot_info['raw_cube_path'])
+    try:
+        # wavelengths of arc spectra are specifically included
+        spectra, noise, all_waves, coords, arcs, all_inst_waves = data
+        spectra_h, noise_h, waves_h, coords_h, arcs_h, inst_waves_h = headers
+        gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
+        inst_waves = all_inst_waves[0, :]  # instrument rest frame
+        redshift = waves_h['z']  # assumed redshift of galaxy
+    except ValueError:
+        # wavelength of arc spectra not included - compute by shifting
+        # the spectra wavelength back into the instrument rest frame
+        spectra, noise, all_waves, coords, arcs = data
+        spectra_h, noise_h, waves_h, coords_h, arcs_h = headers
+        gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
+        redshift = waves_h['z']  # assumed redshift of galaxy
+        inst_waves = gal_waves*(1 + redshift)  # instrument rest frame
+    waves = inst_waves
+    spectra = arcs[::skipnumber]
+    spectra = (spectra.T/np.max(spectra, axis=1)).T
+    # load up the ir textfile
+    ir_textinfo = np.genfromtxt(plot_info['ir_path'])
+    ir_fidcenter = ir_textinfo[::skipnumber,0::4]
+    ir_center = ir_textinfo[::skipnumber,1::4]
+    ir_fwhm = ir_textinfo[::skipnumber,2::4]
+    ir_height = ir_textinfo[::skipnumber,3::4]
+    nplotfibers, nlines = ir_fidcenter.shape
+    # do a figure for each line
+    for i in range(nlines):
+        fig = plt.figure(figsize=(6,6))
+        fig.suptitle('ir testing')
+        ax = fig.add_axes([0.15,0.1,0.7,0.7])
+        for j in range(nplotfibers):
+            startwave, endwave = ir_fidcenter[j,i]-20, ir_fidcenter[j,i]+20
+            startpix, endpix = np.searchsorted(waves,[startwave,endwave])
+            ax.plot(waves[startpix:endpix],spectra[j][startpix:endpix],
+                    c='k',alpha=0.2)
+            sigma = ir_fwhm[j,i]/const.gaussian_fwhm_over_sigma
+            height = ir_height[j,i]/(2*np.pi)
+            center = ir_center[j,i]
+            model_p = [center,sigma]
+            model = gh.unnormalized_gausshermite_pdf(waves[startpix:endpix],
+                                                      model_p)*height
+            # apparently height means nothing...
+            model = model*max(spectra[j][startpix:endpix])/max(model)
+            ax.plot(waves[startpix:endpix],model,c='b',alpha=0.2)
+            if i==5:
+                sigma2 = (const.mitchell_nominal_spec_resolution
+                          /const.gaussian_fwhm_over_sigma)
+                model2_p = [center,sigma2]
+                model2 =gh.unnormalized_gausshermite_pdf(waves[startpix:endpix],
+                                                         model2_p)*height
+                model2 = model2*max(spectra[j][startpix:endpix])/max(model2)
+                ax.plot(waves[startpix:endpix],model2,c='r',alpha=0.2)
+        ax.set_ylim(ymin=0,ymax=0.004)
+        pdf.savefig(fig)
+        plt.close(fig)
+
+    # now do the ir vs wavelength
+    fig = plt.figure(figsize=(6,6))
+    fig.suptitle('ir testing')
+    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    for i in range(nplotfibers):
+        ax.plot(ir_center[i,:],ir_fwhm[i,:],c='r',alpha=0.2)
+    pdf.savefig(fig)
+    plt.close(fig)
     pdf.close()

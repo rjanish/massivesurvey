@@ -2,6 +2,7 @@
 
 
 import numpy as np
+import astropy.io.fits as fits
 
 import utilities as utl
 import fitting.series as sf
@@ -61,15 +62,37 @@ def fit_arcset(wavelengths, arcs, line_centers, fwhm_guess, fit_scale=10):
     initial_heights = np.ones(num_lines)
     all_intital_params = zip(initial_heights, line_centers, initial_sigmas)
     # fit lines
-    spec_resolution = np.zeros((num_arcs, num_lines, 2))
+    spec_resolution = np.zeros((num_arcs, num_lines, 3))
     for arc_iter, arc in enumerate(arcs):
         fitter = sf.SeriesFit(waves, arc, gauss_model, gauss_fitwidth,
                               gauss_center, all_intital_params,
                               sf.leastsq_lma) # lma least-squares fit
         fitter.run_fit()
-        bestfit_centers, bestfit_sigmas = fitter.current_params[:, 1:].T
+        #bestfit_centers, bestfit_sigmas = fitter.current_params[:, 1:].T
+        bestfit_heights,bestfit_centers,bestfit_sigmas=fitter.current_params.T
             # param order: line height, center, sigma
         bestfit_fwhm = bestfit_sigmas*const.gaussian_fwhm_over_sigma
         spec_resolution[arc_iter, :, 0] = bestfit_centers
         spec_resolution[arc_iter, :, 1] = bestfit_fwhm
+        spec_resolution[arc_iter, :, 2] = bestfit_heights
     return spec_resolution
+
+def specres_for_galaxy(spec_resolution, galwaves, redshift):
+    """
+    Take the results from fit_arcset and put them in galaxy terms.
+    1) Shift from instrument frame to galaxy rest frame.
+    2) Interpolate to galaxy wavelength samples.
+    Assumes a set of spec_resolution results (== set of fibers), but with
+     uniform redshift and wavelength sampling across all fibers.
+    Assumes spec_resolution is an array containing at least two columns,
+     'centers' and 'fwhm' - other columns are ignored.
+    Returns a set of ir arrays (one for each fiber).
+    """
+    nfibers, nlines, ncols = spec_resolution.shape
+    npixels = len(galwaves)
+    ir_set = np.zeros((nfibers,npixels))
+    for ifiber in range(nfibers):
+        galframe_samples = spec_resolution[ifiber,:,0:2]/(1+redshift)
+        interpolator = utl.interp1d_constextrap(*galframe_samples.T)
+        ir_set[ifiber] = interpolator(galwaves)
+    return ir_set

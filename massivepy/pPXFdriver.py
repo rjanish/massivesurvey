@@ -131,8 +131,8 @@ class pPXFDriver(object):
                                   "ir":  np.zeros(temp_lib_shape),
                                   "waves":  np.zeros(self.num_temp_samples)}
         # pPXF outputs
-        num_spectra = self.spectra.num_spectra
-        num_samples = self.spectra.num_samples
+        num_spectra = self.specset.num_spectra
+        num_samples = self.specset.num_samples
         num_trials = self.num_trials
         num_add_weights = self.ppxf_kwargs['degree'] + 1  # deg 0 --> 1 const
         num_mul_weights = self.ppxf_kwargs['mdegree'] + 1  
@@ -140,23 +140,23 @@ class pPXFDriver(object):
             "best_model": [num_samples],
             "gh_params": [self.ppxf_kwargs['moments']],
             "chisq_dof": [1],
-            "template_weights": [num_templates],
+            "template_weights": [self.num_temps],
             "add_weights": [num_add_weights],
             "mul_weights": [num_mul_weights],
-            "unscaled_lsq_errors": list(self.gh_params.shape),
+            "unscaled_lsq_errors": [self.ppxf_kwargs['moments']],
                 # error estimate from least-square fit's covariance matrix
-            "scaled_lsq_errors": list(self.gh_params.shape),
+            "scaled_lsq_errors": [self.ppxf_kwargs['moments']],
                 # least-square error estimate scaled by best-fit chi-squared
             "mul_poly": [num_samples],
             "add_poly": [num_samples],
-            "smoothed_temps": [num_temps, num_temp_samples],
+            "smoothed_temps": [self.num_temps, self.num_temp_samples],
                 # templates smoothed by losvd
-            "model_temps": [num_temps, num_samples]
+            "model_temps": [self.num_temps, num_samples],
                 # smoothed templates also scaled by multiplicative polynomial
-            "model_temps_fluxes": [num_temps],
+            "model_temps_fluxes": [self.num_temps],
             "add_fluxweights": [num_add_weights],
                 # weighted normalized to equal fractional flux level
-            "template_fluxweights": [num_temps]}
+            "template_fluxweights": [self.num_temps]}
         self.bestfit_output = {}
         self.mc_output = {}
         for output, shape in output_shapes.iteritems():
@@ -194,7 +194,7 @@ class pPXFDriver(object):
         num_temps = self.templib.spectrumset.num_spectra
         ir_to_match = np.asarray([single_ir_to_match,]*num_temps)
         matched_library = self.templib.match_resolution(ir_to_match)
-        matched_library = (
+        matched_library.spectrumset = (
             matched_library.spectrumset.crop(self.valid_temp_range))
         matched_library.spectrumset.log_resample(self.logscale)
         matched_library.spectrumset = (
@@ -382,7 +382,7 @@ class pPXFDriver(object):
                           "{:.2e}".format(*utl.quartiles(delta)))
         return proc_outputs
 
-    def run_fit(self, crop_factor=7):
+    def run_fit(self, crop_factor=5.5):
         """
         Perform the actual pPXF fit, along with processing of the fit
         output and Monte Carlo fits to determine errors. This driver
@@ -404,11 +404,11 @@ class pPXFDriver(object):
             raise RuntimeWarning("A pPXF fit to this set of spectra has "
                                  "already been computed - overwriting...")
         # determine size of ir-convolved templates
-        all_ir = self.spectra.metaspectra["ir"]
-        max_edge_ir = all_ir[:, [0, -1]].max(axis=0) # max over templates
-        max_edge_sigma = max_edge_ir/const.gaussian_fwhm_over_sigma
-        self.valid_temp_range = (self.spectra.spec_region +
-                                 crop_factor*edge_sigmas*np.array([1, -1]))
+        all_ir = self.specset.metaspectra["ir"]
+        edge_ir = all_ir[:, [0, -1]].max(axis=0) # max over templates
+        edge_sigma = edge_ir/const.gaussian_fwhm_over_sigma
+        self.valid_temp_range = (self.specset.spec_region +
+                                 crop_factor*edge_sigma*np.array([1, -1]))
         first_spectrum = self.specset.get_subset([self.specset.ids[0]])
         test_matched_library = self.prepare_library(first_spectrum)
         self.num_temp_samples = test_matched_library.spectrumset.num_samples
@@ -439,6 +439,8 @@ class pPXFDriver(object):
                 # an array containing integer indices where the input is True
             library_spectra_cols = matched_library.spectrumset.spectra.T
                 # pPXF requires library spectra in columns of input array
+            print 'spectra:', target_spec.spectra[0].shape
+            print 'templates:', library_spectra_cols.shape
             fitter = ppxf.ppxf(library_spectra_cols, target_spec.spectra[0],
                                target_spec.metaspectra["noise"][0],
                                self.velscale, self.initial_gh,
@@ -463,7 +465,7 @@ class pPXFDriver(object):
             noise_draw = np.random.randn(self.num_trials, *base.shape)
                 # uniform, uncorrelated Gaussian pixel noise
             trial_spectra = base + noise_draw*noise_scale
-            base_gh_params = self.bestfit_output["gh_params"][spec_iter, :])
+            base_gh_params = self.bestfit_output["gh_params"][spec_iter, :]
             for trial_iter, trial_spectrum in enumerate(trial_spectra):
                 trial_fitter = ppxf.ppxf(library_spectra_cols,
                                          trial_spectrum, noise_scale,

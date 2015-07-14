@@ -331,7 +331,7 @@ class pPXFDriver(object):
         flux_template_weights = fitter.weights*model_tmps_fluxes/total_flux
         return flux_add_weights, flux_template_weights
 
-    def get_raw_pPXF_results(self, fitter):
+    def get_raw_pPXF_results(self, ppxf_fitter):
         """
         Compile useful pPXF direct outputs.
         """
@@ -382,7 +382,7 @@ class pPXFDriver(object):
                           "{:.2e}".format(*utl.quartiles(delta)))
         return proc_outputs
 
-    def run_fit(self, crop_factor=5.5):
+    def run_fit(self, crop_factor=5): 
         """
         Perform the actual pPXF fit, along with processing of the fit
         output and Monte Carlo fits to determine errors. This driver
@@ -401,13 +401,13 @@ class pPXFDriver(object):
           mc_procoutput - processed pPXF outputs
         """
         if self.fit_complete:
-            raise RuntimeWarning("A pPXF fit to this set of spectra has "
-                                 "already been computed - overwriting...")
+            warnings.warn("A pPXF fit to this set of spectra has "
+                          "already been computed - overwriting...")
         # determine size of ir-convolved templates
         all_ir = self.specset.metaspectra["ir"]
         edge_ir = all_ir[:, [0, -1]].max(axis=0) # max over templates
         edge_sigma = edge_ir/const.gaussian_fwhm_over_sigma
-        self.valid_temp_range = (self.specset.spec_region +
+        self.valid_temp_range = (self.templib.spectrumset.spec_region +
                                  crop_factor*edge_sigma*np.array([1, -1]))
         first_spectrum = self.specset.get_subset([self.specset.ids[0]])
         test_matched_library = self.prepare_library(first_spectrum)
@@ -439,8 +439,6 @@ class pPXFDriver(object):
                 # an array containing integer indices where the input is True
             library_spectra_cols = matched_library.spectrumset.spectra.T
                 # pPXF requires library spectra in columns of input array
-            print 'spectra:', target_spec.spectra[0].shape
-            print 'templates:', library_spectra_cols.shape
             fitter = ppxf.ppxf(library_spectra_cols, target_spec.spectra[0],
                                target_spec.metaspectra["noise"][0],
                                self.velscale, self.initial_gh,
@@ -448,7 +446,8 @@ class pPXFDriver(object):
                                vsyst=velocity_offset, plot=False,
                                quiet=True, **self.ppxf_kwargs)
             bestfit_output = self.get_raw_pPXF_results(fitter)
-            bestfit_output.update(self.process_pPXF_results(fitter))
+            proc_results = self.process_pPXF_results(fitter, self.VEL_FACTOR)
+            bestfit_output.update(proc_results)
             utl.fill_dict(self.bestfit_output, bestfit_output, spec_iter)
             self.save_matched_templates(matched_library, spec_iter)
             # construct error estimate from Monte Carlo trial spectra

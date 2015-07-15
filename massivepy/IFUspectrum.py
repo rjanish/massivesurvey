@@ -86,6 +86,15 @@ class IFUspectrum(object):
                            linear_scale=self.linear_scale,
                            coord_comments=self.coord_comments)
 
+    def crop(self, region_to_keep):
+        """
+        Modify the spectrumset object by cropping to include data
+        only in the passed wavelength interval.
+        See SpectrumSet.crop for details
+        """
+        self.spectrumset = self.spectrumset.crop(region_to_keep)
+        return
+
     def s2n_fluxweighted_binning(self, threshold=None, get_bins=None):
         """
         Construct a spacial partition of the spectra into bins,
@@ -278,7 +287,7 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
     wavelengths = gal_waves
     comments['wavelengths frame'] = 'galaxy rest frame'
     bad_data = np.zeros(spectra.shape, dtype=bool)
-    bad_data=np.where(spectra<0,np.ones(spectra.shape),np.zeros(spectra.shape))
+    #bad_data=np.where(spectra<0,np.ones(spectra.shape),np.zeros(spectra.shape))
     if ir_path is None:
         ir = np.nan*np.ones(spectra.shape)
     else:

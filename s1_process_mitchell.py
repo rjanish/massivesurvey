@@ -59,23 +59,19 @@ for paramfile_path in all_paramfile_paths:
                                    engine='python')
     run_name = input_params['run_name']
     # construct output file names
-    output_filename = "{}-s1-{}-mitchellcube.fits".format(gal_name,run_name)
-    plot_filename = "{}-s1-{}-mitchellcube.pdf".format(gal_name,run_name)
-    ir_filename = "{}-s1-{}-ir.txt".format(gal_name,run_name)
-    ir_fitsfilename = "{}-s1-{}-ir.fits".format(gal_name,run_name)
-    output_path = os.path.join(output_dir, output_filename)
-    ir_path = os.path.join(output_dir, ir_filename)
-    ir_fitspath = os.path.join(output_dir, ir_fitsfilename)
-    plot_path = os.path.join(output_dir, plot_filename)
+    output_path_maker = lambda f, ext: os.path.join(output_dir,
+                            "{}-s1-{}-{}.{}".format(gal_name, run_name, f, ext))
+    plot_path = output_path_maker('fibermaps','pdf')
+    ir_path = output_path_maker('ir','txt')
     # save relevant info for plotting to a dict
-    plot_info = {'data_path': output_path, 'plot_path': plot_path,
-                 'ir_path': ir_path, 'raw_cube_path': raw_cube_path,
+    plot_info = {'plot_path': plot_path,'ir_path': ir_path,
+                 'raw_cube_path': raw_cube_path,
                  'targets_path': input_params['target_positions'],
                  'gal_name':gal_name}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
-    if os.path.isfile(output_path):
+    if os.path.isfile(ir_path):
         if input_params['skip_rerun']=='yes':
             print '\nSkipping re-run of {}, plotting only'.format(gal_name)
             continue
@@ -85,38 +81,23 @@ for paramfile_path in all_paramfile_paths:
             raise Exception("skip_rerun must be yes or no")
 
     # start processing
-    data, headers = utl.fits_quickread(raw_cube_path)
-    spec_unit = const.flux_per_angstrom  # assume spectrum units
-    wave_unit = const.angstrom  # assume wavelength units
-    # get data
-    gal_position = target_positions[target_positions.Name == gal_name]
-    gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
-    gal_pa = gal_position.PA_best.iat[0]
-        # .ita[0] extracts scalar value from a 1-element dataframe
+    ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,
+                                         input_params['target_positions'],
+                                         gal_name,
+                                         return_arcs=True)
+    gal_center_ra = ifuset.coord_comments['galaxy center RA']
+    gal_center_dec = ifuset.coord_comments['galaxy center DEC']
+    gal_pa = ifuset.coord_comments['galaxy pa']
     print "\n{}".format(gal_name)
     print "  raw datacube: {}".format(raw_cube_path)
-    print "        center: {}, {}".format(*gal_center)
+    print "        center: {}, {}".format(gal_center_ra,gal_center_dec)
     print "            pa: {}".format(gal_pa)
-    try:
-        # wavelengths of arc spectra are specifically included
-        spectra, noise, all_waves, coords, arcs, all_inst_waves = data
-        spectra_h, noise_h, waves_h, coords_h, arcs_h, inst_waves_h = headers
-        gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
-        inst_waves = all_inst_waves[0, :]  # instrument rest frame
-        redshift = waves_h['z']  # assumed redshift of galaxy
-    except ValueError:
-        # wavelength of arc spectra not included - compute by shifting
-        # the spectra wavelength back into the instrument rest frame
-        spectra, noise, all_waves, coords, arcs = data
-        spectra_h, noise_h, waves_h, coords_h, arcs_h = headers
-        gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
-        redshift = waves_h['z']  # assumed redshift of galaxy
-        inst_waves = gal_waves*(1 + redshift)  # instrument rest frame
+    redshift = ifuset.spectrumset.comments['redshift']
+    inst_waves = ifuset.spectrumset.waves*(1+redshift)
     print "  fitting arc frames..."
     spec_res_samples = res.fit_arcset(inst_waves, arcs,
                                       const.mitchell_arc_centers,
                                       const.mitchell_nominal_spec_resolution)
-    # NEW PLAN: save the IR in a simple text file, don't copy the cube
     nfibers, nlines, ncols = spec_res_samples.shape
     ir_header = "Fits of arc frames for each fiber"
     ir_header += "\n interpolated from {} arc lamp lines".format(nlines)
@@ -130,39 +111,58 @@ for paramfile_path in all_paramfile_paths:
     ir_savearray[:,2::4] = spec_res_samples[:,:,1]
     ir_savearray[:,3::4] = spec_res_samples[:,:,2]
     np.savetxt(ir_path, ir_savearray, fmt=fmt, delimiter='\t', header=ir_header)
-
+    print "  saved ir to text file."
 
 for plot_info in things_to_plot:
-    print plot_info['data_path']
-
-    #Collect data to plot
-    ifuset = ifu.read_raw_datacube(plot_info['raw_cube_path'],
-                                   plot_info['targets_path'],
-                                   plot_info['gal_name'],
-                                   ir_path=plot_info['ir_path'])
-    print ifuset.spectrumset.comments
-    nfibers = ifuset.spectrumset.comments['nfibers']
+    # read data, with the goal of not referencing ifuset after this section
+    ifuset, arcs = ifu.read_raw_datacube(plot_info['raw_cube_path'],
+                                         plot_info['targets_path'],
+                                         plot_info['gal_name'],
+                                         ir_path=plot_info['ir_path'],
+                                         return_arcs=True)
+    # set up fiber information
+    fiberids = ifuset.spectrumset.ids
     fibersize = ifuset.linear_scale
-    xcoords = -ifuset.coords[:,0] #Flipping east-west to match pictures
+    xcoords = -ifuset.coords[:,0] # flip from +x = east to +x = west
     ycoords = ifuset.coords[:,1]
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
     rcoords = np.sqrt(xcoords**2 + ycoords**2)
     coordunit = ifuset.coords_unit
-    #The first quantity we want is flux per fiber
+    # set up flux
     logfluxes = np.log10(ifuset.spectrumset.compute_flux())
     logfmax = max(logfluxes)
     logfmin = min(logfluxes)
     fluxunit = ifuset.spectrumset.integratedflux_unit
     fcmap = plt.cm.get_cmap('Reds')
     fgetcolor = lambda f: fcmap((f - logfmin)/(logfmax-logfmin))
-    #The second quantity we want is s2n per fiber
+    # set up s2n
     logs2n = np.log10(ifuset.spectrumset.compute_mean_s2n())
     logsmax = max(logs2n)
     logsmin = min(logs2n)
     scmap = plt.cm.get_cmap('Greens')
     sgetcolor = lambda s: scmap((s - logsmin)/(logsmax-logsmin))
+    # set up spectra and arc info
+    skipnumber = 10
+    waves = ifuset.spectrumset.waves
+    dwave = waves[-1] - waves[0]
+    inst_waves = waves*(1+ifuset.spectrumset.comments['redshift'])
+    spectra = (ifuset.spectrumset.spectra.T*dwave/10**logfluxes).T[::skipnumber]
+    #spectra = (spectra.T/np.max(spectra, axis=1)).T
+    arcspectra = arcs[::skipnumber]
+    arcspectra = (arcspectra.T/np.max(arcspectra, axis=1)).T
 
-    #Will create 4 figures, to do flux and s2n in both map and vs-radius form
+    # load up the ir textfile
+    ir_textinfo = np.genfromtxt(plot_info['ir_path'])
+    ir_fidcenter = ir_textinfo[::skipnumber,0::4]
+    ir_center = ir_textinfo[::skipnumber,1::4]
+    ir_fwhm = ir_textinfo[::skipnumber,2::4]
+    ir_height = ir_textinfo[::skipnumber,3::4]
+    nskipfibers, nlines = ir_fidcenter.shape
+
+    ### plotting begins ###
+    pdf = PdfPages(plot_info['plot_path'])
+
+    # do flux, s2n maps and flux, s2n vs radius
     fig1 = plt.figure(figsize=(6,6))
     fig1.suptitle('flux map')
     ax1 = fig1.add_axes([0.15,0.1,0.7,0.7])
@@ -175,33 +175,25 @@ for plot_info in things_to_plot:
     fig4 = plt.figure(figsize=(6,6))
     fig4.suptitle('s2n vs radius')
     ax4 = fig4.add_axes([0.15,0.1,0.7,0.7])
-
-    #Now loop over the fibers and plot things!
-    for ifiber in range(nfibers):
+    for ifiber,fiberid in enumerate(fiberids):
         ax1.add_patch(patches.Circle((xcoords[ifiber],ycoords[ifiber]),
                                      fibersize,lw=0.25,
                                      fc=fgetcolor(logfluxes[ifiber])))
-        ax1.text(xcoords[ifiber],ycoords[ifiber],
-                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+        ax1.text(xcoords[ifiber],ycoords[ifiber],str(fiberid),fontsize=5,
                  horizontalalignment='center',verticalalignment='center')
         ax2.add_patch(patches.Circle((xcoords[ifiber],ycoords[ifiber]),
                                      fibersize,lw=0.25,
                                      fc=sgetcolor(logs2n[ifiber])))
-        ax2.text(xcoords[ifiber],ycoords[ifiber],
-                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+        ax2.text(xcoords[ifiber],ycoords[ifiber],str(fiberid),fontsize=5,
                  horizontalalignment='center',verticalalignment='center')
-        ax3.text(rcoords[ifiber],logfluxes[ifiber],
-                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+        ax3.text(rcoords[ifiber],logfluxes[ifiber],str(fiberid),fontsize=5,
                  horizontalalignment='center',verticalalignment='center')
-        ax4.text(rcoords[ifiber],logs2n[ifiber],
-                 str(ifuset.spectrumset.ids[ifiber]),fontsize=5,
+        ax4.text(rcoords[ifiber],logs2n[ifiber],str(fiberid),fontsize=5,
                  horizontalalignment='center',verticalalignment='center')
-    #Fix axes bounds
     ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
     ax2.axis([-squaremax,squaremax,-squaremax,squaremax])
     ax3.axis([min(rcoords),max(rcoords),min(logfluxes),max(logfluxes)])
     ax4.axis([min(rcoords),max(rcoords),min(logs2n),max(logs2n)])
-    #Make labels
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
     label_r = r'radius ({})'.format(coordunit)
@@ -215,7 +207,7 @@ for plot_info in things_to_plot:
     ax3.set_ylabel(label_flux)
     ax4.set_xlabel(label_r)
     ax4.set_ylabel(label_s2n)
-    #Do colorbars
+    # do colorbars
     ax1C = fig1.add_axes([0.15,0.8,0.7,0.8])
     ax1C.set_visible(False)
     mappable_flux = plt.cm.ScalarMappable(cmap=fcmap)
@@ -228,71 +220,50 @@ for plot_info in things_to_plot:
     mappable_s2n.set_array([logsmin,logsmax])
     fig2.colorbar(mappable_s2n,orientation='horizontal',ax=ax2C,
                   label=label_s2n)
-
-    #Assemble all into multipage pdf
-    pdf = PdfPages(plot_info['plot_path'])
     pdf.savefig(fig1)
     pdf.savefig(fig2)
     pdf.savefig(fig3)
     pdf.savefig(fig4)
+    plt.close(fig1)
+    plt.close(fig2)
+    plt.close(fig3)
+    plt.close(fig4)
+
+    # plot fiber spectra
+    fig = plt.figure(figsize=(6,6))
+    fig.suptitle('fiber spectra')
+    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    for i in range(nskipfibers):
+        ax.plot(waves,spectra[i],c='k',alpha=0.1)
+    ax.plot(waves,0*waves,c='r')
+    ax.axis([waves[0],waves[-1],-2,5])
+    ax.set_xlabel('wavelength')
+    ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
+    pdf.savefig(fig)
+    plt.close(fig)
 
     # new ir testing plots!
-    skipnumber = 40 #only do 1 of every skipnumber fibers
-    # load up the arc frames - this should go as part of the ifu
-    data, headers = utl.fits_quickread(plot_info['raw_cube_path'])
-    try:
-        # wavelengths of arc spectra are specifically included
-        spectra, noise, all_waves, coords, arcs, all_inst_waves = data
-        spectra_h, noise_h, waves_h, coords_h, arcs_h, inst_waves_h = headers
-        gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
-        inst_waves = all_inst_waves[0, :]  # instrument rest frame
-        redshift = waves_h['z']  # assumed redshift of galaxy
-    except ValueError:
-        # wavelength of arc spectra not included - compute by shifting
-        # the spectra wavelength back into the instrument rest frame
-        spectra, noise, all_waves, coords, arcs = data
-        spectra_h, noise_h, waves_h, coords_h, arcs_h = headers
-        gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
-        redshift = waves_h['z']  # assumed redshift of galaxy
-        inst_waves = gal_waves*(1 + redshift)  # instrument rest frame
-    waves = inst_waves
-    spectra = arcs[::skipnumber]
-    spectra = (spectra.T/np.max(spectra, axis=1)).T
-    # load up the ir textfile
-    ir_textinfo = np.genfromtxt(plot_info['ir_path'])
-    ir_fidcenter = ir_textinfo[::skipnumber,0::4]
-    ir_center = ir_textinfo[::skipnumber,1::4]
-    ir_fwhm = ir_textinfo[::skipnumber,2::4]
-    ir_height = ir_textinfo[::skipnumber,3::4]
-    nplotfibers, nlines = ir_fidcenter.shape
     # do a figure for each line
     for i in range(nlines):
         fig = plt.figure(figsize=(6,6))
         fig.suptitle('ir testing')
         ax = fig.add_axes([0.15,0.1,0.7,0.7])
-        for j in range(nplotfibers):
+        for j in range(nskipfibers):
             startwave, endwave = ir_fidcenter[j,i]-20, ir_fidcenter[j,i]+20
-            startpix, endpix = np.searchsorted(waves,[startwave,endwave])
-            ax.plot(waves[startpix:endpix],spectra[j][startpix:endpix],
+            startpix, endpix = np.searchsorted(inst_waves,[startwave,endwave])
+            ax.plot(inst_waves[startpix:endpix],arcspectra[j][startpix:endpix],
                     c='k',alpha=0.2)
             sigma = ir_fwhm[j,i]/const.gaussian_fwhm_over_sigma
             height = ir_height[j,i]/(2*np.pi)
             center = ir_center[j,i]
             model_p = [center,sigma]
-            model = gh.unnormalized_gausshermite_pdf(waves[startpix:endpix],
+            model = gh.unnormalized_gausshermite_pdf(inst_waves[startpix:endpix],
                                                       model_p)*height
             # apparently height means nothing...
-            model = model*max(spectra[j][startpix:endpix])/max(model)
-            ax.plot(waves[startpix:endpix],model,c='b',alpha=0.2)
-            if i==5:
-                sigma2 = (const.mitchell_nominal_spec_resolution
-                          /const.gaussian_fwhm_over_sigma)
-                model2_p = [center,sigma2]
-                model2 =gh.unnormalized_gausshermite_pdf(waves[startpix:endpix],
-                                                         model2_p)*height
-                model2 = model2*max(spectra[j][startpix:endpix])/max(model2)
-                ax.plot(waves[startpix:endpix],model2,c='r',alpha=0.2)
+            model = model*max(arcspectra[j][startpix:endpix])/max(model)
+            ax.plot(inst_waves[startpix:endpix],model,c='b',alpha=0.2)
         ax.set_ylim(ymin=0,ymax=0.004)
+        #ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
         pdf.savefig(fig)
         plt.close(fig)
 
@@ -300,8 +271,8 @@ for plot_info in things_to_plot:
     fig = plt.figure(figsize=(6,6))
     fig.suptitle('ir testing')
     ax = fig.add_axes([0.15,0.1,0.7,0.7])
-    for i in range(nplotfibers):
-        ax.plot(ir_center[i,:],ir_fwhm[i,:],c='r',alpha=0.2)
+    for i in range(nskipfibers):
+        ax.plot(ir_center[i,:],ir_fwhm[i,:],c='r',alpha=0.2,rasterized=True)
     pdf.savefig(fig)
     plt.close(fig)
     pdf.close()

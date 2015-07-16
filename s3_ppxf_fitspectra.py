@@ -96,9 +96,12 @@ for paramfile_path in all_paramfile_paths:
                  'mcmoments_output': output_path_maker('mcmoments','')[:-1],
                  'plot_path': output_path_maker('plots','pdf'),
                  'binspectra_path': binned_cube_path,
-                 'run_type': run_type, 'templates_dir': templates_dir,
+                 'run_type': run_type,
+                 'templates_dir': templates_dir,
                  'bininfo_path': input_params['bin_info_path'],
-                 'gal_name': gal_name}
+                 'gal_name': gal_name,
+                 'compare_moments': compare_moments,
+                 'compare_bins': compare_bins}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
@@ -210,17 +213,19 @@ for plot_info in things_to_plot:
                                    'bin{:d}.txt'.format(binid))
             np.savetxt(binpath,mcdata['moments'][ibin].T,fmt=fmt,
                        delimiter='\t',header=txtfile_header)
+
     # still need to clean up comparison plotting
-    #if not plot_info['compare_moments']=='none':
-    #    do_comparison = True
-    #else:
-    #    do_comparison = False
-    #if do_comparison:
-    #    fid_data,fid_headers = utl.fits_quickread(plot_info['compare_moments'])
-    #    fid_moments, fid_lsq, fid_scaledlsq = fid_data[0]
-    #    if not nbins==fid_moments.shape[0]:
-    #        print 'Current {}, fid {}'.format(nbins,fid_moments.shape[0])
-    #        raise Exception('Comparing to something with different bins, oops!')
+    if not plot_info['compare_moments']=='none':
+        do_comparison = True
+    else:
+        do_comparison = False
+    if do_comparison:
+        fitdata2 = mpio.get_friendly_ppxf_output(plot_info['compare_moments'])
+        # assuming the binspectra path ends in spectra.fits, this is not ideal
+        bininfo2 = np.genfromtxt(plot_info['compare_bins'],names=True,
+                                 skip_header=12)
+        ibins_all2 = {int(bininfo2['binid'][i]):i for i in range(len(bininfo2))}
+        ibins2 = [ibins_all2[binid] for binid in fitdata2['bins']['id']]
 
     pdf = PdfPages(plot_path)
     # moments plots, for case of fitting all bins
@@ -234,17 +239,20 @@ for plot_info in things_to_plot:
             moments_err = fitdata['gh']['scalederr'][:,i]
             ax.errorbar(moments_r,moments,yerr=moments_err,ls='',
                         marker=None,ecolor='0.7',elinewidth=0.7,label='ppxf')
+            # if available, plot better mc errors and comparison points
             if have_mc:
                 mc_err = mcdata['err']
                 ax.errorbar(moments_r,moments,yerr=mcdata['err'][:,i],ls='',
                             marker=None,ecolor='k',elinewidth=1.0,label='mc')
-            ax.plot(moments_r,moments,ls='',marker='o',mfc='b',ms=5.0,alpha=0.8)
-            # comparison plot ability needs updating
-            #if do_comparison:
-            #    ax.plot(bininfo['r'],fid_moments[:,i],ls='',
-            #            marker='s',c='g',ms=5.0,alpha=0.8,
-            #            label='(old run)')
-            #    ax.legend()
+            mainlabel = None
+            if do_comparison:
+                ax.plot(bininfo2['r'][ibins2],fitdata2['gh']['moment'][:,i],
+                        ls='',marker='s',mfc='g',ms=5.0,alpha=0.8,
+                        label='comparison run')
+                mainlabel = 'this run'
+            # plot moments
+            ax.plot(moments_r,moments,ls='',marker='o',mfc='b',ms=5.0,alpha=0.8,
+                    label=mainlabel)
             #Symmetrize y axis for all but v and sigma
             if not i in (0,1):
                 ylim = max(np.abs(ax.get_ylim()))

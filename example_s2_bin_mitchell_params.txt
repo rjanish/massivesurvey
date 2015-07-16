@@ -13,8 +13,9 @@
 #   list of bad fibers (chosen by hand after looking at process_mitchell output)
 #Also need to choose desired aspect ratio and signal to noise.
 
-proc_mitchell_cube	../all_my_output/NGC1600/NGC1600-s1-run1-mitchellcube.fits
+raw_mitchell_cube	../all_my_input/QnovallfibNGC1600_log.fits
 target_positions_path	../all_my_input/target-positions.txt
+ir_path			../all_my_output/NGC1600/NGC1600-s1-run1-ir.txt
 bad_fibers_path		../all_my_output/NGC1600/NGC1600_bad_fiber_list.txt
 
 ### Settings ###
@@ -30,3 +31,5 @@ run_name		run1
 aspect_ratio		1.5
 s2n_threshold		20
 bin_type		folded
+crop_min		3650
+crop_max		5650

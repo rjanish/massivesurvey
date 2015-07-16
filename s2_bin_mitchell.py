@@ -54,21 +54,25 @@ for paramfile_path in all_paramfile_paths:
     # parse input parameter file
     output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
-    proc_cube_path = input_params['proc_mitchell_cube']
-    if not os.path.isfile(proc_cube_path):
+    raw_cube_path = input_params['raw_mitchell_cube']
+    if not os.path.isfile(raw_cube_path):
         raise Exception("Data cube {} does not exist".format(proc_cube_path))
-    elif os.path.splitext(proc_cube_path)[-1] != ".fits":
+    elif os.path.splitext(raw_cube_path)[-1] != ".fits":
         raise Exception("Invalid cube {}, must be .fits".format(proc_cube_path))
     bad_fibers_path = input_params['bad_fibers_path']
     if not os.path.isfile(bad_fibers_path):
         raise Exception("File {} does not exist".format(bad_fibers_path))
-    target_positions = pd.read_csv(input_params['target_positions_path'],
-                                   comment='#', sep="[ \t]+",
-                                   engine='python')
+    targets_path = input_params['target_positions_path']
+    if not os.path.isfile(targets_path):
+        raise Exception("File {} does not exist".format(targets_path))
+    ir_path = input_params['ir_path']
+    if not os.path.isfile(ir_path):
+        raise Exception("File {} does not exist".format(ir_path))
     run_name = input_params['run_name']
     aspect_ratio = input_params['aspect_ratio']
     s2n_threshold = input_params['s2n_threshold']
     bin_type = input_params['bin_type']
+    crop_region = [input_params['crop_min'], input_params['crop_max']]
     # construct output file names
     output_path_maker = lambda f,ext: os.path.join(output_dir,
                 "{}-s2-{}-{}-{}.{}".format(gal_name,run_name,bin_type,f,ext))
@@ -81,9 +85,10 @@ for paramfile_path in all_paramfile_paths:
     plot_info = {'binspectra_path': binspectra_path, 
                  'fullbin_path': fullbin_path, 'plot_path': plot_path,
                  'bininfo_path': bininfo_path, 'fiberinfo_path': fiberinfo_path,
-                 'targets_path': input_params['target_positions_path'],
-                 'proc_cube_path': proc_cube_path,'gal_name': gal_name,
-                 'aspect_ratio': aspect_ratio, 's2n_threshold': s2n_threshold}
+                 'targets_path': targets_path, 'ir_path': ir_path,
+                 'raw_cube_path': raw_cube_path, 'gal_name': gal_name,
+                 'aspect_ratio': aspect_ratio, 's2n_threshold': s2n_threshold,
+                 'crop_region': crop_region}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
@@ -96,27 +101,28 @@ for paramfile_path in all_paramfile_paths:
         else:
             raise Exception("skip_rerun must be yes or no")
 
-    # get bin layout
+    # get bin layout...
     print "  binning..."
-    ifuset_all = ifu.read_mitchell_datacube(proc_cube_path)
+    ifuset_all = ifu.read_raw_datacube(raw_cube_path, targets_path, gal_name,
+                                       ir_path=ir_path)
+    # crop wavelength range and remove fibers
+    ifuset_all.crop(crop_region)
     badfibers = np.genfromtxt(bad_fibers_path,dtype=int)
     goodfibers = list(ifuset_all.spectrumset.ids)
-    num_badfibers = len(badfibers)
     print "  ignoring fibers: {}".format(', '.join(map(str, badfibers)))
     for badfiber in badfibers:
         goodfibers.remove(badfiber)
     ifuset = ifuset_all.get_subset(goodfibers)
-    gal_position = target_positions[target_positions.Name == gal_name]
-    gal_pa = gal_position.PA_best.iat[0]
+    gal_position, gal_pa = mpio.get_gal_center_pa(targets_path, gal_name)
     ma_bin = np.pi/2 - np.deg2rad(gal_pa) #theta=0 at +x (=east), ccwise
     fiber_radius = const.mitchell_fiber_radius.value
-    #Do the full galaxy bin here because it is so fast.
+    # do the full galaxy bin
     full_galaxy = ifuset.spectrumset.collapse(id=0)
     full_galaxy.comments["Binning"] = ("this spectrum is the coadditon "
                                        "of all fibers in the galaxy")
     full_galaxy.name = "fullgalaxybin"
     full_galaxy.write_to_fits(fullbin_path)
-    #Now do the bins
+    # do all the bins
     if bin_type=='unfolded':
         apf = functools.partial(binning.partition_quadparity,
                                 major_axis=ma_bin, aspect_ratio=aspect_ratio)
@@ -212,12 +218,12 @@ for paramfile_path in all_paramfile_paths:
     bininfo['thmax'] = np.rad2deg(np.pi/2 - bininfo['thmax'])
     binheader = 'Coordinate definitions:'
     binheader += '\n x-direction is west, y-direction is north'
-    binheader += '\n units are {}'.format(ifuset.coord_comments['coordunit'])
+    binheader += '\n units are {}'.format(ifuset.coords_unit)
     binheader += '\n theta=0 is defined at +y (north)'
     binheader += '\n theta increases counterclockwise (towards east)'
     binheader += '\n theta is expressed in degrees'
-    binheader += '\nCenter Ra/Dec are {}, {}'.format(gal_position.Ra.iat[0],
-                                                     gal_position.Dec.iat[0])
+    binheader += '\nCenter Ra/Dec are {}, {}'.format(gal_position[0],
+                                                     gal_position[1])
     binheader += '\nPA (degrees, above theta definition) is {}'.format(gal_pa)
     binheader += '\nNote that x,y are bin centers in cartesian coordinates,'
     binheader += '\n while r,th are bin centers in polar coordinates,'
@@ -236,9 +242,13 @@ for plot_info in things_to_plot:
     ma_line = open(plot_info['bininfo_path'],'r').readlines()[7]
     ma_theta = np.pi/2 + np.deg2rad(float(ma_line.strip().split()[-1]))
 
-    ifuset = ifu.read_mitchell_datacube(plot_info['proc_cube_path'])
+    ifuset = ifu.read_raw_datacube(plot_info['raw_cube_path'],
+                                   plot_info['targets_path'],
+                                   plot_info['gal_name'],
+                                   ir_path=plot_info['ir_path'])
+    ifuset.crop(plot_info['crop_region'])
     fiber_coords = ifuset.coords.copy()
-    coordunit = ifuset.coord_comments['coordunit']
+    coordunit = ifuset.coords_unit
     fibersize = const.mitchell_fiber_radius.value #Assuming units match!
     fiber_coords[:, 0] *= -1  # east-west reflect
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize

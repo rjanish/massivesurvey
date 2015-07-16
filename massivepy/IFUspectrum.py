@@ -16,6 +16,8 @@ import utilities as utl
 import massivepy.spectrum as spec
 import massivepy.binning as binning
 import massivepy.constants as const
+import massivepy.io as mpio
+import massivepy.spectralresolution as res
 
 
 class IFUspectrum(object):
@@ -62,7 +64,7 @@ class IFUspectrum(object):
         required_coord_shape = (self.spectrumset.num_spectra, 2)
         if self.coords.shape != required_coord_shape:
             msg = ("Invalid coords shape {}, needs {}"
-                   "".foramt(self.coords.shape, required_coord_shape))
+                   "".format(self.coords.shape, required_coord_shape))
             raise ValueError(msg)
         self.coords_unit = units.Unit(coords_unit)
         self.footprint = footprint
@@ -83,6 +85,15 @@ class IFUspectrum(object):
                            footprint=self.footprint,
                            linear_scale=self.linear_scale,
                            coord_comments=self.coord_comments)
+
+    def crop(self, region_to_keep):
+        """
+        Modify the spectrumset object by cropping to include data
+        only in the passed wavelength interval.
+        See SpectrumSet.crop for details
+        """
+        self.spectrumset = self.spectrumset.crop(region_to_keep)
+        return
 
     def s2n_fluxweighted_binning(self, threshold=None, get_bins=None):
         """
@@ -148,6 +159,10 @@ class IFUspectrum(object):
 
 def read_mitchell_datacube(path, name=None):
     """
+    THIS FUNCTION HAS BEEN DEPRECATED, use read_raw_datacube instead,
+    since the .fits file this is designed for (output of process_mitchell)
+    is no longer being created.
+
     Read a .fits datacube into an IFUspectrum object.
 
     The format of the .fits is assumed to be that of the MASSIVE
@@ -226,4 +241,101 @@ def center_coordinates(coords, center):
     new_coords[:, 1] = coords[:, 1] - center[1]  # degrees
     new_coords[:, 0] = new_coords[:, 0]*np.cos(np.deg2rad(center[1]))
     new_coords *= 60*60  # to arcseconds
-    return new_coords
+    comments = {}
+    comments['description'] = ('dimensionless distance in plane through '
+                               'galaxy center and perpendicular to line '
+                               'of sight, in arcseconds, with origin at '
+                               'galaxy center, and with physical '
+                               'distance given by (coords/3600)*(pi/180)*'
+                               'R where R is distance along line of sight.')
+    comments['galaxy center RA'] = center[0]
+    comments['galaxy center DEC'] = center[1]
+    comments['galaxy center units'] = 'degrees'
+    comments['coord units'] = 'arcsec'
+    comments['x-direction'] = 'East'
+    comments['y-direction'] = 'North'
+    return new_coords, comments
+
+def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
+                      return_arcs=False):
+    """
+    This is intended to replace read_mitchell_rawdatacube, since we no longer
+    want to save a copy of all of this fiber stuff.
+    """
+    # record all important metadata in the comments
+    comments = {}
+    coord_comments = {}
+    comments['ifu source file'] = cube_path
+    # read and parse ifu file
+    data, headers = utl.fits_quickread(cube_path)
+    try:
+        # wavelengths of arc spectra are specifically included
+        spectra, noise, all_waves, coords, arcs, all_inst_waves = data
+        spectra_h, noise_h, waves_h, coords_h, arcs_h, inst_waves_h = headers
+        gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
+        inst_waves = all_inst_waves[0, :]  # instrument rest frame, not used
+        redshift = waves_h['z']  # assumed redshift of galaxy
+    except ValueError:
+        # wavelength of arc spectra not included - compute by shifting
+        # the spectra wavelength back into the instrument rest frame
+        spectra, noise, all_waves, coords, arcs = data
+        spectra_h, noise_h, waves_h, coords_h, arcs_h = headers
+        gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
+        redshift = waves_h['z']  # assumed redshift of galaxy
+        inst_waves = gal_waves*(1 + redshift)  # instrument rest frame, not used
+    comments['ifu source file date'] = spectra_h['date']
+    comments['redshift'] = redshift
+    nfibers, npixels = spectra.shape
+    comments['nfibers'] = nfibers
+    comments['npixels'] = npixels
+    wavelengths = gal_waves
+    comments['wavelengths frame'] = 'galaxy rest frame'
+    bad_data = np.zeros(spectra.shape, dtype=bool)
+    #bad_data=np.where(spectra<0,np.ones(spectra.shape),np.zeros(spectra.shape))
+    if ir_path is None:
+        ir = np.nan*np.ones(spectra.shape)
+    else:
+        # this is fragile, should make read/write functions for ir
+        # to stack/unstack the lines, order columns, etc
+        ir_data = np.genfromtxt(ir_path)
+        ir_centers = ir_data[:,1::4]
+        ir_fwhm = ir_data[:,2::4]
+        ir_samples = np.transpose([ir_centers,ir_fwhm],axes=(1,2,0))
+        ir = res.specres_for_galaxy(ir_samples, wavelengths, redshift)
+        comments['ir source file'] = ir_path
+        comments['ir frame'] = 'galaxy rest frame'
+    # we assume units won't change, but check anyway
+    if not spectra_h['bunit'] == 'ergs/s/cm^2/A':
+        raise Exception("Unexpected flux units in datacube!")
+    if not waves_h['bunit'] == 'Angstrom':
+        raise Exception("Unexpected wavelength units in datacube!")
+    if not coords_h['bunit'] == 'Deg':
+        raise Exception("Unexpected coordinate units in datacube!")
+    # convert coordinates and stuff
+    gal_center, gal_pa = mpio.get_gal_center_pa(targets_path,gal_name)
+    coord_comments['galaxy pa'] = gal_pa
+    coord_comments['galaxy pa units'] = 'degrees E of N'
+    cart_coords, cart_comments = center_coordinates(coords, gal_center)
+    coord_comments.update(cart_comments)
+    linear_scale = const.mitchell_fiber_radius.value # assuming units match!
+    footprint = lambda center: geo.Point(center).buffer(linear_scale)
+    coord_comments['fiber shape'] = 'circle'
+    ifuset = IFUspectrum(spectra=spectra, # kwargs required by SpectrumSet
+                         bad_data=bad_data,
+                         noise=noise,
+                         ir=ir,
+                         spectra_ids=np.arange(nfibers),
+                         wavelengths=wavelengths,
+                         spectra_unit=const.flux_per_angstrom,
+                         wavelength_unit=const.angstrom,
+                         comments=comments,
+                         name=gal_name,
+                         coords=cart_coords, # kwargs specific to IFUspectrum
+                         coords_unit=const.arcsec,
+                         coord_comments=coord_comments,
+                         footprint=footprint,
+                         linear_scale=linear_scale)
+    if return_arcs:
+        return ifuset, arcs
+    else:
+        return ifuset

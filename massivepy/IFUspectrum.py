@@ -159,6 +159,10 @@ class IFUspectrum(object):
 
 def read_mitchell_datacube(path, name=None):
     """
+    THIS FUNCTION HAS BEEN DEPRECATED, use read_raw_datacube instead,
+    since the .fits file this is designed for (output of process_mitchell)
+    is no longer being created.
+
     Read a .fits datacube into an IFUspectrum object.
 
     The format of the .fits is assumed to be that of the MASSIVE
@@ -326,7 +330,6 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
                          wavelength_unit=const.angstrom,
                          comments=comments,
                          name=gal_name,
-                         test_ir=None, # get rid of this
                          coords=cart_coords, # kwargs specific to IFUspectrum
                          coords_unit=const.arcsec,
                          coord_comments=coord_comments,

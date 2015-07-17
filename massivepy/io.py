@@ -77,6 +77,18 @@ def get_friendly_ppxf_output(path):
             friendly_data['gh'][ibin,imom] = tuple(data[0][:,ibin,imom])
 
     # populate template stuff
+    ntemps = headers[1]['NAXIS1']
+    dt = {'names':['id','weight','flux','fluxweight'],
+          'formats':[int]+3*[np.float64]}
+    friendly_data['temps'] = np.zeros((nbins,ntemps),dtype=dt)
+    for ibin in range(nbins):
+        ii = np.argsort(data[1][1,ibin,:]) # sort by weight
+        for i,field in enumerate(dt['names']): # need fields in fits file order
+            friendly_data['temps'][field][ibin,:] = data[1][i,ibin,:][ii][::-1]
+    if nbins==1:
+        friendly_data['temps'] = friendly_data['temps'][0,:]
+        ii = np.nonzero(friendly_data['temps']['weight'])
+        friendly_data['temps'] = friendly_data['temps'][ii]
 
     # populate bin stuff
     dt = {'names':['id','chisq'],'formats':[int,np.float64]}

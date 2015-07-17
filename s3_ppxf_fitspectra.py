@@ -180,7 +180,13 @@ for plot_info in things_to_plot:
 
     # save "friendly" text output for theorists
     if plot_info['run_type']=='full':
-        pass #Save template file here, not in ppxf driver save
+        txtfile_header = 'Columns are as follows:'
+        colnames = fitdata['temps'].dtype.names
+        txtfile_header += '\n ' + ' '.join(colnames)
+        fmt = ['%i']
+        fmt.extend(['%-8g']*(len(colnames)-1))
+        np.savetxt(plot_info['temps_output'],fitdata['temps'],fmt=fmt,
+                   header=txtfile_header,delimiter='\t')
     elif plot_info['run_type']=='bins':
         txtfile_array = np.zeros((nbins,1+2*nmoments))
         txtfile_header = 'Fit results for {}'.format(plot_info['gal_name'])
@@ -214,18 +220,19 @@ for plot_info in things_to_plot:
             np.savetxt(binpath,mcdata['moments'][ibin].T,fmt=fmt,
                        delimiter='\t',header=txtfile_header)
 
-    # still need to clean up comparison plotting
+    # prep comparison plot info, if available
     if not plot_info['compare_moments']=='none':
         do_comparison = True
     else:
         do_comparison = False
     if do_comparison:
         fitdata2 = mpio.get_friendly_ppxf_output(plot_info['compare_moments'])
-        # assuming the binspectra path ends in spectra.fits, this is not ideal
         bininfo2 = np.genfromtxt(plot_info['compare_bins'],names=True,
                                  skip_header=12)
         ibins_all2 = {int(bininfo2['binid'][i]):i for i in range(len(bininfo2))}
         ibins2 = [ibins_all2[binid] for binid in fitdata2['bins']['id']]
+
+    ### Plotting Begins! ###
 
     pdf = PdfPages(plot_path)
     # moments plots, for case of fitting all bins
@@ -264,17 +271,14 @@ for plot_info in things_to_plot:
             plt.close(fig)            
     # template plots, for full galaxy case
     elif plot_info['run_type']=='full':
-        template_info = np.genfromtxt(plot_info['temps_output'],unpack=True)
-        templates, weights, fluxes, fluxweights = template_info
-        templates = templates.astype(int)
         catalogfile = os.path.join(plot_info['templates_dir'],'catalog.txt')
         catalog = pd.read_csv(catalogfile,index_col='miles_id')
-        spectype = np.array(catalog['spt'][templates],dtype='S1')
+        spectype = np.array(catalog['spt'][fitdata['temps']['id']],dtype='S1')
         # sort by spectype for pie chart
-        ii = np.argsort(spectype)
-        templates = templates[ii]
-        weights = weights[ii]
-        fluxweights = fluxweights[ii]
+        ii = np.argsort(spectype,kind='mergesort')
+        templates = fitdata['temps']['id'][ii]
+        weights = fitdata['temps']['weight'][ii]
+        fluxweights = fitdata['temps']['fluxweight'][ii]
         spectype = spectype[ii]
         spt_long = catalog['spt'][templates]
         pielabels = ["{} ({})".format(s,t) for s,t in zip(spt_long,templates)]

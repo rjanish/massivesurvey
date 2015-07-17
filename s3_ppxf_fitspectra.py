@@ -101,7 +101,9 @@ for paramfile_path in all_paramfile_paths:
                  'bininfo_path': input_params['bin_info_path'],
                  'gal_name': gal_name,
                  'compare_moments': compare_moments,
-                 'compare_bins': compare_bins}
+                 'compare_bins': compare_bins,
+                 'fit_range': fit_range,
+                 'mask':mask}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
@@ -158,13 +160,17 @@ for paramfile_path in all_paramfile_paths:
 for plot_info in things_to_plot:
     plot_path = plot_info['plot_path']
 
-    # get data from fits files of ppxf fit output, and bins if needed
+    # get data from fits files of ppxf fit output
     fitdata = mpio.get_friendly_ppxf_output(plot_info['main_output'])
     nbins = fitdata['nbins']
     nmoments = fitdata['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
+    # get spectrum and bin information
+    specset = spec.read_datacube(binned_cube_path)
+    if specset.num_spectra != nbins:
+        raise Exception('Need to program ability to use subset of bins in plot')
     if plot_info['run_type']=='bins':
         # assuming the binspectra path ends in spectra.fits, this is not ideal
         bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,
@@ -311,7 +317,7 @@ for plot_info in things_to_plot:
     fig.suptitle('bin spectra by bin number')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     for i,binid in enumerate(fitdata['bins']['id']):
-        target_specset = specset_to_fit.crop(fit_range)
+        target_specset = specset.crop(plot_info['fit_range'])
         spectrum = target_specset.get_subset([binid]).spectra[0]
         spectrum = spectrum/np.median(spectrum)
         model = fitdata['spec']['bestmodel'][i]
@@ -323,6 +329,7 @@ for plot_info in things_to_plot:
     # find regions to mask
     # note the masking is currently saved per bin in fitoutput, this is silly!
     # for now just use the mask for the last bin (i at end of above loop)
+    '''
     maskpix = target_specset.get_subset([binid]).metaspectra['bad_data'][0]
     if not len(maskpix)==0:
         ibreaks = np.where(np.diff(maskpix)!=1)[0]
@@ -333,6 +340,9 @@ for plot_info in things_to_plot:
         for startpix,endpix in zip(maskpix_starts,maskpix_ends):
             ax.axvspan(fitdata['waves'][startpix],fitdata['waves'][endpix],
                        fc='k',ec='none',alpha=0.5,lw=0)
+    '''
+    for m in mask:
+        ax.axvspan(m[0],m[1],fc='k',ec='none',alpha=0.5,lw=0)
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)

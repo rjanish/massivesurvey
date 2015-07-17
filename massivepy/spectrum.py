@@ -31,7 +31,7 @@ class SpectrumSet(object):
     def __init__(self, spectra=None, bad_data=None, noise=None,
                  ir=None, spectra_ids=None, wavelengths=None,
                  spectra_unit=None, wavelength_unit=None,
-                 comments={}, name=None, test_ir=None):
+                 comments={}, name=None):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -124,10 +124,6 @@ class SpectrumSet(object):
         self.integratedflux_unit = self.spec_unit*self.wave_unit
         self.comments = {str(k):v for k, v in comments.iteritems()}
         self.name = str(name)
-        self.test_ir = test_ir
-        if self.test_ir is None:
-            self.test_ir = np.asarray([[[1, 3],
-                                        [5, 9]]]*self.num_spectra)
 
     def get_subset(self, ids, get_selector=False):
         """
@@ -186,8 +182,7 @@ class SpectrumSet(object):
                              wavelengths=self.waves,
                              spectra_unit=self.spec_unit,
                              wavelength_unit=self.wave_unit,
-                             comments=self.comments, name=self.name,
-                             test_ir=self.test_ir[index, ...])
+                             comments=self.comments, name=self.name)
         if get_selector:
             return subset, index
         else:
@@ -480,8 +475,7 @@ class SpectrumSet(object):
                            wavelengths=self.waves,
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
-                           comments=extened_comments,
-                           test_ir=self.test_ir, name=self.name)
+                           comments=extened_comments)
 
     def collapse(self, weight_func=compute_flux, id=None,
                  norm_func=compute_flux, norm_value=None):
@@ -516,8 +510,7 @@ class SpectrumSet(object):
                            noise=comb_noise, ir=comb_ir, spectra_ids=[id],
                            wavelengths=self.waves, comments=extended_comments,
                            spectra_unit=self.spec_unit,
-                           wavelength_unit=self.wave_unit,
-                           test_ir=self.test_ir, name=self.name)
+                           wavelength_unit=self.wave_unit)
 
     def gaussian_convolve(self, std):
         """
@@ -579,8 +572,7 @@ class SpectrumSet(object):
                            spectra_ids=self.ids, spectra_unit=self.spec_unit,
                            wavelengths=self.waves, name=self.name,
                            wavelength_unit=self.wave_unit, 
-                           comments=extened_comments,
-                           test_ir=self.test_ir)
+                           comments=extened_comments)
 
     def crop(self, region_to_keep):
         """
@@ -599,8 +591,7 @@ class SpectrumSet(object):
                            spectra_ids=self.ids, spectra_unit=self.spec_unit,
                            wavelengths=self.waves[to_keep], name=self.name,
                            wavelength_unit=self.wave_unit,
-                           comments=updated_comments,
-                           test_ir=self.test_ir)
+                           comments=updated_comments)
 
 
     def to_fits_hdulist(self):

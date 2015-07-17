@@ -6,6 +6,7 @@ import os
 import re
 
 import numpy as np
+import pandas as pd
 
 import utilities as utl
 import massivepy.constants as const
@@ -30,6 +31,20 @@ def parse_paramfile_path(path):
     else:
         pass
     return output_dir, gal_name
+
+def get_gal_center_pa(targets_path,gal_name):
+    """
+    Returns galaxy center and pa from Jenny's target file.
+    Should add to this some galaxy name regex checking stuff.
+    """
+    target_positions = pd.read_csv(targets_path,
+                                   comment='#', sep="[ \t]+",
+                                   engine='python')
+    gal_position = target_positions[target_positions.Name == gal_name]
+    gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
+    gal_pa = gal_position.PA_best.iat[0]
+        # .ita[0] extracts scalar value from a 1-element dataframe
+    return gal_center, gal_pa
 
 def get_friendly_ppxf_output(path):
     """

@@ -63,9 +63,11 @@ def get_friendly_ppxf_output(path):
     nbins = headers[0]['NAXIS2']
     nmoments = headers[0]['NAXIS1']
     npixels = headers[2]['NAXIS1']
+    ntemps = headers[1]['NAXIS1']
     friendly_data['nmoments'] = nmoments
     friendly_data['nbins'] = nbins
     #friendly_data['npixels'] = npixels
+    friendly_data['ntemps'] = ntemps
     friendly_data['add_deg'] = headers[0]['ADD_DEG']
     friendly_data['mul_deg'] = headers[0]['MUL_DEG']
 
@@ -77,6 +79,18 @@ def get_friendly_ppxf_output(path):
             friendly_data['gh'][ibin,imom] = tuple(data[0][:,ibin,imom])
 
     # populate template stuff
+    ntemps = headers[1]['NAXIS1']
+    dt = {'names':['id','weight','flux','fluxweight'],
+          'formats':[int]+3*[np.float64]}
+    friendly_data['temps'] = np.zeros((nbins,ntemps),dtype=dt)
+    for ibin in range(nbins):
+        ii = np.argsort(data[1][1,ibin,:]) # sort by weight
+        for i,field in enumerate(dt['names']): # need fields in fits file order
+            friendly_data['temps'][field][ibin,:] = data[1][i,ibin,:][ii][::-1]
+    if nbins==1:
+        friendly_data['temps'] = friendly_data['temps'][0,:]
+        ii = np.nonzero(friendly_data['temps']['weight'])
+        friendly_data['temps'] = friendly_data['temps'][ii]
 
     # populate bin stuff
     dt = {'names':['id','chisq'],'formats':[int,np.float64]}
@@ -86,12 +100,9 @@ def get_friendly_ppxf_output(path):
 
     # populate spectrum stuff
     # pretty sure this can go away since its all in the bin output!
-    dt = {'names':['spectrum','noise','pixused','bestmodel'],
-          'formats':4*['<f8']}
+    dt = {'names':['bestmodel'], 'formats':['<f8']}
     friendly_data['spec'] = np.zeros((nbins,npixels),dtype=dt)
-    for ibin in range(nbins):
-        for ipix in range(npixels):
-            friendly_data['spec'][ibin,ipix] = tuple(data[2][:4,ibin,ipix])
+    friendly_data['spec']['bestmodel'] = data[2][0, ...]
 
     # populate waves 
     # pretty sure this can go away since its all in the bin output!

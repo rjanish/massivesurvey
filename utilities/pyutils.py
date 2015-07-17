@@ -156,3 +156,68 @@ def merge_dicts(*dicts):
     will match the order of the passed dictionaries.
     """
     return append_to_dict({}, *dicts)
+
+def fill_dict(storage_dict, values_dict, index):
+    """
+    This function allows you to simultaneously set data in multiple
+    arrays, with the arrays and data matched by dictionary keyword.
+
+    The shape of the arrays is constrained only in that the first n 
+    dimensions must match, for some n >= 1. The passed index is
+    either an integer or a 1d array of length no more than n. For
+    each array, the entry at the passed index will be set equal to
+    the corresponding data in values_dict. 
+
+    If the passed index has a length smaller than the number of
+    dimensions in an array, then it is assumed that the data in
+    values_dict is multi-dimensional and all unspecified final
+    dimensions are filled with the corresponding data.  
+
+    Not every array in storage_dict must be set with a
+    corresponding value in values_dict, but every value given in
+    values_dict must have a corresponding container in storage_dict.
+
+    Example:
+      $ d = {'a': [[[ 0,  0],
+                    [ 0,  0],
+                    [ 0,  0]],
+                   [[ 0,  0],
+                    [ 0,  0],
+                    [ 0,  0]]],
+             'b': [[0, 0, 0],
+                   [0, 0, 0]]}
+      $ s = {'a': [5, 4], 'b': 6}
+      $ fill_dict(d, s, [0, 2])
+      $ d
+       >> {'a': [[[ 0,  0],
+                  [ 0,  0],
+                  [ 5,  4]],
+                 [[ 0,  0],
+                  [ 0,  0],
+                  [ 0,  0]]],
+           'b': [[0, 0, 6],
+                 [0, 0, 0]]}
+      $ t = {'a': [[ 1,  1],
+                   [ 2,  3],
+                   [ 5,  8]],
+             'b': [2, 4, 9]}
+      $ fill_dict(d, t, 1)
+      $ d
+       >> {'a': [[[ 0,  0],
+                  [ 0,  0],
+                  [ 5,  4]],
+                 [[ 1,  1],
+                  [ 2,  3],
+                  [ 5,  8]]],
+           'b': [[0, 0, 6],
+                 [2, 4, 9]]}
+    """
+    try:
+        list_index = list(index)
+    except TypeError:
+        list_index = [int(index)] # if index is passed as an integer
+    index = tuple(list_index + [Ellipsis])
+    for key, data in values_dict.iteritems():
+        storage_dict[key][index] = data
+    return
+

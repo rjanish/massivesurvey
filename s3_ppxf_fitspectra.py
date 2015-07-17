@@ -101,7 +101,9 @@ for paramfile_path in all_paramfile_paths:
                  'bininfo_path': input_params['bin_info_path'],
                  'gal_name': gal_name,
                  'compare_moments': compare_moments,
-                 'compare_bins': compare_bins}
+                 'compare_bins': compare_bins,
+                 'fit_range': fit_range,
+                 'mask':mask}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
@@ -158,15 +160,17 @@ for paramfile_path in all_paramfile_paths:
 for plot_info in things_to_plot:
     plot_path = plot_info['plot_path']
 
-    # get data from fits files of ppxf fit output, and bins if needed
+    # get data from fits files of ppxf fit output
     fitdata = mpio.get_friendly_ppxf_output(plot_info['main_output'])
     nbins = fitdata['nbins']
     nmoments = fitdata['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
+    # get spectrum and bin information
+    specset = spec.read_datacube(binned_cube_path)
+    specset = specset.get_subset(fitdata['bins']['id'])
     if plot_info['run_type']=='bins':
-        # assuming the binspectra path ends in spectra.fits, this is not ideal
         bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,
                                 skip_header=12)
         ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
@@ -180,7 +184,15 @@ for plot_info in things_to_plot:
 
     # save "friendly" text output for theorists
     if plot_info['run_type']=='full':
-        pass #Save template file here, not in ppxf driver save
+        txtfile_header = 'Columns are as follows:'
+        colnames = fitdata['temps'].dtype.names
+        txtfile_header += '\n ' + ' '.join(colnames)
+        txtfile_header += '\n{} nonzero templates out of {}'.format(
+                                    len(fitdata['temps']),fitdata['ntemps'])
+        fmt = ['%i']
+        fmt.extend(['%-8g']*(len(colnames)-1))
+        np.savetxt(plot_info['temps_output'],fitdata['temps'],fmt=fmt,
+                   header=txtfile_header,delimiter='\t')
     elif plot_info['run_type']=='bins':
         txtfile_array = np.zeros((nbins,1+2*nmoments))
         txtfile_header = 'Fit results for {}'.format(plot_info['gal_name'])
@@ -214,18 +226,19 @@ for plot_info in things_to_plot:
             np.savetxt(binpath,mcdata['moments'][ibin].T,fmt=fmt,
                        delimiter='\t',header=txtfile_header)
 
-    # still need to clean up comparison plotting
+    # prep comparison plot info, if available
     if not plot_info['compare_moments']=='none':
         do_comparison = True
     else:
         do_comparison = False
     if do_comparison:
         fitdata2 = mpio.get_friendly_ppxf_output(plot_info['compare_moments'])
-        # assuming the binspectra path ends in spectra.fits, this is not ideal
         bininfo2 = np.genfromtxt(plot_info['compare_bins'],names=True,
                                  skip_header=12)
         ibins_all2 = {int(bininfo2['binid'][i]):i for i in range(len(bininfo2))}
         ibins2 = [ibins_all2[binid] for binid in fitdata2['bins']['id']]
+
+    ### Plotting Begins! ###
 
     pdf = PdfPages(plot_path)
     # moments plots, for case of fitting all bins
@@ -253,7 +266,7 @@ for plot_info in things_to_plot:
             # plot moments
             ax.plot(moments_r,moments,ls='',marker='o',mfc='b',ms=5.0,alpha=0.8,
                     label=mainlabel)
-            #Symmetrize y axis for all but v and sigma
+            # symmetrize y axis for all but v and sigma
             if not i in (0,1):
                 ylim = max(np.abs(ax.get_ylim()))
                 ax.set_ylim(ymin=-ylim,ymax=ylim)
@@ -264,17 +277,14 @@ for plot_info in things_to_plot:
             plt.close(fig)            
     # template plots, for full galaxy case
     elif plot_info['run_type']=='full':
-        template_info = np.genfromtxt(plot_info['temps_output'],unpack=True)
-        templates, weights, fluxes, fluxweights = template_info
-        templates = templates.astype(int)
         catalogfile = os.path.join(plot_info['templates_dir'],'catalog.txt')
         catalog = pd.read_csv(catalogfile,index_col='miles_id')
-        spectype = np.array(catalog['spt'][templates],dtype='S1')
+        spectype = np.array(catalog['spt'][fitdata['temps']['id']],dtype='S1')
         # sort by spectype for pie chart
-        ii = np.argsort(spectype)
-        templates = templates[ii]
-        weights = weights[ii]
-        fluxweights = fluxweights[ii]
+        ii = np.argsort(spectype,kind='mergesort')
+        templates = fitdata['temps']['id'][ii]
+        weights = fitdata['temps']['weight'][ii]
+        fluxweights = fitdata['temps']['fluxweight'][ii]
         spectype = spectype[ii]
         spt_long = catalog['spt'][templates]
         pielabels = ["{} ({})".format(s,t) for s,t in zip(spt_long,templates)]
@@ -307,7 +317,9 @@ for plot_info in things_to_plot:
     fig.suptitle('bin spectra by bin number')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     for i,binid in enumerate(fitdata['bins']['id']):
-        spectrum = fitdata['spec']['spectrum'][i]
+        target_specset = specset.crop(plot_info['fit_range'])
+        spectrum = target_specset.get_subset([binid]).spectra[0]
+        spectrum = spectrum/np.median(spectrum)
         model = fitdata['spec']['bestmodel'][i]
         waves = fitdata['waves']
         ax.plot(waves,binid-spectrum+spectrum[0],c='k')
@@ -315,18 +327,9 @@ for plot_info in things_to_plot:
         ax.text(waves[0],binid-0.4,
                 r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][i]))
     # find regions to mask
-    # note the masking is currently saved per bin in fitoutput, this is silly!
-    # for now just use the mask for the last bin (i at end of above loop)
-    maskpix = np.where(fitdata['spec']['pixused'][i,:]==0)[0]
-    if not len(maskpix)==0:
-        ibreaks = np.where(np.diff(maskpix)!=1)[0]
-        maskpix_starts = [maskpix[0]]
-        maskpix_starts.extend(maskpix[ibreaks+1])
-        maskpix_ends = list(maskpix[ibreaks])
-        maskpix_ends.append(maskpix[-1])
-        for startpix,endpix in zip(maskpix_starts,maskpix_ends):
-            ax.axvspan(fitdata['waves'][startpix],fitdata['waves'][endpix],
-                       fc='k',ec='none',alpha=0.5,lw=0)
+    # should add masking of bad_data as well!
+    for m in mask:
+        ax.axvspan(m[0],m[1],fc='k',ec='none',alpha=0.5,lw=0)
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)

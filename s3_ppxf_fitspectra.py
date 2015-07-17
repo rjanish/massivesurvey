@@ -169,8 +169,7 @@ for plot_info in things_to_plot:
     moment_names[1] = 'sigma'
     # get spectrum and bin information
     specset = spec.read_datacube(binned_cube_path)
-    if specset.num_spectra != nbins:
-        raise Exception('Need to program ability to use subset of bins in plot')
+    specset = specset.get_subset(fitdata['bins']['id'])
     if plot_info['run_type']=='bins':
         # assuming the binspectra path ends in spectra.fits, this is not ideal
         bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,

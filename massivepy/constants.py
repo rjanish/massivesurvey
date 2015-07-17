@@ -23,7 +23,6 @@ mitchell_arc_centers = np.array([4046.5469,  # Hg-Cd blend
                                  4358.3262,  # Hg
                                  4678.1558,  # Hg-Cd blend -dominated by Hg
                                  4799.9038,  # Cd
-                                 4916.0962,  # Cd
                                  5085.8110,  # Cd
                                  5460.7397,  # Hg-Cd blend -dominated by Hg
                                  5769.5972]) # Hg

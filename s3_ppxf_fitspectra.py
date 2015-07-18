@@ -66,8 +66,6 @@ for paramfile_path in all_paramfile_paths:
 
     run_name = input_params['run_name']
     run_type = input_params['run_type']
-    if not (run_type=='full' or run_type=='bins'):
-        raise Exception("Run type is 'full' or 'bins', not {}".format(run_type))
     bins_to_fit = input_params['bins_to_fit']
     ### should probably change these to not just "eval"
     if not bins_to_fit == 'all':
@@ -83,18 +81,23 @@ for paramfile_path in all_paramfile_paths:
 
     # construct output file names
     output_path_maker = lambda f,ext: os.path.join(output_dir,
-                "{}-s3-{}-{}-{}.{}".format(gal_name,run_name,run_type,f,ext))
+                "{}-s3-{}-{}.{}".format(gal_name,run_name,f,ext))
     output_paths_dict = {}
-    output_paths_dict['temps'] = output_path_maker('temps','txt')
     output_paths_dict['main'] = output_path_maker('main','fits')
     output_paths_dict['mc'] = output_path_maker('mc','fits')
+    if run_type=='full':
+        plotname = 'templates'
+    elif run_type=='bins':
+        plotname = 'moments'
+    else:
+        raise Exception("Run type is 'full' or 'bins', not {}".format(run_type))
     # save relevant info for plotting to a dict
     plot_info = {'main_output': output_paths_dict['main'],
                  'mc_output': output_paths_dict['mc'],
-                 'temps_output': output_paths_dict['temps'],
+                 'temps_output': output_path_maker('temps','txt'),
                  'moments_output': output_path_maker('moments','txt'),
                  'mcmoments_output': output_path_maker('mcmoments','')[:-1],
-                 'plot_path': output_path_maker('plots','pdf'),
+                 'plot_path': output_path_maker(plotname,'pdf'),
                  'binspectra_path': binned_cube_path,
                  'run_type': run_type,
                  'templates_dir': templates_dir,

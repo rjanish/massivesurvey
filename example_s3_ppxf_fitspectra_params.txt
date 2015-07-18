@@ -12,19 +12,20 @@
 #   optional, bin info for above output file to use in plotting. can say 'none'.
 #   optional (needed for run_type=bins), the spatial bin info. can say 'none'
 
-binned_cube_path	../all_my_output/NGC1600/NGC1600-s2-run1-folded-spectra.fits
+binned_cube_path	../all_my_output/NGC1600/NGC1600-s2-folded-spectra.fits
 templates_dir		../all_my_output/miles-processed/
 use_templates		all
-#use_templates		../all_my_output/NGC1600/NGC1600-s3-run1-full-temps.txt
+#use_templates		../all_my_output/NGC1600/NGC1600-s3-fullfit-temps.txt
 compare_moments		none
 compare_bins		none
-bin_info_path		../all_my_output/NGC1600/NGC1600-s2-run1-folded-bininfo.txt
+bin_info_path		../all_my_output/NGC1600/NGC1600-s2-folded-bininfo.txt
 
 ### Settings ###
 #Two general settings, and a whole bunch of ppxf-related settings
 
 skip_rerun		yes
-run_name		run1
+run_name		fullfit
+#run_name		binfit
 run_type		full
 #run_type		bins
 

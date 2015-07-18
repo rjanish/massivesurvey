@@ -75,12 +75,12 @@ for paramfile_path in all_paramfile_paths:
     crop_region = [input_params['crop_min'], input_params['crop_max']]
     # construct output file names
     output_path_maker = lambda f,ext: os.path.join(output_dir,
-                "{}-s2-{}-{}-{}.{}".format(gal_name,run_name,bin_type,f,ext))
-    binspectra_path = output_path_maker('spectra','fits')
-    fullbin_path = output_path_maker('fullgalaxybin','fits')
+                "{}-s2-{}-{}.{}".format(gal_name,run_name,f,ext))
+    binspectra_path = output_path_maker('binspectra','fits')
+    fullbin_path = output_path_maker('fullgalaxy','fits')
     bininfo_path = output_path_maker('bininfo','txt')
     fiberinfo_path = output_path_maker('fiberinfo','txt')
-    plot_path = output_path_maker('maps','pdf')
+    plot_path = output_path_maker('binmaps','pdf')
     # save relevant info for plotting to a dict
     plot_info = {'binspectra_path': binspectra_path, 
                  'fullbin_path': fullbin_path, 'plot_path': plot_path,

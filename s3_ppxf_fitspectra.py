@@ -175,7 +175,7 @@ for plot_info in things_to_plot:
     specset = specset.get_subset(fitdata['bins']['id'])
     if plot_info['run_type']=='bins':
         bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,
-                                skip_header=12)
+                                skip_header=1)
         ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
         ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
 

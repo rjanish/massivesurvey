@@ -106,8 +106,8 @@ def save_specres(path,samples,source_metadata):
     header += "\nThis file contains fits of arc frames for each fiber"
     header += "\n interpolated from {} arc lamp lines".format(nlines)
     header += "\n reported in instrument rest frame"
-    header += "\nSource file: {}".format(source_metadata['ifu source file'])
-    header += "\n from {}".format(source_metadata['ifu source file date'])
+    header += "\nSource file: {}".format(source_metadata['rawfile'])
+    header += "\n from {}".format(source_metadata['rawdate'])
     savearray = np.zeros((nfibers, 1+4*nlines))
     fmt = ['%1i'] + nlines*['%-7.6g','%-7.6g','%-7.4g','%-7.4g']
     savearray[:,0] = range(nfibers)

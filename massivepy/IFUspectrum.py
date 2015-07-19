@@ -6,6 +6,7 @@ This module handles storage and computations with IFU spectral fields.
 import re
 import os
 import functools
+import time
 
 import numpy as np
 import shapely.geometry as geo
@@ -261,11 +262,17 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
     """
     This is intended to replace read_mitchell_rawdatacube, since we no longer
     want to save a copy of all of this fiber stuff.
+
+    Comments are populated with important metadata from the fits file headers,
+    to be passed on to descendent files. See the following for details:
+      spectrum.SpectrumSet.to_fits_hdulist()
+      spectralresolution.save_specres()
+      s2_bin_mitchell, for bininfo.txt file
     """
     # record all important metadata in the comments
     comments = {}
     coord_comments = {}
-    comments['ifu source file'] = cube_path
+    comments['rawfile'] = os.path.basename(cube_path)
     # read and parse ifu file
     data, headers = utl.fits_quickread(cube_path)
     try:
@@ -283,13 +290,11 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
         gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
         redshift = waves_h['z']  # assumed redshift of galaxy
         inst_waves = gal_waves*(1 + redshift)  # instrument rest frame, not used
-    comments['ifu source file date'] = spectra_h['date']
+    comments['rawdate'] = spectra_h['date']
     comments['redshift'] = redshift
     nfibers, npixels = spectra.shape
-    comments['nfibers'] = nfibers
-    comments['npixels'] = npixels
     wavelengths = gal_waves
-    comments['wavelengths frame'] = 'galaxy rest frame'
+    comments['frame'] = 'galaxy rest frame'
     bad_data = np.zeros(spectra.shape, dtype=bool)
     #bad_data=np.where(spectra<0,np.ones(spectra.shape),np.zeros(spectra.shape))
     if ir_path is None:
@@ -297,11 +302,11 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
     else:
         ir_samples = res.read_specres(ir_path)
         # assuming ir_samples is in instrument rest frame
-        # res.specres_for_galaxy will shift it to galaxy frame
+        # res.specres_for_galaxy will shift it to galaxy frame to match spectra
         ir = res.specres_for_galaxy(ir_samples['fitcenter'],ir_samples['fwhm'],
                                     wavelengths, redshift)
-        comments['ir source file'] = ir_path
-        comments['ir frame'] = 'galaxy rest frame'
+        comments['irfile'] = os.path.basename(ir_path)
+        comments['irdate'] = time.ctime(os.path.getctime(ir_path))
     # we assume units won't change, but check anyway
     if not spectra_h['bunit'] == 'ergs/s/cm^2/A':
         raise Exception("Unexpected flux units in datacube!")

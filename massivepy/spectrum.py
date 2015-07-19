@@ -608,10 +608,22 @@ class SpectrumSet(object):
         baseheader.append(("specunit", str(self.spec_unit)))
         baseheader.append(("waveunit", str(self.wave_unit)))
         baseheader.append(("primary", "spectra"))
+        # explicitly save certain metadata from comments as header cards
+        # want this to break if important metadata is not available
+        metadata = {'rawfile': 'name of raw cube',
+                    'rawdate': 'creation date of raw cube, from header',
+                    'irfile': 'name of source ir file',
+                    'irdate': 'creation date of ir file, from os.path',
+                    'frame': '',
+                    'redshift': ''}
+        for key in metadata:
+            baseheader.append((key,self.comments[key],metadata[key]))
+        # save the rest as comments (these will end up in one big string)
+        morekeys = set(self.comments.keys()).difference(set(metadata.keys()))
+        for key in morekeys:
+            baseheader.add_comment("{}: {}".format(key, self.comments[key]))
         baseheader.add_comment("spectral resolution given in "
                                "wavelength units, Gaussian FWHM")
-        for k, v in self.comments.iteritems():
-            baseheader.add_comment("{}: {}".format(k, v))
         hdu_spectra = fits.PrimaryHDU(data=self.spectra, header=baseheader)
         hdu_waves = fits.ImageHDU(data=self.waves,
                                   header=baseheader, name="waves")

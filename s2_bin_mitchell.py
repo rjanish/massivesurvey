@@ -231,8 +231,8 @@ for paramfile_path in all_paramfile_paths:
     binheader += '\nNote that x,y are bin centers in cartesian coordinates,'
     binheader += '\n while r,th are bin centers in polar coordinates,'
     binheader += '\n and they do not represent the same points!'
-    ifufilename = ifuset.spectrumset.comments['ifu source file']
-    ifufiledate = ifuset.spectrumset.comments['ifu source file date']
+    ifufilename = os.path.basename(ifuset.spectrumset.comments['rawfile'])
+    ifufiledate = ifuset.spectrumset.comments['rawdate']
     irfiledate = time.ctime(os.path.getctime(ir_path))
     binheader += "\nSource file: {}".format(ifufilename)
     binheader += "\n from {}".format(ifufiledate)

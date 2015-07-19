@@ -501,14 +501,10 @@ class SpectrumSet(object):
         comb_spectra, comb_noise, comb_bad_data, clipped = comb
         total_weight = weight.sum(axis=0)
         comb_ir = (self.metaspectra["ir"]*weight).sum(axis=0)/total_weight
-        extended_comments = self.comments.copy()
-        extended_comments["Binning"] = ("This spectrum was binned from {} "
-                                       "spectra {} with weight function {}"
-                                       "".format(self, self.ids,
-                                                 weight_func.__name__))
         return SpectrumSet(spectra=comb_spectra, bad_data=comb_bad_data,
                            noise=comb_noise, ir=comb_ir, spectra_ids=[id],
-                           wavelengths=self.waves, comments=extended_comments,
+                           wavelengths=self.waves,
+                           comments=self.comments.copy(),
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit)
 
@@ -624,10 +620,12 @@ class SpectrumSet(object):
             baseheader.add_comment("{}: {}".format(key, self.comments[key]))
         baseheader.add_comment("spectral resolution given in "
                                "wavelength units, Gaussian FWHM")
-        hdu_spectra = fits.PrimaryHDU(data=self.spectra, header=baseheader)
+        hdu_spectra = fits.PrimaryHDU(data=self.spectra,
+                                      header=baseheader)
         hdu_waves = fits.ImageHDU(data=self.waves,
                                   header=baseheader, name="waves")
-        hdu_ids = fits.ImageHDU(data=self.ids, header=baseheader, name="ids")
+        hdu_ids = fits.ImageHDU(data=self.ids,
+                                header=baseheader, name="ids")
         hdu_noise = fits.ImageHDU(data=self.metaspectra["noise"],
                                   header=baseheader, name="noise")
         hdu_ir = fits.ImageHDU(data=self.metaspectra["ir"],
@@ -676,10 +674,8 @@ def read_datacube(path, name=None):
     [spectra_h, noise_h, waves_h, bad_data_h, ir_h, ids_h] = headers
     spec_unit = const.flux_per_angstrom  # Mitchell assumed value
     waves_unit = const.angstrom  # Mitchell assumed value
-    # TO DO: remove overwrite in comment concatenation
     comments = {}
-    comments.update({k:str(v) for k, v in waves_h.iteritems()})
-    comments.update({k:str(v) for k, v in spectra_h.iteritems()})
+    comments.update({k:str(spectra_h[k]) for k in spectra_h})
     return SpectrumSet(spectra=spectra, bad_data=bad_data.astype(bool),
                        noise=noise, ir=ir, spectra_ids=ids,
                        wavelengths=waves, spectra_unit=spec_unit,

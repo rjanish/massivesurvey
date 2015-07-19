@@ -119,7 +119,8 @@ for paramfile_path in all_paramfile_paths:
     fiber_radius = const.mitchell_fiber_radius.value
     # do the full galaxy bin
     full_galaxy = ifuset.spectrumset.collapse(id=0)
-    full_galaxy.comments["Binning"] = ("this spectrum is the coadditon "
+    print full_galaxy.comments
+    full_galaxy.comments["binning"] = ("this spectrum is the coadditon "
                                        "of all fibers in the galaxy")
     full_galaxy.name = "fullgalaxybin"
     full_galaxy.write_to_fits(fullbin_path)

@@ -17,6 +17,7 @@ import os
 import re
 import argparse
 import functools
+import time
 
 import pickle
 
@@ -216,7 +217,9 @@ for paramfile_path in all_paramfile_paths:
         bininfo[bound] = bin_bounds[i,:]
     bininfo['thmin'] = np.rad2deg(np.pi/2 - bininfo['thmin'])
     bininfo['thmax'] = np.rad2deg(np.pi/2 - bininfo['thmax'])
-    binheader = 'Coordinate definitions:'
+    binheader = 'Columns are as follows:'
+    binheader += '\n' + ' '.join(dt['names'])
+    binheader += '\nCoordinate definitions:'
     binheader += '\n x-direction is west, y-direction is north'
     binheader += '\n units are {}'.format(ifuset.coords_unit)
     binheader += '\n theta=0 is defined at +y (north)'
@@ -228,8 +231,13 @@ for paramfile_path in all_paramfile_paths:
     binheader += '\nNote that x,y are bin centers in cartesian coordinates,'
     binheader += '\n while r,th are bin centers in polar coordinates,'
     binheader += '\n and they do not represent the same points!'
-    binheader += '\nColumns are as follows:'
-    binheader += '\n' + ' '.join(dt['names'])
+    ifufilename = ifuset.spectrumset.comments['ifu source file']
+    ifufiledate = ifuset.spectrumset.comments['ifu source file date']
+    irfiledate = time.ctime(os.path.getctime(ir_path))
+    binheader += "\nSource file: {}".format(ifufilename)
+    binheader += "\n from {}".format(ifufiledate)
+    binheader += "\n with ir file {}".format(ir_path)
+    binheader += "\n from {}".format(irfiledate)
     np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
     print 'You may ignore the weird underflow error, it is not important.'
 
@@ -237,9 +245,10 @@ for plot_info in things_to_plot:
     plot_path = plot_info['plot_path']
     fiberids, binids = np.genfromtxt(plot_info['fiberinfo_path'],
                                      dtype=int,unpack=True)
-    bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,skip_header=12)
+    bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,skip_header=1)
     nbins = len(bininfo)
-    ma_line = open(plot_info['bininfo_path'],'r').readlines()[7]
+    # these lines are a terrible idea.
+    ma_line = open(plot_info['bininfo_path'],'r').readlines()[9]
     ma_theta = np.pi/2 + np.deg2rad(float(ma_line.strip().split()[-1]))
 
     ifuset = ifu.read_raw_datacube(plot_info['raw_cube_path'],

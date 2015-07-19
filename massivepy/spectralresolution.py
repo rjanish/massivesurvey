@@ -62,22 +62,23 @@ def fit_arcset(wavelengths, arcs, line_centers, fwhm_guess, fit_scale=10):
     initial_heights = np.ones(num_lines)
     all_intital_params = zip(initial_heights, line_centers, initial_sigmas)
     # fit lines
-    spec_resolution = np.zeros((num_arcs, num_lines, 3))
+    dt = {'names':['center','fitcenter','fwhm','height'],
+          'formats':4*[np.float64]}
+    spec_resolution = np.zeros((num_arcs, num_lines),dtype=dt)
     for arc_iter, arc in enumerate(arcs):
         fitter = sf.SeriesFit(waves, arc, gauss_model, gauss_fitwidth,
                               gauss_center, all_intital_params,
                               sf.leastsq_lma) # lma least-squares fit
         fitter.run_fit()
-        #bestfit_centers, bestfit_sigmas = fitter.current_params[:, 1:].T
         bestfit_heights,bestfit_centers,bestfit_sigmas=fitter.current_params.T
-            # param order: line height, center, sigma
         bestfit_fwhm = bestfit_sigmas*const.gaussian_fwhm_over_sigma
-        spec_resolution[arc_iter, :, 0] = bestfit_centers
-        spec_resolution[arc_iter, :, 1] = bestfit_fwhm
-        spec_resolution[arc_iter, :, 2] = bestfit_heights
+        spec_resolution['center'][arc_iter, :] = line_centers
+        spec_resolution['fitcenter'][arc_iter, :] = bestfit_centers
+        spec_resolution['fwhm'][arc_iter, :] = bestfit_fwhm
+        spec_resolution['height'][arc_iter, :] = bestfit_heights
     return spec_resolution
 
-def specres_for_galaxy(spec_resolution, galwaves, redshift):
+def specres_for_galaxy(inst_waves, fwhm, gal_waves, redshift):
     """
     Take the results from fit_arcset and put them in galaxy terms.
     1) Shift from instrument frame to galaxy rest frame.
@@ -88,11 +89,45 @@ def specres_for_galaxy(spec_resolution, galwaves, redshift):
      'centers' and 'fwhm' - other columns are ignored.
     Returns a set of ir arrays (one for each fiber).
     """
-    nfibers, nlines, ncols = spec_resolution.shape
-    npixels = len(galwaves)
+    nfibers, nlines = fwhm.shape
+    npixels = len(gal_waves)
     ir_set = np.zeros((nfibers,npixels))
     for ifiber in range(nfibers):
-        galframe_samples = spec_resolution[ifiber,:,0:2]/(1+redshift)
-        interpolator = utl.interp1d_constextrap(*galframe_samples.T)
-        ir_set[ifiber] = interpolator(galwaves)
+        gal_wavesamples = inst_waves[ifiber,:]/(1+redshift)
+        fwhm_samples = fwhm[ifiber,:]/(1+redshift)
+        interpolator = utl.interp1d_constextrap(gal_wavesamples,fwhm_samples)
+        ir_set[ifiber] = interpolator(gal_waves)
     return ir_set
+
+def save_specres(path,samples,source_metadata):
+    nfibers, nlines = samples.shape
+    header = "Columns are as follows:"
+    header += "\n fiberiter, (for each line) center, fitcenter, fwhm, height"
+    header += "\nThis file contains fits of arc frames for each fiber"
+    header += "\n interpolated from {} arc lamp lines".format(nlines)
+    header += "\n reported in instrument rest frame"
+    header += "\nSource file: {}".format(source_metadata['ifu source file'])
+    header += "\n from {}".format(source_metadata['ifu source file date'])
+    savearray = np.zeros((nfibers, 1+4*nlines))
+    fmt = ['%1i'] + nlines*['%-7.6g','%-7.6g','%-7.4g','%-7.4g']
+    savearray[:,0] = range(nfibers)
+    savearray[:,1::4] = samples['center']
+    savearray[:,2::4] = samples['fitcenter']
+    savearray[:,3::4] = samples['fwhm']
+    savearray[:,4::4] = samples['height']
+    np.savetxt(path, savearray, fmt=fmt, delimiter='\t', header=header)
+    return
+
+def read_specres(path):
+    textarray = np.genfromtxt(path)
+    nfibers, ncols = textarray.shape
+    nlines = (ncols-1)/4
+    dt = {'names':['fiberiter','center','fitcenter','fwhm','height'],
+          'formats':[int] + 4*[np.float64]}
+    ir = np.zeros((nfibers,nlines),dtype=dt)
+    ir['fiberiter'] = textarray[:,0][:,np.newaxis]
+    ir['center'] = textarray[:,1::4]
+    ir['fitcenter'] = textarray[:,2::4]
+    ir['fwhm'] = textarray[:,3::4]
+    ir['height'] = textarray[:,4::4]
+    return ir

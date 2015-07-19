@@ -255,7 +255,9 @@ for plot_info in things_to_plot:
 
     specset = spec.read_datacube(plot_info['binspectra_path'])
     # use colorbar limits from fiber maps, for continuity
-    fiberfluxes = ifuset.spectrumset.compute_flux()
+    rawfiberfluxes = ifuset.spectrumset.compute_flux()
+    fiberfluxes = np.where(rawfiberfluxes>0, rawfiberfluxes,
+                           max(rawfiberfluxes)*np.ones(rawfiberfluxes.shape))
     fluxmin = min(fiberfluxes)
     fluxmax = max(fiberfluxes)
     fluxunit = specset.integratedflux_unit

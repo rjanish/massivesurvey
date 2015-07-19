@@ -295,13 +295,11 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
     if ir_path is None:
         ir = np.nan*np.ones(spectra.shape)
     else:
-        # this is fragile, should make read/write functions for ir
-        # to stack/unstack the lines, order columns, etc
-        ir_data = np.genfromtxt(ir_path)
-        ir_centers = ir_data[:,1::4]
-        ir_fwhm = ir_data[:,2::4]
-        ir_samples = np.transpose([ir_centers,ir_fwhm],axes=(1,2,0))
-        ir = res.specres_for_galaxy(ir_samples, wavelengths, redshift)
+        ir_samples = res.read_specres(ir_path)
+        # assuming ir_samples is in instrument rest frame
+        # res.specres_for_galaxy will shift it to galaxy frame
+        ir = res.specres_for_galaxy(ir_samples['fitcenter'],ir_samples['fwhm'],
+                                    wavelengths, redshift)
         comments['ir source file'] = ir_path
         comments['ir frame'] = 'galaxy rest frame'
     # we assume units won't change, but check anyway

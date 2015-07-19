@@ -100,19 +100,7 @@ for paramfile_path in all_paramfile_paths:
     spec_res_samples = res.fit_arcset(inst_waves, arcs,
                                       const.mitchell_arc_centers,
                                       const.mitchell_nominal_spec_resolution)
-    nfibers, nlines, ncols = spec_res_samples.shape
-    ir_header = "Fits of arc frames for each fiber"
-    ir_header += "\n interpolated from {} arc lamp lines".format(nlines)
-    ir_header += "\n reported in instrument rest frame"
-    ir_header += "\nFour columns for each line, as follows:"
-    ir_header += "\n fiducial center, fit center, fit fwhm, fit height"
-    ir_savearray = np.zeros((nfibers, 4*nlines))
-    fmt = nlines*['%-7.6g','%-7.6g','%-7.4g','%-7.4g']
-    ir_savearray[:,0::4] = const.mitchell_arc_centers
-    ir_savearray[:,1::4] = spec_res_samples[:,:,0]
-    ir_savearray[:,2::4] = spec_res_samples[:,:,1]
-    ir_savearray[:,3::4] = spec_res_samples[:,:,2]
-    np.savetxt(ir_path, ir_savearray, fmt=fmt, delimiter='\t', header=ir_header)
+    res.save_specres(ir_path, spec_res_samples, ifuset.spectrumset.comments)
     print "  saved ir to text file."
 
 for plot_info in things_to_plot:
@@ -122,6 +110,8 @@ for plot_info in things_to_plot:
                                          plot_info['gal_name'],
                                          ir_path=plot_info['ir_path'],
                                          return_arcs=True)
+    ir = res.read_specres(plot_info['ir_path'])
+
     # set up fiber information
     fiberids = ifuset.spectrumset.ids
     fibersize = ifuset.linear_scale
@@ -151,7 +141,8 @@ for plot_info in things_to_plot:
     mappable_s2n = plt.cm.ScalarMappable(cmap=cmap_s2n, norm=norm_s2n)
     mappable_s2n.set_array([s2nmin,s2nmax])
     s2ncolors = mappable_s2n.to_rgba(s2n)
-    # set up spectra and arc info
+
+    # set up spectra and arc info, optionally skipping some fibers
     skipnumber = 1
     waves = ifuset.spectrumset.waves
     dwave = waves[-1] - waves[0]
@@ -159,14 +150,8 @@ for plot_info in things_to_plot:
     spectra = ifuset.spectrumset.spectra[::skipnumber]
     arcspectra = arcs[::skipnumber]
     arcspectra = (arcspectra.T/np.max(arcspectra, axis=1)).T
-
-    # load up the ir textfile
-    ir_textinfo = np.genfromtxt(plot_info['ir_path'])
-    ir_fidcenter = ir_textinfo[::skipnumber,0::4]
-    ir_center = ir_textinfo[::skipnumber,1::4]
-    ir_fwhm = ir_textinfo[::skipnumber,2::4]
-    ir_height = ir_textinfo[::skipnumber,3::4]
-    nskipfibers, nlines = ir_fidcenter.shape
+    ir = ir[::skipnumber,:]
+    nskipfibers, nlines = ir.shape
 
     ### plotting begins ###
     pdf = PdfPages(plot_info['plot_path'])
@@ -243,7 +228,7 @@ for plot_info in things_to_plot:
     ax = fig.add_axes([0.15,0.1,0.7,0.7])
     fiber_cmap = plt.cm.get_cmap('cool')
     for i in range(nskipfibers):
-        ax.plot(ir_center[i,:],ir_fwhm[i,:],c=fiber_cmap(i/float(nskipfibers)),
+        ax.plot(ir['fitcenter'][i,:],ir['fwhm'][i,:],c=fiber_cmap(i/float(nskipfibers)),
                 alpha=0.2,rasterized=True)
     axC = fig.add_axes([0.15,0.8,0.7,0.8])
     axC.set_visible(False)
@@ -264,7 +249,7 @@ for plot_info in things_to_plot:
     for i in range(nskipfibers):
         ax.plot(inst_waves,arcspectra[i],c='k',alpha=0.2,lw=1.2)
     for i in range(nlines):
-        ax.axvline(ir_fidcenter[0,i],c='r',lw=0.8)
+        ax.axvline(ir['center'][0,i],c='r',lw=0.8)
     ax.axis([inst_waves[0],inst_waves[-1],
              -0.2*np.max(arcspectra),np.max(arcspectra)])
     ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
@@ -275,26 +260,26 @@ for plot_info in things_to_plot:
     fig = plt.figure(figsize=(6,nlines+2))
     fig.suptitle('zoom in of each arc line fit')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
-    ir_avg = np.average(ir_fwhm)
+    ir_avg = np.average(ir['fwhm'])
     for i in range(nlines):
         for j in range(nskipfibers):
-            startwave = ir_fidcenter[j,i] - 2*ir_avg
-            endwave = ir_fidcenter[j,i] + 2*ir_avg
+            startwave = ir['center'][j,i] - 2*ir_avg
+            endwave = ir['center'][j,i] + 2*ir_avg
             startpix,endpix = np.searchsorted(inst_waves,[startwave,endwave])
-            waves_offset = inst_waves[startpix:endpix] - ir_fidcenter[j,i]
+            waves_offset = inst_waves[startpix:endpix] - ir['center'][j,i]
             ax.plot(waves_offset,i + arcspectra[j][startpix:endpix],
                     c='k',alpha=0.2)
-            params=[ir_center[j,i] - ir_fidcenter[j,i],
-                    ir_fwhm[j,i]/const.gaussian_fwhm_over_sigma]
+            params=[ir['fitcenter'][j,i] - ir['center'][j,i],
+                    ir['fwhm'][j,i]/const.gaussian_fwhm_over_sigma]
             model = gh.unnormalized_gausshermite_pdf(waves_offset,params)
             model = model*max(arcspectra[j][startpix:endpix])/max(model)
             ax.plot(waves_offset,i + model,c='b',alpha=0.2)
             ax.vlines(params[0]+0.5*params[1],i,i+1,color='y',alpha=0.2)
             ax.vlines(params[0]-0.5*params[1],i,i+1,color='y',alpha=0.2)
             ax.vlines(params[0],i,i+1,color='g',alpha=0.2)
-        ax.text(ir_avg,i+0.2,"{:.4f}".format(np.average(ir_center[:,i])),
+        ax.text(ir_avg,i+0.2,"{:.4f}".format(np.average(ir['fitcenter'][:,i])),
                 color='g',horizontalalignment='left')
-        ax.text(-ir_avg,i+0.2,"{:.4f}".format(np.average(ir_fidcenter[:,i])),
+        ax.text(-ir_avg,i+0.2,"{:.4f}".format(np.average(ir['center'][:,i])),
                 color='k',horizontalalignment='right')
     ax.axvline(c='k')
     ax.axis([-2*ir_avg,2*ir_avg,0,nlines])

@@ -238,6 +238,8 @@ for paramfile_path in all_paramfile_paths:
     binheader += "\n from {}".format(ifufiledate)
     binheader += "\n with ir file {}".format(ir_path)
     binheader += "\n from {}".format(irfiledate)
+    binheader += "\nAspect ratio and s2n were set as:"
+    binheader += "\n {}, {}".format(aspect_ratio, s2n_threshold)
     np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
     print 'You may ignore the weird underflow error, it is not important.'
 

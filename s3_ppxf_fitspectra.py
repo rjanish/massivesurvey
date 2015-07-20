@@ -323,10 +323,13 @@ for plot_info in things_to_plot:
         target_specset = specset.crop(plot_info['fit_range'])
         spectrum = target_specset.get_subset([binid]).spectra[0]
         spectrum = spectrum/np.median(spectrum)
+        waves = target_specset.waves
         model = fitdata['spec']['bestmodel'][i]
-        waves = fitdata['waves']
+        modelwaves = fitdata['waves']
+        # modelwaves should be same as waves, but is longer by one pixel!!
+        # this bug shows up only (so far) in NGC1129
         ax.plot(waves,binid-spectrum+spectrum[0],c='k')
-        ax.plot(waves,binid-model+spectrum[0],c='r',lw=0.7)
+        ax.plot(modelwaves,binid-model+spectrum[0],c='r',lw=0.7)
         ax.text(waves[0],binid-0.4,
                 r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][i]))
     # find regions to mask

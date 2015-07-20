@@ -6,6 +6,7 @@ import os
 import re
 
 import numpy as np
+import pandas as pd
 
 import utilities as utl
 import massivepy.constants as const
@@ -31,6 +32,20 @@ def parse_paramfile_path(path):
         pass
     return output_dir, gal_name
 
+def get_gal_center_pa(targets_path,gal_name):
+    """
+    Returns galaxy center and pa from Jenny's target file.
+    Should add to this some galaxy name regex checking stuff.
+    """
+    target_positions = pd.read_csv(targets_path,
+                                   comment='#', sep="[ \t]+",
+                                   engine='python')
+    gal_position = target_positions[target_positions.Name == gal_name]
+    gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
+    gal_pa = gal_position.PA_best.iat[0]
+        # .ita[0] extracts scalar value from a 1-element dataframe
+    return gal_center, gal_pa
+
 def get_friendly_ppxf_output(path):
     """
     Returns a friendly dict- and recarray-based set of ppxf output.
@@ -48,9 +63,11 @@ def get_friendly_ppxf_output(path):
     nbins = headers[0]['NAXIS2']
     nmoments = headers[0]['NAXIS1']
     npixels = headers[2]['NAXIS1']
+    ntemps = headers[1]['NAXIS1']
     friendly_data['nmoments'] = nmoments
     friendly_data['nbins'] = nbins
     #friendly_data['npixels'] = npixels
+    friendly_data['ntemps'] = ntemps
     friendly_data['add_deg'] = headers[0]['ADD_DEG']
     friendly_data['mul_deg'] = headers[0]['MUL_DEG']
 
@@ -62,6 +79,18 @@ def get_friendly_ppxf_output(path):
             friendly_data['gh'][ibin,imom] = tuple(data[0][:,ibin,imom])
 
     # populate template stuff
+    ntemps = headers[1]['NAXIS1']
+    dt = {'names':['id','weight','flux','fluxweight'],
+          'formats':[int]+3*[np.float64]}
+    friendly_data['temps'] = np.zeros((nbins,ntemps),dtype=dt)
+    for ibin in range(nbins):
+        ii = np.argsort(data[1][1,ibin,:]) # sort by weight
+        for i,field in enumerate(dt['names']): # need fields in fits file order
+            friendly_data['temps'][field][ibin,:] = data[1][i,ibin,:][ii][::-1]
+    if nbins==1:
+        friendly_data['temps'] = friendly_data['temps'][0,:]
+        ii = np.nonzero(friendly_data['temps']['weight'])
+        friendly_data['temps'] = friendly_data['temps'][ii]
 
     # populate bin stuff
     dt = {'names':['id','chisq'],'formats':[int,np.float64]}

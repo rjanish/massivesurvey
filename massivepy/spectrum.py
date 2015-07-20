@@ -31,7 +31,7 @@ class SpectrumSet(object):
     def __init__(self, spectra=None, bad_data=None, noise=None,
                  ir=None, spectra_ids=None, wavelengths=None,
                  spectra_unit=None, wavelength_unit=None,
-                 comments={}, name=None, test_ir=None):
+                 comments={}, name=None):
         """
         Mandatory arguments here force explicit recording of metadata.
         When this function returns, the object will hold all of the
@@ -124,10 +124,6 @@ class SpectrumSet(object):
         self.integratedflux_unit = self.spec_unit*self.wave_unit
         self.comments = {str(k):v for k, v in comments.iteritems()}
         self.name = str(name)
-        self.test_ir = test_ir
-        if self.test_ir is None:
-            self.test_ir = np.asarray([[[1, 3],
-                                        [5, 9]]]*self.num_spectra)
 
     def get_subset(self, ids, get_selector=False):
         """
@@ -186,8 +182,7 @@ class SpectrumSet(object):
                              wavelengths=self.waves,
                              spectra_unit=self.spec_unit,
                              wavelength_unit=self.wave_unit,
-                             comments=self.comments, name=self.name,
-                             test_ir=self.test_ir[index, ...])
+                             comments=self.comments, name=self.name)
         if get_selector:
             return subset, index
         else:
@@ -480,8 +475,7 @@ class SpectrumSet(object):
                            wavelengths=self.waves,
                            spectra_unit=self.spec_unit,
                            wavelength_unit=self.wave_unit,
-                           comments=extened_comments,
-                           test_ir=self.test_ir, name=self.name)
+                           comments=extened_comments)
 
     def collapse(self, weight_func=compute_flux, id=None,
                  norm_func=compute_flux, norm_value=None):
@@ -507,17 +501,12 @@ class SpectrumSet(object):
         comb_spectra, comb_noise, comb_bad_data, clipped = comb
         total_weight = weight.sum(axis=0)
         comb_ir = (self.metaspectra["ir"]*weight).sum(axis=0)/total_weight
-        extended_comments = self.comments.copy()
-        extended_comments["Binning"] = ("This spectrum was binned from {} "
-                                       "spectra {} with weight function {}"
-                                       "".format(self, self.ids,
-                                                 weight_func.__name__))
         return SpectrumSet(spectra=comb_spectra, bad_data=comb_bad_data,
                            noise=comb_noise, ir=comb_ir, spectra_ids=[id],
-                           wavelengths=self.waves, comments=extended_comments,
+                           wavelengths=self.waves,
+                           comments=self.comments.copy(),
                            spectra_unit=self.spec_unit,
-                           wavelength_unit=self.wave_unit,
-                           test_ir=self.test_ir, name=self.name)
+                           wavelength_unit=self.wave_unit)
 
     def gaussian_convolve(self, std):
         """
@@ -579,8 +568,7 @@ class SpectrumSet(object):
                            spectra_ids=self.ids, spectra_unit=self.spec_unit,
                            wavelengths=self.waves, name=self.name,
                            wavelength_unit=self.wave_unit, 
-                           comments=extened_comments,
-                           test_ir=self.test_ir)
+                           comments=extened_comments)
 
     def crop(self, region_to_keep):
         """
@@ -599,8 +587,7 @@ class SpectrumSet(object):
                            spectra_ids=self.ids, spectra_unit=self.spec_unit,
                            wavelengths=self.waves[to_keep], name=self.name,
                            wavelength_unit=self.wave_unit,
-                           comments=updated_comments,
-                           test_ir=self.test_ir)
+                           comments=updated_comments)
 
 
     def to_fits_hdulist(self):
@@ -617,14 +604,28 @@ class SpectrumSet(object):
         baseheader.append(("specunit", str(self.spec_unit)))
         baseheader.append(("waveunit", str(self.wave_unit)))
         baseheader.append(("primary", "spectra"))
+        # explicitly save certain metadata from comments as header cards
+        # want this to break if important metadata is not available
+        metadata = {'rawfile': 'name of raw cube',
+                    'rawdate': 'creation date of raw cube, from header',
+                    'irfile': 'name of source ir file',
+                    'irdate': 'creation date of ir file, from os.path',
+                    'frame': '',
+                    'redshift': ''}
+        for key in metadata:
+            baseheader.append((key,self.comments[key],metadata[key]))
+        # save the rest as comments (these will end up in one big string)
+        morekeys = set(self.comments.keys()).difference(set(metadata.keys()))
+        for key in morekeys:
+            baseheader.add_comment("{}: {}".format(key, self.comments[key]))
         baseheader.add_comment("spectral resolution given in "
                                "wavelength units, Gaussian FWHM")
-        for k, v in self.comments.iteritems():
-            baseheader.add_comment("{}: {}".format(k, v))
-        hdu_spectra = fits.PrimaryHDU(data=self.spectra, header=baseheader)
+        hdu_spectra = fits.PrimaryHDU(data=self.spectra,
+                                      header=baseheader)
         hdu_waves = fits.ImageHDU(data=self.waves,
                                   header=baseheader, name="waves")
-        hdu_ids = fits.ImageHDU(data=self.ids, header=baseheader, name="ids")
+        hdu_ids = fits.ImageHDU(data=self.ids,
+                                header=baseheader, name="ids")
         hdu_noise = fits.ImageHDU(data=self.metaspectra["noise"],
                                   header=baseheader, name="noise")
         hdu_ir = fits.ImageHDU(data=self.metaspectra["ir"],
@@ -673,10 +674,8 @@ def read_datacube(path, name=None):
     [spectra_h, noise_h, waves_h, bad_data_h, ir_h, ids_h] = headers
     spec_unit = const.flux_per_angstrom  # Mitchell assumed value
     waves_unit = const.angstrom  # Mitchell assumed value
-    # TO DO: remove overwrite in comment concatenation
     comments = {}
-    comments.update({k:str(v) for k, v in waves_h.iteritems()})
-    comments.update({k:str(v) for k, v in spectra_h.iteritems()})
+    comments.update({k:str(spectra_h[k]) for k in spectra_h})
     return SpectrumSet(spectra=spectra, bad_data=bad_data.astype(bool),
                        noise=noise, ir=ir, spectra_ids=ids,
                        wavelengths=waves, spectra_unit=spec_unit,

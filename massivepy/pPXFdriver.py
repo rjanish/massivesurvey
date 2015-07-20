@@ -504,11 +504,6 @@ class pPXFDriver(object):
           with the full Miles library, so the list can be used as
           input to further fits.)
         """
-        #Note: all contents from main_input, main_rawoutput, main_procoutput
-        # are either saved to the .fits file or checked for being zero or
-        # none EXCEPT main_procoutput['smoothed_temps'], because they are
-        # extremely inconvenient, large, and probably not useful.
-        
         #Set up the main run fits file
         baseheader = fits.Header()
         for name, [ppxf_name, func] in self.PPXF_REQUIRED_INPUTS.iteritems():
@@ -530,7 +525,6 @@ class pPXFDriver(object):
                                "".format(param_name, unit)))
         #Now do stuff that does not match between bins
         #HDU 1: gh moments and lsq errors
-        ###Add option to save gh_params as text file?###
         gh_params = self.bestfit_output['gh_params']
         lsqerr = self.bestfit_output['unscaled_lsq_errors']
         scaledlsq = self.bestfit_output['scaled_lsq_errors']
@@ -543,8 +537,10 @@ class pPXFDriver(object):
         header_gh.append(("primary","gh_moments"))
         hdu_gh = fits.PrimaryHDU(data=moment_info,
                                  header=header_gh)
+
         #HDU 2: templates and weights (raw and flux-weighted)
-        t_ids = [self.templib.spectrumset.ids]*self.specset.num_spectra
+        t_ids = [self.templib.spectrumset.ids
+                 for i in range(self.specset.num_spectra)]
         t_weights = self.bestfit_output['template_weights']
         t_mflux = self.bestfit_output['model_temps_fluxes']
         t_fw = self.bestfit_output['template_fluxweights']
@@ -555,22 +551,9 @@ class pPXFDriver(object):
         header_temps.append(("axis2", "bin"))
         header_temps.append(("axis3", template_info_columns))
         hdu_temps = fits.ImageHDU(data=template_info,
-                                     header=header_temps,
-                                     name='template_info')
-        #Now the text file for the templates
-        if len(t_weights)==1:
-            #Collapse extraneous dimension for bin number, convert to 2d array
-            t_array = np.array([info[0] for info in template_info]).T
-            #Get rid of zero weights (weights should be in second column)
-            ii = np.nonzero(t_array[:,1])[0]
-            t_array_nonzero = t_array[ii,:]
-            #Format first column (id number) as int
-            fmt = ['%i']
-            fmt.extend(['%-8g']*(len(template_info)-1))
-            np.savetxt(paths_dict['temps'],
-                       t_array_nonzero,
-                       header='columns are {}'.format(template_info_columns),
-                       fmt=fmt,delimiter='\t')
+                                  header=header_temps,
+                                  name='template_info')
+
         #HDU 3: spectrum and other related things (per bin)
         best_model = self.bestfit_output['best_model']
         mul_poly = self.bestfit_output['mul_poly']

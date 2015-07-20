@@ -165,23 +165,30 @@ if pickled_bins:
     for fibers, poly in fibers_in_bin:
         if (len(fibers) == 1) and (poly is None):
             bin_defs.append(np.asarray([[np.nan]*4]))
+    print 'assuming folded bin-layout'
     for annulus in annuli:
         r_bounds = np.asarray(annulus[0])
-        theta_bounds = np.asarray(annulus[1]) 
-            # this is only from ma to ma, need the reflected piece as well
-        
-        last_theta = theta_bounds[-1, -1]
-        reflected_theta_bounds = (2*last_theta - theta_bounds)[::-1, ::-1]
-        theta_bounds = np.concatenate((theta_bounds, reflected_theta_bounds))
+        theta_bounds = np.asarray(annulus[1]) # assuming folded bins
         theta_bounds = theta_bounds % 360  # shift into [0, 360)
         theta_bounds = np.deg2rad(theta_bounds)
-       
         r_bounds_stacked = np.vstack([r_bounds]*theta_bounds.shape[0])
         bin_bounds = np.hstack([r_bounds_stacked, theta_bounds])
         bin_defs.append(bin_bounds)
     bin_defs = np.concatenate(bin_defs)
-
-
+    num_fibers = np.asarray([len(fibs) for fibs, p in fibers_in_bin])
+    bin_coords = np.zeros((num_bins, 4))
+    for bin_iter, (fibers, poly) in enumerate(fibers_in_bin):
+        # assuming no full-galaxy bin00 present in fibers_in_bin
+        x, y = fiber_coords[fibers].T
+        r = np.sqrt(x**2 + y**2)
+        theta = np.arctan2(y, x)
+        fluxes = fiber_flux[fibers]
+        total_flux = np.sum(fluxes)
+        flux_avg = lambda x: np.sum(x*fluxes)/total_flux
+        bin_coords[bin_iter, 0] = flux_avg(x)
+        bin_coords[bin_iter, 1] = flux_avg(y)
+        bin_coords[bin_iter, 2] = flux_avg(r)
+        bin_coords[bin_iter, 3] = flux_avg(theta)
 else:
     print 'reading binning txt files'
     bin_defs = np.genfromtxt(bin_defs_path)
@@ -217,22 +224,22 @@ else:
         bin_coords[bin_iter, 3] = flux_avg(theta)
         fiber_numbers = np.asarray(fiber_data['F #'])
         num_fibers[bin_iter] = np.unique(fiber_numbers).size
-
-    datatype = {'names':['binid','nfibers','x','y','r','th',
-                         'rmin','rmax','thmin','thmax'],
-                 'formats':2*['i4']+8*['f32']}
-    bininfo = np.zeros(num_bins, dtype=datatype)
-    bininfo['binid'] = np.arange(1, 1 + num_bins)
-    bininfo['nfibers'] = num_fibers
-    bininfo['x'] = bin_coords[:, 0]
-    bininfo['y'] = bin_coords[:, 1]
-    bininfo['r'] = bin_coords[:, 2]
-    bininfo['th'] = bin_coords[:, 3]
-    bininfo['rmin'] = bin_defs[:, 0]
-    bininfo['rmax'] = bin_defs[:, 1]
-    bininfo['thmin'] = bin_defs[:, 2]
-    bininfo['thmax'] = bin_defs[:, 3]
-    np.savetxt(bininfo_output_path, bininfo, delimiter='\t',
-               fmt=2*['%1i']+8*['%9.5f'],
-               header=' '.join(datatype['names']))
-    print "wrote bin info to {}".format(bininfo_output_path)
+# write all bin output
+datatype = {'names':['binid','nfibers','x','y','r','th',
+                     'rmin','rmax','thmin','thmax'],
+             'formats':2*['i4']+8*['f32']}
+bininfo = np.zeros(num_bins, dtype=datatype)
+bininfo['binid'] = np.arange(1, 1 + num_bins)
+bininfo['nfibers'] = num_fibers
+bininfo['x'] = bin_coords[:, 0]
+bininfo['y'] = bin_coords[:, 1]
+bininfo['r'] = bin_coords[:, 2]
+bininfo['th'] = bin_coords[:, 3]
+bininfo['rmin'] = bin_defs[:, 0]
+bininfo['rmax'] = bin_defs[:, 1]
+bininfo['thmin'] = bin_defs[:, 2]
+bininfo['thmax'] = bin_defs[:, 3]
+np.savetxt(bininfo_output_path, bininfo, delimiter='\t',
+           fmt=2*['%1i']+8*['%9.5f'],
+           header=' '.join(datatype['names']))
+print "wrote bin info to {}".format(bininfo_output_path)

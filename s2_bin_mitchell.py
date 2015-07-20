@@ -274,7 +274,9 @@ for plot_info in things_to_plot:
     fluxunit = specset.integratedflux_unit
     cmap_flux = 'Reds'
     bin_s2n = specset.compute_mean_s2n()
-    fiber_s2n = ifuset.spectrumset.compute_mean_s2n()
+    rawfiber_s2n = ifuset.spectrumset.compute_mean_s2n()
+    fiber_s2n = np.where(rawfiber_s2n>0, rawfiber_s2n,
+                         max(rawfiber_s2n)*np.ones(rawfiber_s2n.shape))
     s2nmin = min(fiber_s2n)
     s2nmax = max(fiber_s2n)
     s2nmin_bin = min(bin_s2n)

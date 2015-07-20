@@ -7,6 +7,7 @@ into a format usable by the current MASSVIE pPXF pipeline.
 import argparse
 import os
 import pickle
+import datetime
 
 import numpy as np
 import scipy.interpolate as interp
@@ -114,17 +115,25 @@ for spec_iter, ir_samples in enumerate(irs):
     fwhm_func = utl.interp1d_constextrap(centers, fwhm)
     interped_ir[spec_iter, :] = fwhm_func(common_waves)
 # make .fits file
+format_timestamp = lambda t: str(datetime.datetime.fromtimestamp(t))
 basecomments = [
     ("target", "{}".format(target)),
     ("heliocentric correction applied", " -- [km/s]"),
-        # this is burried in some pefsm.fits file
+        # this is burried in some pefsm.fits file, not sure how to integrate
     ("wavelengths", "wavelengths in {} rest frame".format(rest_frame)),
     ("galaxy center", "{}, {} [RA, DEC degrees]".format(*gal_center)),
     ("galaxy position angle", "{} [degrees E of N]".format(gal_pa)),
     ("spectral resolution", ("interpolated from {} arc lamp measurements, "
                              "reported in the {} rest frame"
                              "".format(rest_frame,
-                                       len(const.mitchell_arc_centers))))]
+                                       len(const.mitchell_arc_centers)))),
+    ("irfile", "ir taken from loose files in {}".format(ir_dir)),
+    ('rawfile', "spectra taken from loose files in {}".format(spec_dir)),
+    ('rawdate', format_timestamp(os.path.getmtime(spec_path))),
+    ('irdate',  format_timestamp(os.path.getmtime(ir_path))),
+    ('frame', rest_frame),
+    ('redshift', "uncertain - check raw data cube")]
+        # uses last-read bin for ir and spectra timestamps
 contents_fullgal = [("contents",
                      "full galaxy spectrum (coaddition of all fibers)")]
 contents_spacialbins = [("contents", "spacial IFU bins")]

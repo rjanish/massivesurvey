@@ -544,10 +544,11 @@ class pPXFDriver(object):
         hdu_gh = fits.PrimaryHDU(data=moment_info,
                                  header=header_gh)
         #HDU 2: templates and weights (raw and flux-weighted)
+        t_ids = [self.templib.spectrumset.ids]*self.specset.num_spectra
         t_weights = self.bestfit_output['template_weights']
         t_mflux = self.bestfit_output['model_temps_fluxes']
         t_fw = self.bestfit_output['template_fluxweights']
-        template_info = [t_weights,t_mflux,t_fw]
+        template_info = [t_ids,t_weights,t_mflux,t_fw]
         template_info_columns = "id,weight,modelflux,fluxweight"
         header_temps = baseheader.copy()
         header_temps.append(("axis1", "template"))

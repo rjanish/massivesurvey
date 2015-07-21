@@ -171,7 +171,7 @@ for plot_info in things_to_plot:
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
     # get spectrum and bin information
-    specset = spec.read_datacube(binned_cube_path)
+    specset = spec.read_datacube(plot_info['binspectra_path'])
     specset = specset.get_subset(fitdata['bins']['id'])
     if plot_info['run_type']=='bins':
         bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,
@@ -319,8 +319,9 @@ for plot_info in things_to_plot:
     fig = plt.figure(figsize=(6, figheight))
     fig.suptitle('bin spectra by bin number')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
+    specset_to_fit.log_resample(driver.logscale)
+    target_specset = specset_to_fit.crop(fit_range)
     for i,binid in enumerate(fitdata['bins']['id']):
-        target_specset = specset.crop(plot_info['fit_range'])
         spectrum = target_specset.get_subset([binid]).spectra[0]
         spectrum = spectrum/np.median(spectrum)
         waves = target_specset.waves

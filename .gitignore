@@ -60,3 +60,6 @@ ppxf.py
 
 # And mac directory stuff
 .DS_Store
+
+# MASSIVE parameter files
+s0_process_miles_params.txt

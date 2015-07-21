@@ -360,6 +360,54 @@ def interp1d_constextrap(*args, **kwargs):
     return interp_wrapper
 
 
+def compute_projected_confidences(prob_draws, fraction=0.683):
+    """
+    Given a set of draws from an Gaussian distribution in D dimensions,
+    this computes the D-ellipsoid containing the passed probability
+    percentile, and then projects that ellipsoid onto the directions
+    of each individual dimension.
+
+    Args:
+    prob_draws - 2D arraylike
+        A set of N draws from a D-dimension distribution, with each
+        draw occupying a row, i.e. the shape of prob_draws is (N, D)
+    fraction - float, default=0.683
+        The fraction of probability weight to be enclosed by the
+        D-ellipse.  Default is 0.683, but note that this does not quite
+        give a '1-sigma' ellipsoid: the weight enclosed by the covariance
+        ellipsoid of a Gaussian distribution depends on dimension and is
+        decreasing.  In 1D, 1 sigma corresponds to 68.3% confidence, but
+        in higher dimension 1 sigma encloses less than 68.3% of the
+        probability weight.  This code works off of percentiles rather
+        than sigma-levels, so the ellipsoid returned is in general going 
+        to be some larger multiple of the 1 sigma ellipse than naively
+        expected from the 1D case.
+
+    Returns: covariance, intervals
+    covariance - 2D arraylike
+        The covariance matrix of the Gaussian describing the samples.
+    intervals - 1D arraylike
+        The half-width of the projected confidence intervals
+    """
+    # get 6D confidence ellipse
+    covariance = np.cov(prob_draws.T)  # normalized
+    metric = np.linalg.inv(covariance)  # Mahalanobis metric
+    center = np.median(prob_draws, axis=0)
+    mdist_sq = []
+    for num, row in enumerate(prob_draws):
+        # compute Mahalanobis distance of each draw
+        # would be nice to vectorize, but do not see how with a matrix mult
+        shifted = row - center
+        mdist_sq.append(np.dot(shifted.T, np.dot(metric, shifted)))
+    conf_mdist_sq = np.percentile(mdist_sq, fraction*100)
+    intervals = np.sqrt(np.diag(covariance*conf_mdist_sq))
+        # this gets the max extent of the ellipsoid (scaled to the passed
+        # prob weight) after projecting into each dimension. 
+        # Derivation is in log notebook - see October 2014
+    return covariance, intervals
+
+
+
 
 
 

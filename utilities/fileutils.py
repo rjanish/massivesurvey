@@ -4,6 +4,7 @@
 import os
 import re
 import pickle
+import warnings
 
 import astropy.io.fits as fits
 import numpy as np
@@ -227,8 +228,13 @@ def fits_getcoordarray(header):
     num_axes = header["NAXIS"]
     for axis_index in xrange(num_axes):
         axis_number = axis_index + 1  # .fits headers' number axes from 1
-        num_datapts = header["NAXIS{}".format(axis_number)]
-        start_value = header["CRVAL{}".format(axis_number)]
-        step = header["CDELT{}".format(axis_number)]
-        coords.append(start_value + step*np.arange(num_datapts))
+        try:
+            num_datapts = header["NAXIS{}".format(axis_number)]
+            start_value = header["CRVAL{}".format(axis_number)]
+            step = header["CDELT{}".format(axis_number)]
+            coords.append(start_value + step*np.arange(num_datapts))
+        except:
+            warnings.warn("Can not process coordinates of axis {0} - "
+                          "skipping axis {0}".format(axis_number))
+            coords.append(None)
     return coords

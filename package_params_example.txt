@@ -1,0 +1,14 @@
+target                   NGC4552
+positions_filepath       data/nonmassive-target-positions.txt
+spec_dir                 data/mitchell-karlbins/ngc4552/spectra
+spec_patt                bin\d{2}_n4552.fits
+ir_dir                   data/mitchell-karlbins/ngc4552/spectra
+ir_patt                  ir-bin\d{2}
+bad_regions              5560-5595
+output_dir               calc/NGC4552
+fullgal_output_filename  NGC4552-s2-karlbins-folded-fullgalaxybin.fits
+bins_output_filename     NGC4552-s2-karlbins-folded-spectra.fits
+bin_defs_path            data/mitchell-karlbins/ngc4552/binning/bin_defs.list
+binning_dir              data/mitchell-karlbins/ngc4552/binning
+bin_coords_patt          bin\d{2}.coord
+bininfo_output_filename  NGC4552-s2-karlbins-folded-bininfo.txt

@@ -1,0 +1,196 @@
+"""
+MASSIVE-specific plotting routines:
+
+This file contains the main plotting fuction for s1_process_mitchell.
+"""
+
+import functools
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.patches as patches
+
+import massivepy.constants as const
+import massivepy.spectralresolution as res
+import massivepy.IFUspectrum as ifu
+import massivepy.gausshermite as gh
+import massivepy.plotting as mplt
+
+
+def plot_s1_process_mitchell(gal_name=None,
+                             raw_cube_path=None,
+                             targets_path=None,
+                             ir_path=None,
+                             plot_path=None):
+    # read data, with the goal of not referencing ifuset after this section
+    ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,
+                                         targets_path,
+                                         gal_name,
+                                         ir_path=ir_path,
+                                         return_arcs=True)
+    ir = res.read_specres(ir_path)
+
+    # set up fiber information
+    fiberids = ifuset.spectrumset.ids
+    fibersize = ifuset.linear_scale
+    xcoords = -ifuset.coords[:,0] # flip from +x = east to +x = west
+    ycoords = ifuset.coords[:,1]
+    squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
+    rcoords = np.sqrt(xcoords**2 + ycoords**2)
+    coordunit = ifuset.coords_unit
+    # set up colormaps
+    fluxunit = ifuset.spectrumset.integratedflux_unit
+    fluxcolors = mplt.colormap_setup(ifuset.spectrumset.compute_flux(),
+                                cmap='Reds',logsafe='max')
+    s2ncolors = mplt.colormap_setup(ifuset.spectrumset.compute_mean_s2n(),
+                               cmap='Greens',logsafe='max')
+    # set up spectra and arc info, optionally skipping some fibers
+    skipnumber = 100
+    waves = ifuset.spectrumset.waves
+    dwave = waves[-1] - waves[0]
+    inst_waves = waves*(1+ifuset.spectrumset.comments['redshift'])
+    spectra = ifuset.spectrumset.spectra[::skipnumber]
+    arcspectra = arcs[::skipnumber]
+    arcspectra = (arcspectra.T/np.max(arcspectra, axis=1)).T
+    ir = ir[::skipnumber,:]
+    nskipfibers, nlines = ir.shape
+
+    ### plotting begins ###
+    pdf = PdfPages(plot_path)
+
+    # do flux, s2n maps and flux, s2n vs radius
+    figs = {}
+    axs = {}
+    axCs = {}
+    fignames = ['fluxmap','s2nmap','fluxrad','s2nrad']
+    figtitles = ['Flux map','s2n map','Flux vs radius','s2n vs radius']
+    for figname, figtitle in zip(fignames,figtitles):
+        square = mplt.scalar_fig_ax(figtitle=figtitle)
+        figs[figname], axs[figname], axCs[figname] = square
+    for ifiber,fiberid in enumerate(fiberids):
+        x,y,r = xcoords[ifiber],ycoords[ifiber],rcoords[ifiber]
+        patch = functools.partial(patches.Circle,(x,y),fibersize,lw=0.25)
+        txtkw = {'fontsize':5,
+                 'horizontalalignment':'center',
+                 'verticalalignment':'center'}
+        axs['fluxmap'].add_patch(patch(fc=fluxcolors['c'][ifiber]))
+        axs['fluxmap'].text(x,y,str(fiberid),**txtkw)
+        axs['s2nmap'].add_patch(patch(fc=s2ncolors['c'][ifiber]))
+        axs['s2nmap'].text(x,y,str(fiberid),**txtkw)
+        axs['fluxrad'].text(r,fluxcolors['x_norm'][ifiber],str(fiberid),**txtkw)
+        axs['s2nrad'].text(r,s2ncolors['x_norm'][ifiber],str(fiberid),**txtkw)
+    axs['fluxmap'].axis([-squaremax,squaremax,-squaremax,squaremax])
+    axs['s2nmap'].axis([-squaremax,squaremax,-squaremax,squaremax])
+    axs['fluxrad'].axis([min(rcoords),max(rcoords),
+                         fluxcolors['vmin_norm'],fluxcolors['vmax_norm']])
+    axs['s2nrad'].axis([min(rcoords),max(rcoords),
+                        s2ncolors['vmin_norm'],s2ncolors['vmax_norm']])
+    label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
+    label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
+    label_r = r'radius ({})'.format(coordunit)
+    label_flux = r'flux (log 10 [{}])'.format(fluxunit)
+    label_s2n = r's2n (log 10)'
+    axs['fluxmap'].set_xlabel(label_x)
+    axs['fluxmap'].set_ylabel(label_y)
+    axs['s2nmap'].set_xlabel(label_x)
+    axs['s2nmap'].set_ylabel(label_y)
+    axs['fluxrad'].set_xlabel(label_r)
+    axs['fluxrad'].set_ylabel(label_flux)
+    axs['s2nrad'].set_xlabel(label_r)
+    axs['s2nrad'].set_ylabel(label_s2n)
+    # do colorbars
+    for figname,m,l in zip(['fluxmap','s2nmap'],
+                           [fluxcolors['mappable'],s2ncolors['mappable']],
+                           [label_flux,label_s2n]):
+        cb = figs[figname].colorbar(m,ax=axCs[figname],label=l,
+                                    orientation='horizontal',
+                                    ticks=mpl.ticker.LogLocator(subs=range(10)))
+    for fn in fignames:
+        pdf.savefig(figs[fn])
+        plt.close(figs[fn])
+
+    # plot all fiber spectra
+    fig = plt.figure(figsize=(6,6))
+    fig.suptitle('fiber spectra')
+    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    for i in range(nskipfibers):
+        ax.plot(waves,spectra[i],c='k',alpha=0.1)
+    ax.plot(waves,0*waves,c='r')
+    specmax = np.percentile(spectra,99.99)
+    ax.axis([waves[0],waves[-1],-0.2*specmax,1.2*specmax])
+    ax.set_xlabel('wavelength')
+    ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    # plot the ir vs wavelength for each fiber
+    fig = plt.figure(figsize=(6,6))
+    fig.suptitle('fiber ir')
+    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    fiber_cmap = plt.cm.get_cmap('cool')
+    for i in range(nskipfibers):
+        ax.plot(ir['fitcenter'][i,:],ir['fwhm'][i,:],c=fiber_cmap(i/float(nskipfibers)),
+                alpha=0.2,rasterized=True)
+    axC = fig.add_axes([0.15,0.8,0.7,0.8])
+    axC.set_visible(False)
+    mappable_bins = plt.cm.ScalarMappable(cmap=fiber_cmap)
+    mappable_bins.set_array([0,nskipfibers])
+    fig.colorbar(mappable_bins,orientation='horizontal',ax=axC,
+                 label='fiber number')
+    ax.set_xlabel('wavelength')
+    ax.set_ylabel('fwhm')
+    ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    # plot the arc lines
+    fig = plt.figure(figsize=(6,6))
+    fig.suptitle('arc spectra')
+    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    for i in range(nskipfibers):
+        ax.plot(inst_waves,arcspectra[i],c='k',alpha=0.2,lw=1.2)
+    for i in range(nlines):
+        ax.axvline(ir['center'][0,i],c='r',lw=0.8)
+    ax.axis([inst_waves[0],inst_waves[-1],
+             -0.2*np.max(arcspectra),np.max(arcspectra)])
+    ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    # do a zoom-in of each arc line to check that it fits
+    fig = plt.figure(figsize=(6,nlines+2))
+    fig.suptitle('zoom in of each arc line fit')
+    ax = fig.add_axes([0.05,0.05,0.9,0.9])
+    ir_avg = np.average(ir['fwhm'])
+    for i in range(nlines):
+        for j in range(nskipfibers):
+            startwave = ir['center'][j,i] - 2*ir_avg
+            endwave = ir['center'][j,i] + 2*ir_avg
+            startpix,endpix = np.searchsorted(inst_waves,[startwave,endwave])
+            waves_offset = inst_waves[startpix:endpix] - ir['center'][j,i]
+            ax.plot(waves_offset,i + arcspectra[j][startpix:endpix],
+                    c='k',alpha=0.2)
+            params=[ir['fitcenter'][j,i] - ir['center'][j,i],
+                    ir['fwhm'][j,i]/const.gaussian_fwhm_over_sigma]
+            model = gh.unnormalized_gausshermite_pdf(waves_offset,params)
+            model = model*max(arcspectra[j][startpix:endpix])/max(model)
+            ax.plot(waves_offset,i + model,c='b',alpha=0.2)
+            ax.vlines(params[0]+0.5*params[1],i,i+1,color='y',alpha=0.2)
+            ax.vlines(params[0]-0.5*params[1],i,i+1,color='y',alpha=0.2)
+            ax.vlines(params[0],i,i+1,color='g',alpha=0.2)
+        ax.text(ir_avg,i+0.2,"{:.4f}".format(np.average(ir['fitcenter'][:,i])),
+                color='g',horizontalalignment='left')
+        ax.text(-ir_avg,i+0.2,"{:.4f}".format(np.average(ir['center'][:,i])),
+                color='k',horizontalalignment='right')
+    ax.axvline(c='k')
+    ax.axis([-2*ir_avg,2*ir_avg,0,nlines])
+    ax.set_xlabel('wavelength offset')
+    ax.set_yticklabels([])
+    ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    pdf.close()
+    return

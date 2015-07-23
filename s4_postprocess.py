@@ -70,7 +70,8 @@ for paramfile_path in all_paramfile_paths:
     # save relevant info for plotting to a dict
     plot_info = {'fits_path': fits_path,
                  'lambda_path': lambda_path,
-                 'plot_path': plot_path}
+                 'plot_path': plot_path,
+                 'gal_name': gal_name}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
@@ -86,6 +87,7 @@ for paramfile_path in all_paramfile_paths:
 
     # ingest some things
     bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
+    #bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=12)
     fitdata = mpio.get_friendly_ppxf_output(ppxf_output_path)
 
     # now here's the part where I actually do stuff!
@@ -137,6 +139,13 @@ for plot_info in things_to_plot:
                    'Rm2avg': r'$\langle R \sqrt{V^2 + \sigma^2} \rangle$',
                    'lam': r'$\lambda_R$'}
 
+    #Here is some stuff from Jenny for initial comparisons by hand
+    Jgals = {'NGC0057':{'l.25Re':0.015350319,'lRe':0.021994471,'Re':27.0},
+             'NGC0507':{'l.25Re':0.10895942,'lRe':0.045241862,'Re':38.4},
+             'NGC0533':{'l.25Re':0.039903858,'lRe':0.040093599,'Re':40.7},
+             'NGC0708':{'l.25Re':0.027162062,'lRe':0.023545584,'Re':23.7},
+             'NGC0777':{'l.25Re':0.016094986,'lRe':0.013569772,'Re':18.6}}
+
     ### Plotting Begins! ###
 
     pdf = PdfPages(plot_path)
@@ -148,6 +157,11 @@ for plot_info in things_to_plot:
         ax.plot(lamR['R'],lamR[thing])
         ax.set_xlabel('radius')
         ax.set_ylabel(prettynames[thing])
+        if thing=='lam' and gal_name in Jgals:
+            print 'gonna compare stuff'
+            Jgal = Jgals[gal_name]
+            ax.plot(Jgal['Re'],Jgal['lRe'],ls='',marker='s',c='g')
+            ax.plot(0.25*Jgal['Re'],Jgal['l.25Re'],ls='',marker='s',c='g')
         pdf.savefig(fig)
         plt.close(fig)
 

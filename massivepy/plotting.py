@@ -56,6 +56,22 @@ def colormap_setup(x,cmap,logsafe='off'):
     colors['c'] = c
     return colors
 
+def lin_colormap_setup(x,cmap):
+    colors = {}
+    colors['x'] = x.copy()
+    colors['vmin'] = min(x)
+    colors['vmax'] = max(x)
+    #norm = mpl.colors.LogNorm(vmin=colors['vmin'],vmax=colors['vmax'])
+    #colors['x_norm'] = norm(x)
+    #colors['vmin_norm'] = norm(colors['vmin'])
+    #colors['vmax_norm'] = norm(colors['vmax'])
+    mappable = plt.cm.ScalarMappable(cmap=cmap)
+    mappable.set_array([colors['vmin'],colors['vmax']])
+    colors['mappable'] = mappable
+    c = mappable.to_rgba(x)
+    colors['c'] = c
+    return colors
+
 def scalarmap(figtitle='default figure title',
               xlabel='default xaxis label', ylabel='default yaxis label',
               figsize=(6,6), ax_loc=[0.15,0.1,0.7,0.7],
@@ -77,7 +93,11 @@ def scalarmap(figtitle='default figure title',
     if not axC_mappable is None:
         axC = fig.add_axes(axC_loc)
         axC.set_visible(False)
+        # futz with minor ticks only for LogNorm case
+        if isinstance(axC_mappable.norm,mpl.colors.LogNorm):
+            kw = {'ticks':mpl.ticker.LogLocator(subs=range(10))}
+        else:
+            kw = {}
         fig.colorbar(axC_mappable,ax=axC,label=axC_label,
-                     orientation='horizontal',
-                     ticks=mpl.ticker.LogLocator(subs=range(10)))
+                     orientation='horizontal',**kw)
     return fig, ax

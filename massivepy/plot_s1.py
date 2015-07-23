@@ -48,16 +48,20 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     label_s2n = r's2n (log 10)'
 
     # set up spectra and arc info, optionally skipping some fibers
-    skipnumber = 100
+    skipnumber = 1
     waves = ifuset.spectrumset.waves
-    dwave = waves[-1] - waves[0]
-    inst_waves = waves*(1+ifuset.spectrumset.comments['redshift'])
+    arc_waves = waves*(1+ifuset.spectrumset.comments['redshift'])
     spectra = ifuset.spectrumset.spectra[::skipnumber]
-    arcspectra = arcs[::skipnumber]
-    arcspectra = (arcspectra.T/np.max(arcspectra, axis=1)).T
+    specmax = np.percentile(spectra,99.99)
+    arc_spectra = arcs[::skipnumber]
+    arc_spectra = (arc_spectra.T/np.max(arc_spectra, axis=1)).T #normalize
+    ir_waves = ir['fitcenter'][::skipnumber,:]
+    ir_fwhm = ir['fwhm'][::skipnumber,:]
+    ircolors = mplt.lin_colormap_setup(fiberids[::skipnumber],cmap='cool')
     ir = ir[::skipnumber,:]
     nskipfibers, nlines = ir.shape
-
+    label_waves = 'wavelength (angstroms assumed)'
+    label_ir = 'fwhm in wavelength units'
 
     ### plotting begins ###
     pdf = PdfPages(plot_path)
@@ -108,49 +112,36 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
         plt.close(fig)
 
     # plot all fiber spectra
-    fig = plt.figure(figsize=(6,6))
-    fig.suptitle('fiber spectra')
-    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    fig, ax = mplt.scalarmap(figtitle='Fiber spectra',
+                             xlabel=label_waves, ylabel='')
     for i in range(nskipfibers):
-        ax.plot(waves,spectra[i],c='k',alpha=0.1)
+        ax.plot(waves,spectra[i],c='k',alpha=0.3)
     ax.plot(waves,0*waves,c='r')
-    specmax = np.percentile(spectra,99.99)
     ax.axis([waves[0],waves[-1],-0.2*specmax,1.2*specmax])
-    ax.set_xlabel('wavelength')
     ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
     pdf.savefig(fig)
     plt.close(fig)
 
     # plot the ir vs wavelength for each fiber
-    fig = plt.figure(figsize=(6,6))
-    fig.suptitle('fiber ir')
-    ax = fig.add_axes([0.15,0.1,0.7,0.7])
-    fiber_cmap = plt.cm.get_cmap('cool')
+    fig, ax = mplt.scalarmap(figtitle='IR for each fiber',
+                             xlabel=label_waves, ylabel=label_ir,
+                             axC_mappable=ircolors['mappable'],
+                             axC_label='fiber number')
     for i in range(nskipfibers):
-        ax.plot(ir['fitcenter'][i,:],ir['fwhm'][i,:],c=fiber_cmap(i/float(nskipfibers)),
-                alpha=0.2,rasterized=True)
-    axC = fig.add_axes([0.15,0.8,0.7,0.8])
-    axC.set_visible(False)
-    mappable_bins = plt.cm.ScalarMappable(cmap=fiber_cmap)
-    mappable_bins.set_array([0,nskipfibers])
-    fig.colorbar(mappable_bins,orientation='horizontal',ax=axC,
-                 label='fiber number')
-    ax.set_xlabel('wavelength')
-    ax.set_ylabel('fwhm')
+        ax.plot(ir_waves[i],ir_fwhm[i],c=ircolors['c'][i],alpha=0.3)
     ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
     pdf.savefig(fig)
     plt.close(fig)
 
     # plot the arc lines
-    fig = plt.figure(figsize=(6,6))
-    fig.suptitle('arc spectra')
-    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    fig, ax = mplt.scalarmap(figtitle='Arc lines',
+                             xlabel=label_waves, ylabel='')
     for i in range(nskipfibers):
-        ax.plot(inst_waves,arcspectra[i],c='k',alpha=0.2,lw=1.2)
+        ax.plot(arc_waves,arc_spectra[i],c='k',alpha=0.2,lw=1.2)
     for i in range(nlines):
         ax.axvline(ir['center'][0,i],c='r',lw=0.8)
-    ax.axis([inst_waves[0],inst_waves[-1],
-             -0.2*np.max(arcspectra),np.max(arcspectra)])
+    ax.axis([arc_waves[0],arc_waves[-1],
+             -0.2*np.max(arc_spectra),np.max(arc_spectra)])
     ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
     pdf.savefig(fig)
     plt.close(fig)
@@ -164,14 +155,14 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
         for j in range(nskipfibers):
             startwave = ir['center'][j,i] - 2*ir_avg
             endwave = ir['center'][j,i] + 2*ir_avg
-            startpix,endpix = np.searchsorted(inst_waves,[startwave,endwave])
-            waves_offset = inst_waves[startpix:endpix] - ir['center'][j,i]
-            ax.plot(waves_offset,i + arcspectra[j][startpix:endpix],
+            startpix,endpix = np.searchsorted(arc_waves,[startwave,endwave])
+            waves_offset = arc_waves[startpix:endpix] - ir['center'][j,i]
+            ax.plot(waves_offset,i + arc_spectra[j][startpix:endpix],
                     c='k',alpha=0.2)
             params=[ir['fitcenter'][j,i] - ir['center'][j,i],
                     ir['fwhm'][j,i]/const.gaussian_fwhm_over_sigma]
             model = gh.unnormalized_gausshermite_pdf(waves_offset,params)
-            model = model*max(arcspectra[j][startpix:endpix])/max(model)
+            model = model*max(arc_spectra[j][startpix:endpix])/max(model)
             ax.plot(waves_offset,i + model,c='b',alpha=0.2)
             ax.vlines(params[0]+0.5*params[1],i,i+1,color='y',alpha=0.2)
             ax.vlines(params[0]-0.5*params[1],i,i+1,color='y',alpha=0.2)

@@ -19,33 +19,34 @@ import massivepy.gausshermite as gh
 import massivepy.plotting as mplt
 
 
-def plot_s1_process_mitchell(gal_name=None,
-                             raw_cube_path=None,
-                             targets_path=None,
-                             ir_path=None,
-                             plot_path=None):
+def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
+                             targets_path=None,ir_path=None,plot_path=None):
     # read data, with the goal of not referencing ifuset after this section
-    ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,
-                                         targets_path,
-                                         gal_name,
-                                         ir_path=ir_path,
-                                         return_arcs=True)
+    ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,targets_path,gal_name,
+                                         ir_path=ir_path,return_arcs=True)
     ir = res.read_specres(ir_path)
 
-    # set up fiber information
+    # set up fiber coordinate information
     fiberids = ifuset.spectrumset.ids
     fibersize = ifuset.linear_scale
     xcoords = -ifuset.coords[:,0] # flip from +x = east to +x = west
     ycoords = ifuset.coords[:,1]
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
     rcoords = np.sqrt(xcoords**2 + ycoords**2)
-    coordunit = ifuset.coords_unit
-    # set up colormaps
+    coordunit = ifuset.coords_unit 
+    label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
+    label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
+    label_r = r'radius ({})'.format(coordunit)
+
+    # set up colormaps for total flux, s2n
     fluxunit = ifuset.spectrumset.integratedflux_unit
     fluxcolors = mplt.colormap_setup(ifuset.spectrumset.compute_flux(),
                                 cmap='Reds',logsafe='max')
     s2ncolors = mplt.colormap_setup(ifuset.spectrumset.compute_mean_s2n(),
                                cmap='Greens',logsafe='max')
+    label_flux = r'flux (log 10 [{}])'.format(fluxunit)
+    label_s2n = r's2n (log 10)'
+
     # set up spectra and arc info, optionally skipping some fibers
     skipnumber = 100
     waves = ifuset.spectrumset.waves
@@ -57,59 +58,54 @@ def plot_s1_process_mitchell(gal_name=None,
     ir = ir[::skipnumber,:]
     nskipfibers, nlines = ir.shape
 
+
     ### plotting begins ###
     pdf = PdfPages(plot_path)
 
-    # do flux, s2n maps and flux, s2n vs radius
-    figs = {}
-    axs = {}
-    axCs = {}
-    fignames = ['fluxmap','s2nmap','fluxrad','s2nrad']
-    figtitles = ['Flux map','s2n map','Flux vs radius','s2n vs radius']
-    for figname, figtitle in zip(fignames,figtitles):
-        square = mplt.scalar_fig_ax(figtitle=figtitle)
-        figs[figname], axs[figname], axCs[figname] = square
+    # do flux and s2n fiber maps
+    fig1, ax1 = mplt.scalarmap(figtitle='flux map',
+                               xlabel=label_x, ylabel=label_y,
+                               axC_mappable=fluxcolors['mappable'],
+                               axC_label=label_flux)
+    fig2, ax2 = mplt.scalarmap(figtitle='s2n map',
+                               xlabel=label_x, ylabel=label_y,
+                               axC_mappable=s2ncolors['mappable'],
+                               axC_label=label_s2n)
     for ifiber,fiberid in enumerate(fiberids):
-        x,y,r = xcoords[ifiber],ycoords[ifiber],rcoords[ifiber]
+        x, y = xcoords[ifiber], ycoords[ifiber]
         patch = functools.partial(patches.Circle,(x,y),fibersize,lw=0.25)
         txtkw = {'fontsize':5,
                  'horizontalalignment':'center',
                  'verticalalignment':'center'}
-        axs['fluxmap'].add_patch(patch(fc=fluxcolors['c'][ifiber]))
-        axs['fluxmap'].text(x,y,str(fiberid),**txtkw)
-        axs['s2nmap'].add_patch(patch(fc=s2ncolors['c'][ifiber]))
-        axs['s2nmap'].text(x,y,str(fiberid),**txtkw)
-        axs['fluxrad'].text(r,fluxcolors['x_norm'][ifiber],str(fiberid),**txtkw)
-        axs['s2nrad'].text(r,s2ncolors['x_norm'][ifiber],str(fiberid),**txtkw)
-    axs['fluxmap'].axis([-squaremax,squaremax,-squaremax,squaremax])
-    axs['s2nmap'].axis([-squaremax,squaremax,-squaremax,squaremax])
-    axs['fluxrad'].axis([min(rcoords),max(rcoords),
-                         fluxcolors['vmin_norm'],fluxcolors['vmax_norm']])
-    axs['s2nrad'].axis([min(rcoords),max(rcoords),
+        ax1.add_patch(patch(fc=fluxcolors['c'][ifiber]))
+        ax1.text(x,y,str(fiberid),**txtkw)
+        ax2.add_patch(patch(fc=s2ncolors['c'][ifiber]))
+        ax2.text(x,y,str(fiberid),**txtkw)
+    ax1.axis([-squaremax,squaremax,-squaremax,squaremax])
+    ax2.axis([-squaremax,squaremax,-squaremax,squaremax])
+    for fig in [fig1, fig2]:
+        pdf.savefig(fig)
+        plt.close(fig)
+
+    # do flux and s2n vs radius
+    fig1, ax1 = mplt.scalarmap(figtitle='Flux vs radius',
+                               xlabel=label_r, ylabel = label_flux)
+    fig2, ax2 = mplt.scalarmap(figtitle='s2n vs radius',
+                               xlabel=label_r, ylabel = label_s2n)
+    for ifiber,fiberid in enumerate(fiberids):
+        r = rcoords[ifiber]
+        txtkw = {'fontsize':5,
+                 'horizontalalignment':'center',
+                 'verticalalignment':'center'}
+        ax1.text(r,fluxcolors['x_norm'][ifiber],str(fiberid),**txtkw)
+        ax2.text(r,s2ncolors['x_norm'][ifiber],str(fiberid),**txtkw)
+    ax1.axis([min(rcoords),max(rcoords),
+              fluxcolors['vmin_norm'],fluxcolors['vmax_norm']])
+    ax2.axis([min(rcoords),max(rcoords),
                         s2ncolors['vmin_norm'],s2ncolors['vmax_norm']])
-    label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
-    label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
-    label_r = r'radius ({})'.format(coordunit)
-    label_flux = r'flux (log 10 [{}])'.format(fluxunit)
-    label_s2n = r's2n (log 10)'
-    axs['fluxmap'].set_xlabel(label_x)
-    axs['fluxmap'].set_ylabel(label_y)
-    axs['s2nmap'].set_xlabel(label_x)
-    axs['s2nmap'].set_ylabel(label_y)
-    axs['fluxrad'].set_xlabel(label_r)
-    axs['fluxrad'].set_ylabel(label_flux)
-    axs['s2nrad'].set_xlabel(label_r)
-    axs['s2nrad'].set_ylabel(label_s2n)
-    # do colorbars
-    for figname,m,l in zip(['fluxmap','s2nmap'],
-                           [fluxcolors['mappable'],s2ncolors['mappable']],
-                           [label_flux,label_s2n]):
-        cb = figs[figname].colorbar(m,ax=axCs[figname],label=l,
-                                    orientation='horizontal',
-                                    ticks=mpl.ticker.LogLocator(subs=range(10)))
-    for fn in fignames:
-        pdf.savefig(figs[fn])
-        plt.close(figs[fn])
+    for fig in [fig1, fig2]:
+        pdf.savefig(fig)
+        plt.close(fig)
 
     # plot all fiber spectra
     fig = plt.figure(figsize=(6,6))

@@ -56,23 +56,28 @@ def colormap_setup(x,cmap,logsafe='off'):
     colors['c'] = c
     return colors
 
-def scalar_fig_ax(figtitle='default figure title',
-                  figsize=(6,6), ax_loc=[0.15,0.1,0.7,0.7],
-                  axC_loc=[0.15,0.8,0.7,0.8]):
+def scalarmap(figtitle='default figure title',
+              xlabel='default xaxis label', ylabel='default yaxis label',
+              figsize=(6,6), ax_loc=[0.15,0.1,0.7,0.7],
+              axC_loc=[0.15,0.8,0.7,0.8], axC_mappable=None,
+              axC_label='default colorbar label'):
     """
     Generates figure and axes for a typical scalar map (fibermaps, binmaps).
     Default axes is already square, so that coordinates come out as desired,
     but it will allow you to break this.
-    By default also returns an invisible colormap axis just above the
-    regular axis to hold your colormap. This can be turned off by setting
-    axC_loc to None, although turning it off is not really necessary if you
-    don't want to use it because the axis is invisible.
+    If axC_mappable is provided, also does a colormap. Note this puts nice
+    minor ticks in assuming the colormap uses a log scale - this should be
+    made more smart/flexible.
     """
     fig = plt.figure(figsize=figsize)
     fig.suptitle(figtitle)
     ax = fig.add_axes(ax_loc)
-    if not axC_loc is None:
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    if not axC_mappable is None:
         axC = fig.add_axes(axC_loc)
         axC.set_visible(False)
-        return fig, ax, axC
+        fig.colorbar(axC_mappable,ax=axC,label=axC_label,
+                     orientation='horizontal',
+                     ticks=mpl.ticker.LogLocator(subs=range(10)))
     return fig, ax

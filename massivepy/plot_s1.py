@@ -48,7 +48,7 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     label_s2n = r's2n (log 10)'
 
     # set up spectra and arc info, optionally skipping some fibers
-    skipnumber = 1
+    skipnumber = 100
     waves = ifuset.spectrumset.waves
     arc_waves = waves*(1+ifuset.spectrumset.comments['redshift'])
     spectra = ifuset.spectrumset.spectra[::skipnumber]
@@ -115,9 +115,10 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     fig, ax = mplt.scalarmap(figtitle='Fiber spectra',
                              xlabel=label_waves, ylabel='')
     for i in range(nskipfibers):
-        ax.plot(waves,spectra[i],c='k',alpha=0.3)
-    ax.plot(waves,0*waves,c='r')
-    ax.axis([waves[0],waves[-1],-0.2*specmax,1.2*specmax])
+        ax.semilogy(waves,np.abs(spectra[i]),c='r',alpha=0.3)
+        ax.semilogy(waves,spectra[i],c='k',alpha=0.3,nonposy='mask')
+    #ax.plot(waves,0*waves,c='r')
+    #ax.axis([waves[0],waves[-1],-0.2*specmax,1.2*specmax])
     ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
     pdf.savefig(fig)
     plt.close(fig)

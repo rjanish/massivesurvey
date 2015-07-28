@@ -15,24 +15,16 @@ output:
 """
 
 import os
-#import shutil
-#import re
 import argparse
-import functools
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-#import pandas as pd
 import astropy.io.fits as fits
 
 import utilities as utl
-#import massivepy.constants as const
-#import massivepy.templates as temps
-#import massivepy.spectrum as spec
-#import massivepy.pPXFdriver as driveppxf
 import massivepy.io as mpio
-
+import massivepy.lambdaR as lam
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
@@ -50,10 +42,6 @@ for paramfile_path in all_paramfile_paths:
     output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
 
-    # so, here I will process the input parameter file. it will need to
-    # contain the ppxf fits output (which ones? just main?) obviously,
-    # and the bininfo.txt file as Jenny requested, but what else?
-
     bininfo_path = input_params['bininfo_path']
     if not os.path.isfile(bininfo_path):
         raise Exception("File {} does not exist".format(bininfo_path))
@@ -67,10 +55,12 @@ for paramfile_path in all_paramfile_paths:
     fits_path = output_path_maker('underconstruction','fits')
     lambda_path = output_path_maker('lambda','txt')
     plot_path = output_path_maker('lambda','pdf')
+    lambda_path_2 = output_path_maker('lambda-2','txt')
     # save relevant info for plotting to a dict
     plot_info = {'fits_path': fits_path,
                  'lambda_path': lambda_path,
                  'plot_path': plot_path,
+                 'lambda_path_2': lambda_path_2,
                  'gal_name': gal_name}
     things_to_plot.append(plot_info)
 
@@ -85,85 +75,84 @@ for paramfile_path in all_paramfile_paths:
         else:
             raise Exception("skip_rerun must be yes or no")
 
-    # ingest some things
-    bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
-    #bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=12)
+    # ingest required data
+    #bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
+    bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=12)
     fitdata = mpio.get_friendly_ppxf_output(ppxf_output_path)
 
-    # now here's the part where I actually do stuff!
-    # first I suppose I will dump the bininfo stuff into a fits as a
-    # placeholder for the rest of the fits packaging stuff
+    # here is a placeholder for the code to write the public fits file
     header = fits.Header()
     hdu = fits.PrimaryHDU(data=bininfo['flux'],header=header)
     fits.HDUList([hdu]).writeto(fits_path, clobber=True)
 
-    # then I'm gonna calculate lambda.
-    # lambda comes out as a function of R, and ingredients are R,V,sigma,flux
-
-    def calc_lambda(R,V,sigma,flux):
-        nbins = len(R)
-        if not len(V)==nbins and len(sigma)==nbins and len(flux)==nbins:
-            raise Exception('u broke it.')
-        V -= np.average(V,weights=flux)
-        # sort by radius
-        ii = np.argsort(R)
-        R = R[ii]
-        V = V[ii]
-        sigma = sigma[ii]
-        flux = flux[ii]
-        dt = {'names':['R','Vavg','RVavg','m2avg','Rm2avg','lam'],
-              'formats':6*[np.float64]}
-        output = np.zeros(nbins,dtype=dt)
-        output['R'] = R
-        for i in range(nbins):
-            avg = functools.partial(np.average,weights=flux[:i+1])
-            output['Vavg'][i] = avg(np.abs(V[:i+1]))
-            output['RVavg'][i] = avg(R[:i+1]*np.abs(V[:i+1]))
-            output['m2avg'][i] = avg(np.sqrt(V[:i+1]**2+sigma[:i+1]**2))
-            output['Rm2avg'][i]=avg(R[:i+1]*np.sqrt(V[:i+1]**2+sigma[:i+1]**2))
-            output['lam'][i] = output['RVavg'][i]/output['Rm2avg'][i]
-        return output
-
-    lamR = calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
+    # here is the calculation of lambda
+    lamR = lam.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
                        fitdata['gh']['moment'][:,1],bininfo['flux'])
     np.savetxt(lambda_path,lamR,header=' '.join(lamR.dtype.names))
+    # for comparison and testing purposes, do it again but without
+    # subtracting out the overall V
+    lamR_no_offset = lam.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
+                                 fitdata['gh']['moment'][:,1],bininfo['flux'],
+                                 Vnorm='no_offset')
+    np.savetxt(lambda_path_2,lamR_no_offset,header=' '.join(lamR.dtype.names))
 
 for plot_info in things_to_plot:
-    plot_path = plot_info['plot_path']
-
     lamR = np.genfromtxt(plot_info['lambda_path'],names=True)
-    prettynames = {'R': 'radius',
-                   'Vavg': r'$\langle |V| \rangle$',
-                   'RVavg': r'$\langle R |V| \rangle$',
-                   'm2avg': r'$\langle \sqrt{V^2 + \sigma^2} \rangle$',
-                   'Rm2avg': r'$\langle R \sqrt{V^2 + \sigma^2} \rangle$',
-                   'lam': r'$\lambda_R$'}
-
-    #Here is some stuff from Jenny for initial comparisons by hand
-    Jgals = {'NGC0057':{'l.25Re':0.015350319,'lRe':0.021994471,'Re':27.0},
-             'NGC0507':{'l.25Re':0.10895942,'lRe':0.045241862,'Re':38.4},
-             'NGC0533':{'l.25Re':0.039903858,'lRe':0.040093599,'Re':40.7},
-             'NGC0708':{'l.25Re':0.027162062,'lRe':0.023545584,'Re':23.7},
-             'NGC0777':{'l.25Re':0.016094986,'lRe':0.013569772,'Re':18.6}}
+    lamR_no_offset = np.genfromtxt(plot_info['lambda_path_2'],names=True)
+    labels = {'R': 'radius',
+              'Vavg': r'$\langle |V| \rangle$',
+              'RVavg': r'$\langle R |V| \rangle$',
+              'm2avg': r'$\langle \sqrt{V^2 + \sigma^2} \rangle$',
+              'Rm2avg': r'$\langle R \sqrt{V^2 + \sigma^2} \rangle$',
+              'lam': r'$\lambda_R$',
+              'V':r'$V$',
+              'Vraw':r'$V_{\rm raw}$',
+              'sigma':r'$\sigma$',
+              'flux':'flux'}
 
     ### Plotting Begins! ###
 
-    pdf = PdfPages(plot_path)
+    pdf = PdfPages(plot_info['plot_path'])
 
-    for thing in lamR.dtype.names:
-        fig = plt.figure(figsize=(6,5))
-        fig.suptitle(prettynames[thing])
-        ax = fig.add_axes([0.17,0.15,0.7,0.7])
-        ax.plot(lamR['R'],lamR[thing])
-        ax.set_xlabel('radius')
-        ax.set_ylabel(prettynames[thing])
-        if thing=='lam' and gal_name in Jgals:
-            print 'gonna compare stuff'
-            Jgal = Jgals[gal_name]
-            ax.plot(Jgal['Re'],Jgal['lRe'],ls='',marker='s',c='g')
-            ax.plot(0.25*Jgal['Re'],Jgal['l.25Re'],ls='',marker='s',c='g')
-        pdf.savefig(fig)
-        plt.close(fig)
+    # plot the actual lambda first
+    fig = plt.figure(figsize=(6,5))
+    fig.suptitle(labels['lam'])
+    ax = fig.add_axes([0.17,0.15,0.7,0.7])
+    ax.plot(lamR['R'],lamR['lam'],c='b',label='adjusted V')
+    ax.plot(lamR_no_offset['R'],lamR_no_offset['lam'],c='r',label='raw V')
+    ax.set_xlabel('radius')
+    ax.set_ylabel(labels['lam'])
+    if gal_name in lam.Jgals:
+        print 'Comparing to numbers from Jenny'
+        Jgal = lam.Jgals[gal_name]
+        ax.plot(Jgal['Re'],Jgal['lRe'],ls='',marker='s',c='g',label='Jenny')
+        ax.plot(0.25*Jgal['Re'],Jgal['l.25Re'],ls='',marker='s',c='g')
+    ax.legend()
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    # plot the intermediate steps as subplots on one page
+    fig = plt.figure(figsize=(6,6))
+    fig.suptitle(r"Intermediate Stepss (x-axis matching $\lambda_R$)")
+    for i, thing in enumerate(['Vavg','RVavg','m2avg','Rm2avg']):
+        ax = fig.add_subplot(2,2,i+1)
+        ax.plot(lamR['R'],lamR[thing],c='b')
+        ax.plot(lamR_no_offset['R'],lamR_no_offset[thing],c='r')
+        ax.set_title(labels[thing])
+        ax.set_xticklabels([])
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    # plot some of the important raw numbers
+    fig = plt.figure(figsize=(6,6))
+    fig.suptitle(r"Ingredients (x-axis matching $\lambda_R$)")
+    for i, thing in enumerate(['V','Vraw','sigma','flux']):
+        ax = fig.add_subplot(2,2,i+1)
+        ax.plot(lamR['R'],lamR[thing],c='b')
+        ax.plot(lamR_no_offset['R'],lamR_no_offset[thing],c='r')
+        ax.set_title(labels[thing])
+        ax.set_xticklabels([])
+    pdf.savefig(fig)
+    plt.close(fig)
 
     pdf.close()
-

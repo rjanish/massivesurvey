@@ -13,17 +13,19 @@ Jgals = {'NGC0057':{'l.25Re':0.015350319,'lRe':0.021994471,'Re':27.0},
          'NGC0708':{'l.25Re':0.027162062,'lRe':0.023545584,'Re':23.7},
          'NGC0777':{'l.25Re':0.016094986,'lRe':0.013569772,'Re':18.6}}
 
-def calc_lambda(R,Vraw,sigma,flux,Vnorm='default'):
+def calc_lambda(R,Vraw,sigma,flux,Vnorm='fluxavg'):
     nbins = len(R)
     if not len(Vraw)==nbins and len(sigma)==nbins and len(flux)==nbins:
         raise Exception('u broke it.')
-    Voffset = -np.average(Vraw,weights=flux)
-    if Vnorm=='default':
-        V = Vraw + Voffset
+    if Vnorm=='fluxavg':
+        Voffset = np.average(Vraw,weights=flux)
     elif Vnorm=='no_offset':
-        V = Vraw
+        Voffset = 0
+    elif Vnorm=='median':
+        Voffset = np.median(Vraw)
     else:
         raise Exception('u broke it.')
+    V = Vraw - Voffset
     # sort by radius
     ii = np.argsort(R)
     R = R[ii]

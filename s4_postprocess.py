@@ -56,11 +56,13 @@ for paramfile_path in all_paramfile_paths:
     lambda_path = output_path_maker('lambda','txt')
     plot_path = output_path_maker('lambda','pdf')
     lambda_path_2 = output_path_maker('lambda-2','txt')
+    lambda_path_3 = output_path_maker('lambda-3','txt')
     # save relevant info for plotting to a dict
     plot_info = {'fits_path': fits_path,
                  'lambda_path': lambda_path,
                  'plot_path': plot_path,
                  'lambda_path_2': lambda_path_2,
+                 'lambda_path_3': lambda_path_3,
                  'gal_name': gal_name}
     things_to_plot.append(plot_info)
 
@@ -95,10 +97,16 @@ for paramfile_path in all_paramfile_paths:
                                  fitdata['gh']['moment'][:,1],bininfo['flux'],
                                  Vnorm='no_offset')
     np.savetxt(lambda_path_2,lamR_no_offset,header=' '.join(lamR.dtype.names))
+    # do again using median
+    lamR_median = lam.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
+                                  fitdata['gh']['moment'][:,1],bininfo['flux'],
+                                  Vnorm='median')
+    np.savetxt(lambda_path_3,lamR_median,header=' '.join(lamR.dtype.names))
 
 for plot_info in things_to_plot:
     lamR = np.genfromtxt(plot_info['lambda_path'],names=True)
     lamR_no_offset = np.genfromtxt(plot_info['lambda_path_2'],names=True)
+    lamR_median = np.genfromtxt(plot_info['lambda_path_3'],names=True)
     labels = {'R': 'radius',
               'Vavg': r'$\langle |V| \rangle$',
               'RVavg': r'$\langle R |V| \rangle$',
@@ -118,7 +126,8 @@ for plot_info in things_to_plot:
     fig = plt.figure(figsize=(6,5))
     fig.suptitle(labels['lam'])
     ax = fig.add_axes([0.17,0.15,0.7,0.7])
-    ax.plot(lamR['R'],lamR['lam'],c='b',label='adjusted V')
+    ax.plot(lamR['R'],lamR['lam'],c='b',label='flux avg')
+    ax.plot(lamR_median['R'],lamR_median['lam'],c='g',label='median')
     ax.plot(lamR_no_offset['R'],lamR_no_offset['lam'],c='r',label='raw V')
     ax.set_xlabel('radius')
     ax.set_ylabel(labels['lam'])
@@ -138,6 +147,7 @@ for plot_info in things_to_plot:
         ax = fig.add_subplot(2,2,i+1)
         ax.plot(lamR['R'],lamR[thing],c='b')
         ax.plot(lamR_no_offset['R'],lamR_no_offset[thing],c='r')
+        ax.plot(lamR_median['R'],lamR_median[thing],c='g')
         ax.set_title(labels[thing])
         ax.set_xticklabels([])
     pdf.savefig(fig)
@@ -150,6 +160,7 @@ for plot_info in things_to_plot:
         ax = fig.add_subplot(2,2,i+1)
         ax.plot(lamR['R'],lamR[thing],c='b')
         ax.plot(lamR_no_offset['R'],lamR_no_offset[thing],c='r')
+        ax.plot(lamR_median['R'],lamR_median[thing],c='g')
         ax.set_title(labels[thing])
         ax.set_xticklabels([])
     pdf.savefig(fig)

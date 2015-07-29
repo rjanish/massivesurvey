@@ -57,9 +57,9 @@ for paramfile_path in all_paramfile_paths:
     input_params = utl.read_dict_file(paramfile_path)
     raw_cube_path = input_params['raw_mitchell_cube']
     if not os.path.isfile(raw_cube_path):
-        raise Exception("Data cube {} does not exist".format(proc_cube_path))
+        raise Exception("Data cube {} does not exist".format(raw_cube_path))
     elif os.path.splitext(raw_cube_path)[-1] != ".fits":
-        raise Exception("Invalid cube {}, must be .fits".format(proc_cube_path))
+        raise Exception("Invalid cube {}, must be .fits".format(raw_cube_path))
     bad_fibers_path = input_params['bad_fibers_path']
     if not os.path.isfile(bad_fibers_path):
         raise Exception("File {} does not exist".format(bad_fibers_path))

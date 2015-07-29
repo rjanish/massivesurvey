@@ -16,7 +16,7 @@ import massivepy.constants as const
 import massivepy.spectralresolution as res
 import massivepy.IFUspectrum as ifu
 import massivepy.gausshermite as gh
-import massivepy.plotting as mplt
+import massivepy.plot_massive as mplt
 
 
 def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,

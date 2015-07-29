@@ -14,11 +14,8 @@ import matplotlib.patches as patches
 import descartes
 
 import massivepy.constants as const
-#import massivepy.spectralresolution as res
 import massivepy.IFUspectrum as ifu
 import massivepy.spectrum as spec
-#import massivepy.gausshermite as gh
-#import massivepy.plotting as mplt
 import plotting.geo_utils as geo_utils
 
 

@@ -11,26 +11,93 @@ import pandas as pd
 import utilities as utl
 import massivepy.constants as const
 
+# regex patterns for extracting galaxy number from file paths
+re_gals = {'NGC': r"(?:NGC|ngc|N|n)(?P<num>\d{4})",
+           'UGC': r"(?:UGC|ugc|U|u)(?P<num>\d{5})"}
+
+# regex patterns for extracting galaxy name/number from parameter file path
+# this one is stricter, because the resulting galaxy name must fit the format
+# of Jenny's target positions file.
+re_gals_strict = {'NGC': r"NGC(?P<num>\d{4})(?=\D|$)",
+                  'UGC': r"UGC(?P<num>\d{5})(?=\D|$)"}
+
+
 def parse_paramfile_path(path):
     """
     Returns the directory and galaxy name, given a parameter file path.
-    Checks that the first 7 characters of the file name match 'NGC####'.
-    Also checks that the directory has #### somewhere in it.
+
+    If the parameter file path does not contain a valid galaxy name,
+    returns 'unknown' as the galaxy name. This should then trip pathcheck()
+    to return False when it is called on the galaxy name, so in that case
+    the galaxy would be skipped.
+
+    This does not check for the validity of parameter file paths, because
+    I always use tab completion to put them in, but that would be easy
+    enough to add.
     """
     output_dir = os.path.dirname(path)
-    gal_name = os.path.basename(path)[0:7]
-    if re.match(utl.force_full_match(const.re_ngc),gal_name) is None:
-        raise Exception("Invalid galaxy name in parameter file path.")
-    re_gal = re.search(const.re_ngc,output_dir)
-    if re_gal is None:
-        print "\nWarning, your output directory has no ngc name."
-        print "Your organization is bad, go fix it.\n"
-    elif re_gal.groups()[0] != gal_name[-4:]: #Test that galaxy number matches
-        print "\nWarning, your output directory does not match your galaxy."
-        print "Putting {} in {} directory\n".format(gal_name,re_gal.groups()[0])
-    else:
-        pass
+    filename = os.path.basename(path)
+    gal_name = 'unknown'
+    for re_type in re_gals_strict:
+        gal_match = re.match(re_gals_strict[re_type],filename)
+        if gal_match is None:
+            continue
+        gal_type = re_type
+        gal_num = gal_match.group('num')
+        gal_name = gal_match.group(0)
+        break
     return output_dir, gal_name
+
+def pathcheck(paths,extensions,gal_name):
+    """
+    Check that all paths meet the following criteria:
+    -They exist.
+    -They have the correct extension. Extensions should include the period
+     (e.g. '.txt') for files or be empty (e.g. '') for dirs.
+    -They are for the correct galaxy, based on regex patterns. Note that
+     gal_name is parsed again for gal_type and gal_num, so that if we make
+     the strict parsing of the parameter file name more flexible in the
+     future (e.g. allowing ngc instead of NGC) this should not break.
+
+    Failing either of the first two will return False, which should be
+    used in the main scripts to continue on with the next galaxy.
+    Failing the third will just print a warning message, but return True
+    to indicate the path validation was successful.
+    """
+    gal_type = 'unknown'
+    for re_type in re_gals_strict:
+        gal_match = re.match(re_gals_strict[re_type],gal_name)
+        if gal_match is None:
+            continue
+        gal_type = re_type
+        gal_num = gal_match.group('num')
+        break
+    if gal_type == 'unknown':
+        print 'Something went wrong extracting galaxy name {}'.format(gal_name)
+        return False
+    for path, ext in zip(paths,extensions):
+        if not os.path.exists(path):
+            print 'Path does not exist: {}'.format(path)
+            return False
+        if not os.path.splitext(path)[1]==ext:
+            print 'Path has wrong extension, needs {}: {}'.format(ext,path)
+            return False
+        gal_matches = re.findall(re_gals[gal_type],path)
+        if gal_matches is None:
+            print "\nWarning, your output directory has no ngc name."
+            print "Your organization is bad, go fix it.\n"
+        elif not all([gal_num==num for num in gal_matches]):
+            print '----------------------------------------------------'
+            print 'WARNING! WARNING! YOU SEEM TO BE COMBINING GALAXIES!'
+            print 'THE FOLLOWING INPUT PATH IS A PROBLEM:'
+            print path
+            print 'BECAUSE YOU CLAIM TO BE DOING THIS GALAXY:'
+            print gal_name
+            print 'THE CODE WILL STILL RUN, BUT YOUR STUFF MAY BE WRONG!'
+            print '----------------------------------------------------'
+        else:
+            pass
+    return True
 
 def get_gal_center_pa(targets_path,gal_name):
     """

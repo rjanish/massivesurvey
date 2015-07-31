@@ -53,14 +53,18 @@ all_paramfile_paths = args.paramfiles
 things_to_plot = []
 
 for paramfile_path in all_paramfile_paths:
+    print '\n\n====================================='
     # parse input parameter file
     output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
     raw_cube_path = input_params['raw_mitchell_cube']
-    target_positions = pd.read_csv(input_params["target_positions"],
-                                   comment='#', sep="[ \t]+",
-                                   engine='python')
     run_name = input_params['run_name']
+    if not mpio.pathcheck([paramfile_path,raw_cube_path],
+                          ['.txt','.fits'],
+                          gal_name):
+        print 'Something is wrong with the input paths for {}'.format(gal_name)
+        print 'Skipping to next galaxy.'
+        continue
     # construct output file names
     output_path_maker = lambda f, ext: os.path.join(output_dir,
                             "{}-s1-{}-{}.{}".format(gal_name, run_name, f, ext))

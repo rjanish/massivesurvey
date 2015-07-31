@@ -6,23 +6,15 @@ This file contains the main plotting fuctions for s3_ppxf_fitspectra.
 
 import os
 import shutil
-#import functools
 
 import numpy as np
 import pandas as pd
-#import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
-#import matplotlib.patches as patches
-#import descartes
 
 import massivepy.constants as const
-#import massivepy.spectralresolution as res
-#import massivepy.IFUspectrum as ifu
 import massivepy.spectrum as spec
-#import massivepy.gausshermite as gh
 import massivepy.io as mpio
-#import plotting.geo_utils as geo_utils
 
 
 def plot_s3_fullfit(plot_info):
@@ -109,7 +101,6 @@ def plot_s3_fullfit(plot_info):
     fig = plt.figure(figsize=(6, 5))
     fig.suptitle('full galaxy spectrum fit')
     ax = fig.add_axes([0.15,0.1,0.7,0.7])
-    specset.log_resample()
     target_specset = specset.crop(plot_info['fit_range'])
     spectrum = target_specset.spectra[0]
     spectrum = spectrum/np.median(spectrum)
@@ -251,7 +242,6 @@ def plot_s3_binfit(plot_info):
     fig = plt.figure(figsize=(6, figheight))
     fig.suptitle('bin spectra by bin number')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
-    specset.log_resample()
     target_specset = specset.crop(plot_info['fit_range'])
     for i,binid in enumerate(fitdata['bins']['id']):
         spectrum = target_specset.get_subset([binid]).spectra[0]

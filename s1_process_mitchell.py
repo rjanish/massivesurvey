@@ -86,6 +86,8 @@ for paramfile_path in all_paramfile_paths:
             print '\nRunning {} again, will overwrite output'.format(gal_name)
         else:
             raise Exception("skip_rerun must be yes or no")
+    else:
+        print '\nRunning {} for first time'.format(gal_name)
 
     # start processing
     ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,

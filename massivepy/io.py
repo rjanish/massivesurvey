@@ -75,6 +75,8 @@ def pathcheck(paths,extensions,gal_name):
     if gal_type == 'unknown':
         print 'Something went wrong extracting galaxy name {}'.format(gal_name)
         return False
+    wrong_types = re_gals.keys()
+    wrong_types.remove(gal_type)
     for path, ext in zip(paths,extensions):
         if not os.path.exists(path):
             print 'Path does not exist: {}'.format(path)
@@ -83,12 +85,24 @@ def pathcheck(paths,extensions,gal_name):
             print 'Path has wrong extension, needs {}: {}'.format(ext,path)
             return False
         gal_matches = re.findall(re_gals[gal_type],path)
+        gal_badmatches = []
+        for wrong_type in wrong_types:
+            gal_badmatches.extend(re.findall(re_gals[wrong_type],path))
+        print gal_badmatches
         if gal_matches is None:
             print "\nWarning, your output directory has no ngc name."
             print "Your organization is bad, go fix it.\n"
         elif not all([gal_num==num for num in gal_matches]):
             print '----------------------------------------------------'
             print 'WARNING! WARNING! YOU SEEM TO BE COMBINING GALAXIES!'
+            print 'THE FOLLOWING INPUT PATH IS A PROBLEM:'
+            print path
+            print 'BECAUSE YOU CLAIM TO BE DOING THIS GALAXY:'
+            print gal_name
+            print 'THE CODE WILL STILL RUN, BUT YOUR STUFF MAY BE WRONG!'
+            print '----------------------------------------------------'
+        elif not len(gal_badmatches)==0:
+            print '----------------------------------------------------'
             print 'THE FOLLOWING INPUT PATH IS A PROBLEM:'
             print path
             print 'BECAUSE YOU CLAIM TO BE DOING THIS GALAXY:'

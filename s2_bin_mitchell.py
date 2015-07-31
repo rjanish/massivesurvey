@@ -116,7 +116,7 @@ for paramfile_path in all_paramfile_paths:
     for badfiber in badfibers:
         goodfibers.remove(badfiber)
     ifuset = ifuset_all.get_subset(goodfibers)
-    gal_position, gal_pa = mpio.get_gal_center_pa(targets_path, gal_name)
+    gal_position, gal_pa, gal_re= mpio.get_gal_center_pa(targets_path, gal_name)
     ma_bin = np.pi/2 - np.deg2rad(gal_pa) #theta=0 at +x (=east), ccwise
     fiber_radius = const.mitchell_fiber_radius.value
     # do the full galaxy bin

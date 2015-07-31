@@ -87,7 +87,7 @@ for paramfile_path in all_paramfile_paths:
         else:
             raise Exception("skip_rerun must be yes or no")
     else:
-        print '\nRunning {} for first time'.format(gal_name)
+        print '\nRunning {}'.format(gal_name)
 
     # start processing
     ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,
@@ -111,4 +111,6 @@ for paramfile_path in all_paramfile_paths:
     print "  saved ir to text file."
 
 for plot_info in things_to_plot:
+    print '\n\n====================================='
+    print 'Plotting {}'.format(plot_info['gal_name'])
     plot_s1_process_mitchell(**plot_info)

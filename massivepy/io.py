@@ -88,7 +88,6 @@ def pathcheck(paths,extensions,gal_name):
         gal_badmatches = []
         for wrong_type in wrong_types:
             gal_badmatches.extend(re.findall(re_gals[wrong_type],path))
-        print gal_badmatches
         if gal_matches is None:
             print "\nWarning, your output directory has no ngc name."
             print "Your organization is bad, go fix it.\n"

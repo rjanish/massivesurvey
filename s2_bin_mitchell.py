@@ -51,28 +51,29 @@ all_paramfile_paths = args.paramfiles
 things_to_plot = []
 
 for paramfile_path in all_paramfile_paths:
+    print '\n\n====================================='
     # parse input parameter file
     output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
     raw_cube_path = input_params['raw_mitchell_cube']
-    if not os.path.isfile(raw_cube_path):
-        raise Exception("Data cube {} does not exist".format(raw_cube_path))
-    elif os.path.splitext(raw_cube_path)[-1] != ".fits":
-        raise Exception("Invalid cube {}, must be .fits".format(raw_cube_path))
     bad_fibers_path = input_params['bad_fibers_path']
-    if not os.path.isfile(bad_fibers_path):
-        raise Exception("File {} does not exist".format(bad_fibers_path))
+    ir_path = input_params['ir_path']
+    check = mpio.pathcheck([raw_cube_path,bad_fibers_path,ir_path],
+                           ['.fits','.txt','.txt'],gal_name)
     targets_path = input_params['target_positions_path']
     if not os.path.isfile(targets_path):
-        raise Exception("File {} does not exist".format(targets_path))
-    ir_path = input_params['ir_path']
-    if not os.path.isfile(ir_path):
-        raise Exception("File {} does not exist".format(ir_path))
+        print "File {} does not exist".format(targets_path)
+        check = False
+    if not check:
+        print 'Something is wrong with the input paths for {}'.format(gal_name)
+        print 'Skipping to next galaxy.'
+        continue
     run_name = input_params['run_name']
     aspect_ratio = input_params['aspect_ratio']
     s2n_threshold = input_params['s2n_threshold']
     bin_type = input_params['bin_type']
     crop_region = [input_params['crop_min'], input_params['crop_max']]
+
     # construct output file names
     output_path_maker = lambda f,ext: os.path.join(output_dir,
                 "{}-s2-{}-{}.{}".format(gal_name,run_name,f,ext))
@@ -100,6 +101,8 @@ for paramfile_path in all_paramfile_paths:
             print '\nRunning {} again, will overwrite output'.format(gal_name)
         else:
             raise Exception("skip_rerun must be yes or no")
+    else:
+        print '\nRunning {}'.format(gal_name)
 
     # get bin layout...
     print "  binning..."
@@ -243,4 +246,6 @@ for paramfile_path in all_paramfile_paths:
     print 'You may ignore the weird underflow error, it is not important.'
 
 for plot_info in things_to_plot:
+    print '\n\n====================================='
+    print 'Plotting {}'.format(plot_info['gal_name'])
     plot_s2_bin_mitchell(plot_info)

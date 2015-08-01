@@ -111,10 +111,12 @@ for paramfile_path in all_paramfile_paths:
     # crop wavelength range and remove fibers
     ifuset_all.crop(crop_region)
     badfibers = np.genfromtxt(bad_fibers_path,dtype=int)
+    badfibers.sort()
     goodfibers = list(ifuset_all.spectrumset.ids)
     print "  ignoring fibers: {}".format(', '.join(map(str, badfibers)))
     for badfiber in badfibers:
-        goodfibers.remove(badfiber)
+        try: goodfibers.remove(badfiber)
+        except: print "Duplicate bad fiber number: {}".format(badfiber)
     ifuset = ifuset_all.get_subset(goodfibers)
     gal_position, gal_pa, gal_re= mpio.get_gal_center_pa(targets_path, gal_name)
     ma_bin = np.pi/2 - np.deg2rad(gal_pa) #theta=0 at +x (=east), ccwise

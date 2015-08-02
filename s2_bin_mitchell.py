@@ -251,3 +251,6 @@ for plot_info in things_to_plot:
     print '\n\n====================================='
     print 'Plotting {}'.format(plot_info['gal_name'])
     plot_s2_bin_mitchell(plot_info)
+
+print '\n\n====================================='
+print '\n\n=====================================\n\n'

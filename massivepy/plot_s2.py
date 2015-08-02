@@ -22,7 +22,6 @@ import plotting.geo_utils as geo_utils
 def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
                          targets_path=None,ir_path=None,fiberinfo_path=None,
                          bininfo_path=None,binspectra_path=None,
-                         s2n_threshold=None,aspect_ratio=None,
                          crop_region=None,fullbin_path=None):
     fiberids, binids = np.genfromtxt(fiberinfo_path,
                                      dtype=int,unpack=True)

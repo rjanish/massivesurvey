@@ -88,7 +88,6 @@ for paramfile_path in all_paramfile_paths:
                  'bininfo_path': bininfo_path, 'fiberinfo_path': fiberinfo_path,
                  'targets_path': targets_path, 'ir_path': ir_path,
                  'raw_cube_path': raw_cube_path, 'gal_name': gal_name,
-                 'aspect_ratio': aspect_ratio, 's2n_threshold': s2n_threshold,
                  'crop_region': crop_region}
     things_to_plot.append(plot_info)
 

@@ -116,4 +116,4 @@ for plot_info in things_to_plot:
     plot_s1_process_mitchell(**plot_info)
 
 print '\n\n====================================='
-print '\n\n=====================================\n\n'
+print '====================================='

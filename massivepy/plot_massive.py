@@ -98,6 +98,12 @@ def scalarmap(figtitle='default figure title',
             kw = {'ticks':mpl.ticker.LogLocator(subs=range(10))}
         else:
             kw = {}
-        fig.colorbar(axC_mappable,ax=axC,label=axC_label,
-                     orientation='horizontal',**kw)
+        cb = fig.colorbar(axC_mappable,ax=axC,label=axC_label,
+                          orientation='horizontal',**kw)
+        ticks = axC_mappable.norm.inverse(cb.ax.xaxis.get_majorticklocs())
+        cb.set_ticks(ticks)
+        ticklabels = ['' for t in ticks]
+        ticklabels[0] = ticks[0]
+        ticklabels[-1] = ticks[-1]
+        cb.set_ticklabels(ticklabels)
     return fig, ax

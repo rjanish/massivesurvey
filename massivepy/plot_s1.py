@@ -52,7 +52,6 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     waves = ifuset.spectrumset.waves
     arc_waves = waves*(1+ifuset.spectrumset.comments['redshift'])
     spectra = ifuset.spectrumset.spectra[::skipnumber]
-    specmax = np.percentile(spectra,99.99)
     arc_spectra = arcs[::skipnumber]
     arc_spectra = (arc_spectra.T/np.max(arc_spectra, axis=1)).T #normalize
     ir_waves = ir['fitcenter'][::skipnumber,:]
@@ -101,19 +100,21 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
         txtkw = {'fontsize':5,
                  'horizontalalignment':'center',
                  'verticalalignment':'center'}
-        ax1.text(r,fluxcolors['x_norm'][ifiber],str(fiberid),**txtkw)
-        ax2.text(r,s2ncolors['x_norm'][ifiber],str(fiberid),**txtkw)
+        ax1.text(r,fluxcolors['x'][ifiber],str(fiberid),**txtkw)
+        ax2.text(r,s2ncolors['x'][ifiber],str(fiberid),**txtkw)
+    ax1.set_yscale('log')
+    ax2.set_yscale('log')
     ax1.axis([min(rcoords),max(rcoords),
-              fluxcolors['vmin_norm'],fluxcolors['vmax_norm']])
+              fluxcolors['vmin'],fluxcolors['vmax']])
     ax2.axis([min(rcoords),max(rcoords),
-                        s2ncolors['vmin_norm'],s2ncolors['vmax_norm']])
+                        s2ncolors['vmin'],s2ncolors['vmax']])
     for fig in [fig1, fig2]:
         pdf.savefig(fig)
         plt.close(fig)
 
     # plot all fiber spectra
     fig, ax = mplt.scalarmap(figtitle='Fiber spectra',
-                             xlabel=label_waves, ylabel='')
+                             xlabel=label_waves, ylabel=label_flux)
     for i in range(nskipfibers):
         ax.semilogy(waves,np.abs(spectra[i]),c='r',alpha=0.3)
         ax.semilogy(waves,spectra[i],c='k',alpha=0.3,nonposy='mask')
@@ -136,7 +137,8 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
 
     # plot the arc lines
     fig, ax = mplt.scalarmap(figtitle='Arc lines',
-                             xlabel=label_waves, ylabel='')
+                             xlabel=label_waves,
+                             ylabel='flux (normalized to max=1)')
     for i in range(nskipfibers):
         ax.plot(arc_waves,arc_spectra[i],c='k',alpha=0.2,lw=1.2)
     for i in range(nlines):
@@ -149,7 +151,7 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
 
     # do a zoom-in of each arc line to check that it fits
     fig = plt.figure(figsize=(6,nlines+2))
-    fig.suptitle('zoom in of each arc line fit')
+    fig.suptitle('zoom in of each arc line fit (units same as above)')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     ir_avg = np.average(ir['fwhm'])
     for i in range(nlines):

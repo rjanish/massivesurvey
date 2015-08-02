@@ -28,7 +28,7 @@ def colormap_setup(x,cmap,logsafe='off'):
                 'max' sets all bad values to the max value
     Returns:
       colors - a dict of containing all the relevant items:
-                x - the original data
+                x - the original data, after "logsafe" applied
                 vmin - minimum value, after "logsafe" applied
                 vmax - maximum value, after "logsafe" applied
                 x_norm, vmin_norm, vmax_norm - same, with norm applied
@@ -36,13 +36,13 @@ def colormap_setup(x,cmap,logsafe='off'):
                 c - rgba colors for plotting, same length as x
     """
     colors = {}
-    colors['x'] = x.copy()
     if logsafe=='off':
         pass
     elif logsafe=='max':
         x = np.where(x>0,x,max(x)*np.ones(x.shape))
     else:
         raise Exception('Invalid choice of logsafe in colormap_setup.')
+    colors['x'] = x.copy()
     colors['vmin'] = min(x)
     colors['vmax'] = max(x)
     norm = mpl.colors.LogNorm(vmin=colors['vmin'],vmax=colors['vmax'])

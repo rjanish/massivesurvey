@@ -315,7 +315,7 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
     if not coords_h['bunit'] == 'Deg':
         raise Exception("Unexpected coordinate units in datacube!")
     # convert coordinates and stuff
-    gal_center, gal_pa = mpio.get_gal_center_pa(targets_path,gal_name)
+    gal_center, gal_pa, gal_re = mpio.get_gal_center_pa(targets_path,gal_name)
     coord_comments['galaxy pa'] = gal_pa
     coord_comments['galaxy pa units'] = 'degrees E of N'
     cart_coords, cart_comments = center_coordinates(coords, gal_center)

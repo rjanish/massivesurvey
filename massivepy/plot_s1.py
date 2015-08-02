@@ -117,8 +117,8 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     for i in range(nskipfibers):
         ax.semilogy(waves,np.abs(spectra[i]),c='r',alpha=0.3)
         ax.semilogy(waves,spectra[i],c='k',alpha=0.3,nonposy='mask')
-    #ax.plot(waves,0*waves,c='r')
-    #ax.axis([waves[0],waves[-1],-0.2*specmax,1.2*specmax])
+    ax.set_xlim(xmin=waves[0]-0.05*(waves[-1]-waves[0]),
+                xmax=waves[-1]+0.05*(waves[-1]-waves[0]))
     ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
     pdf.savefig(fig)
     plt.close(fig)

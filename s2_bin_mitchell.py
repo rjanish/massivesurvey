@@ -250,7 +250,7 @@ for paramfile_path in all_paramfile_paths:
 for plot_info in things_to_plot:
     print '\n\n====================================='
     print 'Plotting {}'.format(plot_info['gal_name'])
-    plot_s2_bin_mitchell(plot_info)
+    plot_s2_bin_mitchell(**plot_info)
 
 print '\n\n====================================='
 print '====================================='

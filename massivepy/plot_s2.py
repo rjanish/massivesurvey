@@ -19,31 +19,34 @@ import massivepy.spectrum as spec
 import plotting.geo_utils as geo_utils
 
 
-def plot_s2_bin_mitchell(plot_info):
-    plot_path = plot_info['plot_path']
-    fiberids, binids = np.genfromtxt(plot_info['fiberinfo_path'],
+def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
+                         targets_path=None,ir_path=None,fiberinfo_path=None,
+                         bininfo_path=None,binspectra_path=None,
+                         s2n_threshold=None,aspect_ratio=None,
+                         crop_region=None,fullbin_path=None):
+    fiberids, binids = np.genfromtxt(fiberinfo_path,
                                      dtype=int,unpack=True)
-    bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,skip_header=1)
-    binsettings = open(plot_info['bininfo_path'],'r').readlines()[18]
+    bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
+    binsettings = open(bininfo_path,'r').readlines()[18]
     aspect_ratio, s2n_threshold = binsettings.strip().split()[1:]
     aspect_ratio, s2n_threshold = eval(aspect_ratio[:-1]), eval(s2n_threshold)
     nbins = len(bininfo)
     # these lines are a terrible idea.
-    ma_line = open(plot_info['bininfo_path'],'r').readlines()[9]
+    ma_line = open(bininfo_path,'r').readlines()[9]
     ma_theta = np.pi/2 + np.deg2rad(float(ma_line.strip().split()[-1]))
 
-    ifuset = ifu.read_raw_datacube(plot_info['raw_cube_path'],
-                                   plot_info['targets_path'],
-                                   plot_info['gal_name'],
-                                   ir_path=plot_info['ir_path'])
-    ifuset.crop(plot_info['crop_region'])
+    ifuset = ifu.read_raw_datacube(raw_cube_path,
+                                   targets_path,
+                                   gal_name,
+                                   ir_path=ir_path)
+    ifuset.crop(crop_region)
     fiber_coords = ifuset.coords.copy()
     coordunit = ifuset.coords_unit
     fibersize = const.mitchell_fiber_radius.value #Assuming units match!
     fiber_coords[:, 0] *= -1  # east-west reflect
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
 
-    specset = spec.read_datacube(plot_info['binspectra_path'])
+    specset = spec.read_datacube(binspectra_path)
     # use colorbar limits from fiber maps, for continuity
     rawfiberfluxes = ifuset.spectrumset.compute_flux()
     fiberfluxes = np.where(rawfiberfluxes>0, rawfiberfluxes,
@@ -62,7 +65,7 @@ def plot_s2_bin_mitchell(plot_info):
     s2nmax_bin = max(bin_s2n)
     cmap_s2n = 'Greens'
 
-    specset_full = spec.read_datacube(plot_info['fullbin_path'])
+    specset_full = spec.read_datacube(fullbin_path)
 
     ### plotting begins ###
     pdf = PdfPages(plot_path)

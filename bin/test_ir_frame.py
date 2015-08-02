@@ -15,7 +15,7 @@ import utilities as utl
 import massivepy.constants as const
 import massivepy.spectralresolution as res
 import massivepy.spectrum as spec
-
+import massivepy.io as mpio
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
@@ -39,14 +39,14 @@ for paramfile_path in all_paramfile_paths:
 
     # start processing
     # check galaxy name consistency
-    ngc_match = re.search(const.re_ngc, raw_cube_path)
+    ngc_match = re.search(mpio.re_gals['NGC'], raw_cube_path)
     if ngc_match is None:
         msg = "No galaxy name found for path {}".format(raw_cube_path)
         raise RuntimeError(msg)
     else:
         ngc_num = ngc_match.groups()[0]
     data, headers = utl.fits_quickread(raw_cube_path)
-    ngcs = [re.search(const.re_ngc, header["OBJECT"]).groups()[0]
+    ngcs = [re.search(mpio.re_gals['NGC'], header["OBJECT"]).groups()[0]
             for header in headers]
     all_match = [num == ngc_num for num in ngcs] == [True]*len(ngcs)
     if not all_match:

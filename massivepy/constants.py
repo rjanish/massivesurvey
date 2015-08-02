@@ -63,7 +63,6 @@ fullMILES_1600newlist_oldbins = [38,99,136,225,246,252,322,376,409,455,
     # file with this list in it.
 float_tol = 10**(-10)
 relaxed_tol = 10**(-4)
-re_ngc = r"(?:NGC|ngc|N)(?P<num>\d{4})" # get number from NGC designations
 
 # pPXF conventions
 ppxf_losvd_sampling_factor = 5

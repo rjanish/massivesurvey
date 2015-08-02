@@ -44,22 +44,23 @@ all_paramfile_paths = args.paramfiles
 things_to_plot = []
 
 for paramfile_path in all_paramfile_paths:
+    print '\n\n====================================='
     # parse input parameter file
     output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
     binned_cube_path = input_params['binned_cube_path']
-    if not os.path.isfile(binned_cube_path):
-        raise Exception("Data cube {} does not exist".format(binned_cube_path))
-    elif os.path.splitext(binned_cube_path)[-1] != ".fits":
-        raise Exception("Invalid cube {}, need .fits".format(binned_cube_path))
     templates_dir = input_params['templates_dir']
-    if not os.path.isdir(templates_dir):
-        raise Exception("Template dir {} not found".format(templates_dir))
+    check = mpio.pathcheck([binned_cube_path,templates_dir],
+                           ['.fits',''],gal_name)
     temps_to_use = input_params['use_templates']
     if temps_to_use == 'all':
         pass
-    elif not os.path.isfile(temps_to_use):
-        raise Exception("Template list {} not found".format(temps_to_use))
+    elif not mpio.pathcheck([temps_to_use],['.txt'],gal_name):
+        check = False
+    if not check:
+        print 'Something is wrong with the input paths for {}'.format(gal_name)
+        print 'Skipping to next galaxy.'
+        continue
     compare_moments = input_params['compare_moments'] #only for plotting
     compare_bins = input_params['compare_bins'] #only for plotting
 
@@ -118,6 +119,8 @@ for paramfile_path in all_paramfile_paths:
             print '\nRunning {} again, will overwrite output'.format(gal_name)
         else:
             raise Exception("skip_rerun must be yes or no")
+    else:
+        print '\nRunning {}'.format(gal_name)
 
     # process library
     print "loading library {}...".format(templates_dir)
@@ -160,7 +163,12 @@ for paramfile_path in all_paramfile_paths:
 
 
 for plot_info in things_to_plot:
+    print '\n\n====================================='
+    print 'Plotting {}'.format(plot_info['gal_name'])
     if plot_info['run_type']=='full':
         plot_s3_fullfit(plot_info)
     elif plot_info['run_type']=='bins':
         plot_s3_binfit(plot_info)
+
+print '\n\n====================================='
+print '\n\n=====================================\n\n'

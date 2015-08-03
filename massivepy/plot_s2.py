@@ -49,6 +49,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for fiberid,binid in zip(fiberids,binids):
         if not binid==-99:
             goodfibers.append(fiberid)
+    ircolors = mplt.lin_colormap_setup(bininfo['binid'],cmap='cool')
+    label_ir = 'fwhm in wavelength units'
 
     # read spectra fits files
     # (can probably ditch reading the ir, won't actually use it)
@@ -90,7 +92,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     label_s2n = r's2n'
 
     # set up fiber spectra to plot, optionally skipping some for speed
-    skipnumber = 1
+    skipnumber = 100
     plotfibers = ifuset.spectrumset.ids[::skipnumber]
     fiberwaves = ifuset.spectrumset.waves
     fiberspectra = ifuset.spectrumset.spectra
@@ -100,6 +102,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
     # plot bin maps, bin fluxes/s2n, bin centers comparison
     # (everything where looping over bins and/or fibers is necessary)
+    # should probably split some of these off for readability
     fig_keys = ['map','flux','s2n','cent','fmap','fmap2','smap','smap2',
                 'fvr','fvr2','svr','svr2','spec','spec2']
     titles = ['Bin map (s2n {}, ar {})'.format(s2n_threshold,aspect_ratio),
@@ -230,19 +233,13 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
 
     # plot ir for each bin
-    fig = plt.figure(figsize=(6,6))
-    fig.suptitle('ir for each bin')
-    ax = fig.add_axes([0.15,0.1,0.7,0.7])
-    bcmap = plt.cm.get_cmap('cool')
+    fig, ax = mplt.scalarmap(figtitle='IR for each bin',
+                             xlabel=label_waves, ylabel=label_ir,
+                             axC_mappable=ircolors['mappable'],
+                             axC_label='bin number')
     for ibin in range(nbins):
         ax.plot(specset.waves,specset.metaspectra['ir'][ibin,:],
-                c=bcmap(ibin/float(nbins)),alpha=0.7)
-    axC = fig.add_axes([0.15,0.8,0.7,0.8])
-    axC.set_visible(False)
-    mappable_bins = plt.cm.ScalarMappable(cmap=bcmap)
-    mappable_bins.set_array([0,nbins])
-    fig.colorbar(mappable_bins,orientation='horizontal',ax=axC,
-                 label='bin number')
+                c=ircolors['c'][ibin],alpha=0.7)
     pdf.savefig(fig)
     plt.close(fig)
 

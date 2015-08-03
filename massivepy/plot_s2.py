@@ -92,7 +92,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     label_s2n = r's2n'
 
     # set up fiber spectra to plot, optionally skipping some for speed
-    skipnumber = 100
+    skipnumber = 1
     plotfibers = ifuset.spectrumset.ids[::skipnumber]
     fiberwaves = ifuset.spectrumset.waves
     fiberspectra = ifuset.spectrumset.spectra
@@ -247,16 +247,24 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # plot each spectrum, y-axis also represents bin number
     fig = plt.figure(figsize=(6,nbins))
     fig.suptitle('bin spectra by bin number')
-    ax = fig.add_axes([0.05,0.05,0.9,0.9])
+    yspace = 1/float(nbins)
+    ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
     for ibin in range(nbins):
         spectrum = specset.spectra[ibin,:] 
         ax.plot(specset.waves,specset.ids[ibin]-spectrum+spectrum[0],c='k')
     fullspectrum = specset_full.spectra[0,:] 
     ax.plot(specset_full.waves,-fullspectrum+fullspectrum[0],c='k') #id=0
+    elines = const.emission_lines
+    for eline in elines:
+        ax.axvline(elines[eline]['wave'],c='b')
+        ax.text(elines[eline]['x'],-1.8+0.3*elines[eline]['y'],
+                elines[eline]['name'],fontsize=7,weight='semibold')
     ax.set_xlabel('wavelength ({})'.format(specset.wave_unit))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)
     ax.set_ylim(ymin=-2,ymax=nbins+1)
+    ax.set_yticks(range(nbins+1))
+    ax.yaxis.set_tick_params(color=[0,0,0,0])
     ax.invert_yaxis()
     ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)

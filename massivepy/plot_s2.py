@@ -90,7 +90,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     label_s2n = r's2n'
 
     # set up fiber spectra to plot, optionally skipping some for speed
-    skipnumber = 100
+    skipnumber = 1
     plotfibers = ifuset.spectrumset.ids[::skipnumber]
     fiberwaves = ifuset.spectrumset.waves
     fiberspectra = ifuset.spectrumset.spectra
@@ -151,10 +151,10 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         axs['smap'].text(x,y,str(fiber_id),**txtkw)
         axs['smap2'].text(x,y,str(fiber_id),**txtkw)
         if fiber_id in plotfibers:
-            axs['spec'].semilogy(fiberwaves,fiberspectra[fiber_id],
-                                 c='k',alpha=0.3,nonposy='mask') 
             axs['spec'].semilogy(fiberwaves,np.abs(fiberspectra[fiber_id]),
                                  c='r',alpha=0.3)
+            axs['spec'].semilogy(fiberwaves,fiberspectra[fiber_id],
+                                 c='c',alpha=0.3,nonposy='mask') 
         if fiber_id in goodfibers:
             axs['fmap2'].add_patch(patch(fc=fiberfluxcolors2['c'][i2]))
             axs['smap2'].add_patch(patch(fc=fibers2ncolors2['c'][i2]))
@@ -164,10 +164,10 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
             axs['svr'].text(r,s,str(fiber_id),alpha=0.3,**txtkw)
             axs['svr2'].text(r,s,str(fiber_id),**txtkw)
             if fiber_id in plotfibers:
-                axs['spec2'].semilogy(fiberwaves,fiberspectra[fiber_id],
-                                      c='k',alpha=0.3,nonposy='mask')
                 axs['spec2'].semilogy(fiberwaves,np.abs(fiberspectra[fiber_id]),
                                       c='r',alpha=0.3)
+                axs['spec2'].semilogy(fiberwaves,fiberspectra[fiber_id],
+                                      c='c',alpha=0.3,nonposy='mask')
         else:
             axs['fvr'].text(r,f,str(fiber_id),**txtkw)
             axs['fvr'].plot(r,f,ls='',marker='o',mec='r',mfc='none',ms=10)
@@ -218,9 +218,12 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         axs[k].set_yscale('log')
         axs[k].axis([min(rcoords),max(rcoords),
                      fibers2ncolors['vmin'],fibers2ncolors['vmax']])
+    for k in ['spec','spec2']:
+        axs[k].set_rasterized(True)
+        axs[k].set_title('(red indicates negative values)')
+        axs[k].set_xlim(xmin=fiberwaves[0]-0.05*(fiberwaves[-1]-fiberwaves[0]),
+                        xmax=fiberwaves[-1]+0.05*(fiberwaves[-1]-fiberwaves[0]))
     # save and close
-    axs['spec'].set_rasterized(True)
-    axs['spec2'].set_rasterized(True)
     for k in fig_keys:
         pdf.savefig(figs[k])
         plt.close(figs[k])

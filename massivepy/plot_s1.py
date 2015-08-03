@@ -48,7 +48,7 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     label_s2n = r's2n (log 10)'
 
     # set up spectra and arc info, optionally skipping some fibers
-    skipnumber = 100
+    skipnumber = 1
     waves = ifuset.spectrumset.waves
     arc_waves = waves*(1+ifuset.spectrumset.comments['redshift'])
     spectra = ifuset.spectrumset.spectra[::skipnumber]
@@ -117,9 +117,10 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
                              xlabel=label_waves, ylabel=label_flux)
     for i in range(nskipfibers):
         ax.semilogy(waves,np.abs(spectra[i]),c='r',alpha=0.3)
-        ax.semilogy(waves,spectra[i],c='k',alpha=0.3,nonposy='mask')
+        ax.semilogy(waves,spectra[i],c='c',alpha=0.3,nonposy='mask')
     ax.set_xlim(xmin=waves[0]-0.05*(waves[-1]-waves[0]),
                 xmax=waves[-1]+0.05*(waves[-1]-waves[0]))
+    ax.set_title('(red indicates negative values)')
     ax.set_rasterized(True) # works, is ugly, might want to bump dpi up
     pdf.savefig(fig)
     plt.close(fig)

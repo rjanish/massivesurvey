@@ -6,18 +6,23 @@ This file contains the main plotting fuctions for s3_ppxf_fitspectra.
 
 import os
 import shutil
+import functools
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.patches as patches
+import descartes
 
 import massivepy.constants as const
 import massivepy.spectrum as spec
 import massivepy.io as mpio
+import massivepy.plot_massive as mplt
+from plotting.geo_utils import polar_box
 
 
-def plot_s3_fullfit(plot_info):
+def plot_s3_fullfit(gal_name=None,plot_path=None,binspectra_path=None,bininfo_path=None,run_type=None):
     plot_path = plot_info['plot_path']
 
     # get data from fits files of ppxf fit output
@@ -127,26 +132,27 @@ def plot_s3_fullfit(plot_info):
     pdf.close()
     return
 
-def plot_s3_binfit(plot_info):
-    plot_path = plot_info['plot_path']
-
+def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
+                   bininfo_path=None,main_output=None,mc_output=None,
+                   moments_output=None,mcmoments_output=None,fit_range=None,
+                   mask=None,compare_moments=None,compare_bins=None):
     # get data from fits files of ppxf fit output
-    fitdata = mpio.get_friendly_ppxf_output(plot_info['main_output'])
+    fitdata = mpio.get_friendly_ppxf_output(main_output)
     nbins = fitdata['nbins']
     nmoments = fitdata['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
     # get spectrum and bin information
-    specset = spec.read_datacube(plot_info['binspectra_path'])
+    specset = spec.read_datacube(binspectra_path)
     specset = specset.get_subset(fitdata['bins']['id'])
-    if plot_info['run_type']=='bins':
-        bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,
-                                skip_header=1)
-        ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
-        ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
-
-    if os.path.isfile(plot_info['mc_output']):
+    bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
+    bininfo['thmin'] = 90 + bininfo['thmin']
+    bininfo['thmax'] = 90 + bininfo['thmax']
+    squaremax = np.nanmax(bininfo['rmax'])
+    ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
+    ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
+    if os.path.isfile(mc_output):
         have_mc = True
         mcdata = mpio.get_friendly_ppxf_output_mc(plot_info['mc_output'])
     else:
@@ -154,7 +160,7 @@ def plot_s3_binfit(plot_info):
 
     # save "friendly" text output for theorists
     txtfile_array = np.zeros((nbins,1+2*nmoments))
-    txtfile_header = 'Fit results for {}'.format(plot_info['gal_name'])
+    txtfile_header = 'Fit results for {}'.format(gal_name)
     txtfile_header += '\nPPXF input parameters were as follows:'
     for param in ['add_deg', 'mul_deg']:
         txtfile_header += '\n {} = {}'.format(param,fitdata[param])
@@ -170,7 +176,7 @@ def plot_s3_binfit(plot_info):
     colnames = ['bin'] + moment_names + [m+'err' for m in moment_names]
     txtfile_header += '\n' + ' '.join(colnames)
     fmt = ['%i'] + 2*nmoments*['%-6f']
-    np.savetxt(plot_info['moments_output'],txtfile_array,fmt=fmt,
+    np.savetxt(moments_output,txtfile_array,fmt=fmt,
                delimiter='\t',header=txtfile_header)
 
     # check for mc runs
@@ -188,7 +194,7 @@ def plot_s3_binfit(plot_info):
                        delimiter='\t',header=txtfile_header)
 
     # prep comparison plot info, if available
-    if not plot_info['compare_moments']=='none':
+    if not compare_moments=='none':
         do_comparison = True
     else:
         do_comparison = False
@@ -236,13 +242,40 @@ def plot_s3_binfit(plot_info):
         pdf.savefig(fig)
         plt.close(fig)            
     
+    # 2D kinematic maps at last, wheee
+    fibersize=const.mitchell_fiber_radius.value
+    for i in range(nmoments):
+        momentcolors = mplt.lin_colormap_setup(fitdata['gh']['moment'][:,i],
+                                               cmap='Blues')
+        title = '2D map of {}'.format(moment_names[i])
+        fig, ax = mplt.scalarmap(figtitle=title,xlabel='',ylabel='',
+                                 axC_mappable=momentcolors['mappable'],
+                                 axC_label=moment_names[i])
+        for ibin in range(nbins):
+            xbin = -bininfo['r'][ibin]*np.sin(np.deg2rad(bininfo['th'][ibin]))
+            ybin = bininfo['r'][ibin]*np.cos(np.deg2rad(bininfo['th'][ibin]))
+            if not np.isnan(bininfo['rmin'][ibin]):
+                pbox = polar_box(bininfo['rmin'][ibin],bininfo['rmax'][ibin],
+                                 bininfo['thmin'][ibin],bininfo['thmax'][ibin])
+                patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
+                ax.add_patch(patch(fc=momentcolors['c'][ibin],
+                                   alpha=0.5,zorder=-1))
+            else:
+                patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
+                                        bininfo['y'][ibin]),fibersize,lw=0.25)
+                ax.add_patch(patch(fc=momentcolors['c'][ibin]))
+        ax.axis([-70,70,-70,70])
+        ax.axis([-squaremax,squaremax,-squaremax,squaremax])
+        pdf.savefig(fig)
+        plt.close(fig)
+
     # plot each spectrum, y-axis also represents bin number
     figheight = max(fitdata['bins']['id'])
     figheight = max(figheight,4)
     fig = plt.figure(figsize=(6, figheight))
     fig.suptitle('bin spectra by bin number')
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
-    target_specset = specset.crop(plot_info['fit_range'])
+    target_specset = specset.crop(fit_range)
     for i,binid in enumerate(fitdata['bins']['id']):
         spectrum = target_specset.get_subset([binid]).spectra[0]
         spectrum = spectrum/np.median(spectrum)
@@ -257,7 +290,7 @@ def plot_s3_binfit(plot_info):
                 r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][i]))
     # find regions to mask
     # should add masking of bad_data as well!
-    for m in plot_info['mask']:
+    for m in mask:
         ax.axvspan(m[0],m[1],fc='k',ec='none',alpha=0.5,lw=0)
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')

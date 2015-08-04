@@ -22,25 +22,19 @@ import massivepy.plot_massive as mplt
 from plotting.geo_utils import polar_box
 
 
-def plot_s3_fullfit(gal_name=None,plot_path=None,binspectra_path=None,bininfo_path=None,run_type=None):
-    plot_path = plot_info['plot_path']
-
+def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
+                    binspectra_path=None,main_output=None,
+                    temps_output=None,fit_range=None,mask=None):
     # get data from fits files of ppxf fit output
-    fitdata = mpio.get_friendly_ppxf_output(plot_info['main_output'])
+    fitdata = mpio.get_friendly_ppxf_output(main_output)
     nbins = fitdata['nbins']
     nmoments = fitdata['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
     # get spectrum and bin information
-    specset = spec.read_datacube(plot_info['binspectra_path'])
+    specset = spec.read_datacube(binspectra_path)
     specset = specset.get_subset(fitdata['bins']['id'])
-    if plot_info['run_type']=='bins':
-        bininfo = np.genfromtxt(plot_info['bininfo_path'],names=True,
-                                skip_header=1)
-        ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
-        ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
-
     # save "friendly" text output for theorists
     txtfile_header = 'Columns are as follows:'
     colnames = fitdata['temps'].dtype.names
@@ -49,27 +43,16 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,binspectra_path=None,bininfo_pa
         len(fitdata['temps']),fitdata['ntemps'])
     fmt = ['%i']
     fmt.extend(['%-8g']*(len(colnames)-1))
-    np.savetxt(plot_info['temps_output'],fitdata['temps'],fmt=fmt,
+    np.savetxt(temps_output,fitdata['temps'],fmt=fmt,
                header=txtfile_header,delimiter='\t')
 
-    # prep comparison plot info, if available
-    if not plot_info['compare_moments']=='none':
-        do_comparison = True
-    else:
-        do_comparison = False
-    if do_comparison:
-        fitdata2 = mpio.get_friendly_ppxf_output(plot_info['compare_moments'])
-        bininfo2 = np.genfromtxt(plot_info['compare_bins'],names=True,
-                                 skip_header=12)
-        ibins_all2 = {int(bininfo2['binid'][i]):i for i in range(len(bininfo2))}
-        ibins2 = [ibins_all2[binid] for binid in fitdata2['bins']['id']]
 
     ### Plotting Begins! ###
 
     pdf = PdfPages(plot_path)
 
     # template plots
-    catalogfile = os.path.join(plot_info['templates_dir'],'catalog.txt')
+    catalogfile = os.path.join(templates_dir,'catalog.txt')
     catalog = pd.read_csv(catalogfile,index_col='miles_id')
     spectype = np.array(catalog['spt'][fitdata['temps']['id']],dtype='S1')
     # sort by spectype for pie chart
@@ -106,7 +89,7 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,binspectra_path=None,bininfo_pa
     fig = plt.figure(figsize=(6, 5))
     fig.suptitle('full galaxy spectrum fit')
     ax = fig.add_axes([0.15,0.1,0.7,0.7])
-    target_specset = specset.crop(plot_info['fit_range'])
+    target_specset = specset.crop(fit_range)
     spectrum = target_specset.spectra[0]
     spectrum = spectrum/np.median(spectrum)
     waves = target_specset.waves
@@ -120,7 +103,7 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,binspectra_path=None,bininfo_pa
             r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][0]))
     # find regions to mask
     # should add masking of bad_data as well!
-    for m in plot_info['mask']:
+    for m in mask:
         ax.axvspan(m[0],m[1],fc='k',ec='none',alpha=0.5,lw=0)
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')

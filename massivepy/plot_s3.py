@@ -150,6 +150,9 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     bininfo['thmin'] = 90 + bininfo['thmin']
     bininfo['thmax'] = 90 + bininfo['thmax']
     squaremax = np.nanmax(bininfo['rmax'])
+    coordunit = 'arcsec'
+    label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
+    label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
     ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
     ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
     if os.path.isfile(mc_output):
@@ -244,11 +247,13 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     
     # 2D kinematic maps at last, wheee
     fibersize=const.mitchell_fiber_radius.value
+    momentcmaps = ['Blues','Purples'] + (nmoments-2)*['bwr']
+    center = 2*[False] + (nmoments-2)*[True]
     for i in range(nmoments):
         momentcolors = mplt.lin_colormap_setup(fitdata['gh']['moment'][:,i],
-                                               cmap='Blues')
+                                        cmap=momentcmaps[i],center=center[i])
         title = '2D map of {}'.format(moment_names[i])
-        fig, ax = mplt.scalarmap(figtitle=title,xlabel='',ylabel='',
+        fig, ax = mplt.scalarmap(figtitle=title,xlabel=label_x,ylabel=label_y,
                                  axC_mappable=momentcolors['mappable'],
                                  axC_label=moment_names[i])
         for ibin in range(nbins):
@@ -264,17 +269,17 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                 patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
                                         bininfo['y'][ibin]),fibersize,lw=0.25)
                 ax.add_patch(patch(fc=momentcolors['c'][ibin]))
-        ax.axis([-70,70,-70,70])
         ax.axis([-squaremax,squaremax,-squaremax,squaremax])
         pdf.savefig(fig)
         plt.close(fig)
 
     # plot each spectrum, y-axis also represents bin number
-    figheight = max(fitdata['bins']['id'])
-    figheight = max(figheight,4)
-    fig = plt.figure(figsize=(6, figheight))
+    #figheight = max(fitdata['bins']['id'])
+    #figheight = max(figheight,4)
+    fig = plt.figure(figsize=(6, nbins+3))
     fig.suptitle('bin spectra by bin number')
-    ax = fig.add_axes([0.05,0.05,0.9,0.9])
+    yspace = 1/float(nbins+3)
+    ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
     target_specset = specset.crop(fit_range)
     for i,binid in enumerate(fitdata['bins']['id']):
         spectrum = target_specset.get_subset([binid]).spectra[0]
@@ -284,18 +289,28 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         modelwaves = fitdata['waves']
         # modelwaves should be same as waves, but is longer by one pixel!!
         # this bug shows up only (so far) in NGC1129
-        ax.plot(waves,binid-spectrum+spectrum[0],c='k')
-        ax.plot(modelwaves,binid-model+spectrum[0],c='r',lw=0.7)
+        ax.plot(waves,i-spectrum+spectrum[0],c='k')
+        ax.plot(modelwaves,i-model+spectrum[0],c='r',lw=0.7)
         ax.text(waves[0],binid-0.4,
                 r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][i]))
     # find regions to mask
     # should add masking of bad_data as well!
     for m in mask:
         ax.axvspan(m[0],m[1],fc='k',ec='none',alpha=0.5,lw=0)
+    # mark prominent emission lines
+    elines = const.emission_lines
+    for eline in elines:
+        if elines[eline]['wave']<waves[0] or elines[eline]['wave']>waves[-1]:
+            continue
+        ax.axvline(elines[eline]['wave'],c='b')
+        ax.text(elines[eline]['x'],-0.9+0.15*elines[eline]['y'],
+                elines[eline]['name'],fontsize=7,weight='semibold')
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)
-    ax.set_ylim(ymin=-2,ymax=max(fitdata['bins']['id'])+1)
+    ax.set_yticks(range(nbins))
+    ax.set_yticklabels(fitdata['bins']['id'])
+    ax.set_ylim(ymin=-1,ymax=nbins)
     ax.invert_yaxis()
     ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)

@@ -23,6 +23,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import astropy.io.fits as fits
 
 import utilities as utl
+import massivepy.constants as const
 import massivepy.io as mpio
 import massivepy.lambdaR as lam
 
@@ -55,14 +56,14 @@ for paramfile_path in all_paramfile_paths:
     fits_path = output_path_maker('underconstruction','fits')
     lambda_path = output_path_maker('lambda','txt')
     plot_path = output_path_maker('lambda','pdf')
-    lambda_path_2 = output_path_maker('lambda-2','txt')
-    lambda_path_3 = output_path_maker('lambda-3','txt')
+    lambda_path_med = output_path_maker('lambda-med','txt')
+    lambda_path_jstyle = output_path_maker('lambda-jstyle','txt')
     # save relevant info for plotting to a dict
     plot_info = {'fits_path': fits_path,
                  'lambda_path': lambda_path,
+                 'lambda_path_med': lambda_path_med,
+                 'lambda_path_jstyle': lambda_path_jstyle,
                  'plot_path': plot_path,
-                 'lambda_path_2': lambda_path_2,
-                 'lambda_path_3': lambda_path_3,
                  'gal_name': gal_name}
     things_to_plot.append(plot_info)
 
@@ -91,22 +92,24 @@ for paramfile_path in all_paramfile_paths:
     lamR = lam.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
                        fitdata['gh']['moment'][:,1],bininfo['flux'])
     np.savetxt(lambda_path,lamR,header=' '.join(lamR.dtype.names))
-    # for comparison and testing purposes, do it again but without
-    # subtracting out the overall V
-    lamR_no_offset = lam.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
-                                 fitdata['gh']['moment'][:,1],bininfo['flux'],
-                                 Vnorm='no_offset')
-    np.savetxt(lambda_path_2,lamR_no_offset,header=' '.join(lamR.dtype.names))
+
     # do again using median
     lamR_median = lam.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
                                   fitdata['gh']['moment'][:,1],bininfo['flux'],
                                   Vnorm='median')
-    np.savetxt(lambda_path_3,lamR_median,header=' '.join(lamR.dtype.names))
+    np.savetxt(lambda_path_med,lamR_median,header=' '.join(lamR.dtype.names))
+
+    # do again using "Jenny style"
+    lamR_jstyle = lam.calc_lambda_Jennystyle(bininfo['r'],
+                                             fitdata['gh']['moment'][:,0],
+                                             fitdata['gh']['moment'][:,1],
+                                             bininfo['flux'])
+    np.savetxt(lambda_path_jstyle,lamR_jstyle,header=' '.join(lamR.dtype.names))
 
 for plot_info in things_to_plot:
     lamR = np.genfromtxt(plot_info['lambda_path'],names=True)
-    lamR_no_offset = np.genfromtxt(plot_info['lambda_path_2'],names=True)
-    lamR_median = np.genfromtxt(plot_info['lambda_path_3'],names=True)
+    lamR_median = np.genfromtxt(plot_info['lambda_path_med'],names=True)
+    lamR_jstyle = np.genfromtxt(plot_info['lambda_path_jstyle'],names=True)
     labels = {'R': 'radius',
               'Vavg': r'$\langle |V| \rangle$',
               'RVavg': r'$\langle R |V| \rangle$',
@@ -127,27 +130,33 @@ for plot_info in things_to_plot:
     fig.suptitle(labels['lam'])
     ax = fig.add_axes([0.17,0.15,0.7,0.7])
     ax.plot(lamR['R'],lamR['lam'],c='b',label='flux avg')
-    ax.plot(lamR_median['R'],lamR_median['lam'],c='g',label='median')
-    ax.plot(lamR_no_offset['R'],lamR_no_offset['lam'],c='r',label='raw V')
+    ax.plot(lamR_median['R'],lamR_median['lam'],c='c',label='median')
+    ax.plot(lamR_jstyle['R'],lamR_jstyle['lam'],c='r',label='jstyle')
     ax.set_xlabel('radius')
     ax.set_ylabel(labels['lam'])
-    if gal_name in lam.Jgals:
-        print 'Comparing to numbers from Jenny'
-        Jgal = lam.Jgals[gal_name]
-        ax.plot(Jgal['Re'],Jgal['lRe'],ls='',marker='s',c='g',label='Jenny')
-        ax.plot(0.25*Jgal['Re'],Jgal['l.25Re'],ls='',marker='s',c='g')
+    if gal_name in ['NGC0057','NGC0507']:
+        Jf = os.path.join(os.path.dirname(plot_info['plot_path']),'jenny.txt')
+        Jthings = np.genfromtxt(Jf,names=True)
+        ax.plot(Jthings['rad'],Jthings['lam'],c='m',label='Jenny')
     ax.legend()
     pdf.savefig(fig)
     plt.close(fig)
 
     # plot the intermediate steps as subplots on one page
     fig = plt.figure(figsize=(6,6))
-    fig.suptitle(r"Intermediate Stepss (x-axis matching $\lambda_R$)")
+    fig.suptitle(r"Intermediate Steps (x-axis matching $\lambda_R$)")
     for i, thing in enumerate(['Vavg','RVavg','m2avg','Rm2avg']):
         ax = fig.add_subplot(2,2,i+1)
         ax.plot(lamR['R'],lamR[thing],c='b')
-        ax.plot(lamR_no_offset['R'],lamR_no_offset[thing],c='r')
-        ax.plot(lamR_median['R'],lamR_median[thing],c='g')
+        ax.plot(lamR_median['R'],lamR_median[thing],c='c')
+        ax.plot(lamR_jstyle['R'],lamR_jstyle[thing],c='r')
+        if thing=='RVavg':
+            ax.plot(Jthings['rad'],Jthings['num'],c='m')
+            pass
+        elif thing=='Rm2avg':
+            ax.plot(Jthings['rad'],Jthings['denom'],c='m')
+            pass
+        ax.set_yscale('log')
         ax.set_title(labels[thing])
         ax.set_xticklabels([])
     pdf.savefig(fig)
@@ -159,8 +168,8 @@ for plot_info in things_to_plot:
     for i, thing in enumerate(['V','Vraw','sigma','flux']):
         ax = fig.add_subplot(2,2,i+1)
         ax.plot(lamR['R'],lamR[thing],c='b')
-        ax.plot(lamR_no_offset['R'],lamR_no_offset[thing],c='r')
         ax.plot(lamR_median['R'],lamR_median[thing],c='g')
+        ax.plot(lamR_jstyle['R'],lamR_jstyle[thing],c='c')
         ax.set_title(labels[thing])
         ax.set_xticklabels([])
     pdf.savefig(fig)

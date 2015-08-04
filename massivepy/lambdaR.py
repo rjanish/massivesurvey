@@ -51,3 +51,43 @@ def calc_lambda(R,Vraw,sigma,flux,Vnorm='fluxavg'):
         output['lam'][i] = output['RVavg'][i]/output['Rm2avg'][i]
     return output
 
+def calc_lambda_Jennystyle(R,Vraw,sigma,flux,style='c'):
+    nbins = len(R)
+    if not len(Vraw)==nbins and len(sigma)==nbins and len(flux)==nbins:
+        raise Exception('u broke it.')
+    newR = np.arange(int(min(R))+1,int(max(R))+2,1)
+    Voffset = np.median(Vraw)
+    V = Vraw - Voffset
+    ii = np.argsort(R)
+    R = R[ii]
+    V = V[ii]
+    sigma = sigma[ii]
+    flux = flux[ii]
+    dt = {'names':['R','Vavg','RVavg','m2avg','Rm2avg','lam',
+                   'V','Vraw','sigma','flux'],
+          'formats':10*[np.float64]}
+    output = np.zeros(len(newR),dtype=dt)
+    output['R'] = newR
+    output['V'] = np.interp(newR,R,V)
+    output['Vraw'] = np.interp(newR,R,Vraw)
+    output['sigma'] = np.interp(newR,R,sigma)
+    output['flux'] = np.interp(newR,R,flux)
+    iused = -1
+    for j in range(len(newR)):
+        i = np.searchsorted(R,newR[j])
+        for thing in ['Vavg','RVavg','m2avg','Rm2avg']:
+            output[thing][j] = output[thing][j-1]
+        while i > iused:
+            if iused==len(R)-1:
+                iused += 1
+            else:
+                output['Vavg'][j] += np.abs(V[iused+1])*flux[iused+1]
+                output['RVavg'][j] += (np.abs(V[iused+1])*flux[iused+1]
+                                       *R[iused+1])
+                output['m2avg'][j] += (np.sqrt(V[iused+1]**2+sigma[iused+1]**2)
+                                       *flux[iused+1])
+                output['Rm2avg'][j] += (np.sqrt(V[iused+1]**2+sigma[iused+1]**2)
+                                        *flux[iused+1]*R[iused+1])
+                iused += 1
+        output['lam'][j] = output['RVavg'][j]/output['Rm2avg'][j]
+    return output

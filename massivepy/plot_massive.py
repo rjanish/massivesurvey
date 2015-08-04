@@ -28,7 +28,7 @@ def colormap_setup(x,cmap,logsafe='off'):
                 'max' sets all bad values to the max value
     Returns:
       colors - a dict of containing all the relevant items:
-                x - the original data
+                x - the original data, after "logsafe" applied
                 vmin - minimum value, after "logsafe" applied
                 vmax - maximum value, after "logsafe" applied
                 x_norm, vmin_norm, vmax_norm - same, with norm applied
@@ -36,13 +36,13 @@ def colormap_setup(x,cmap,logsafe='off'):
                 c - rgba colors for plotting, same length as x
     """
     colors = {}
-    colors['x'] = x.copy()
     if logsafe=='off':
         pass
     elif logsafe=='max':
         x = np.where(x>0,x,max(x)*np.ones(x.shape))
     else:
         raise Exception('Invalid choice of logsafe in colormap_setup.')
+    colors['x'] = x.copy()
     colors['vmin'] = min(x)
     colors['vmax'] = max(x)
     norm = mpl.colors.LogNorm(vmin=colors['vmin'],vmax=colors['vmax'])
@@ -56,17 +56,18 @@ def colormap_setup(x,cmap,logsafe='off'):
     colors['c'] = c
     return colors
 
-def lin_colormap_setup(x,cmap):
+def lin_colormap_setup(x,cmap,center=False):
     colors = {}
     colors['x'] = x.copy()
-    colors['vmin'] = min(x)
-    colors['vmax'] = max(x)
-    #norm = mpl.colors.LogNorm(vmin=colors['vmin'],vmax=colors['vmax'])
-    #colors['x_norm'] = norm(x)
-    #colors['vmin_norm'] = norm(colors['vmin'])
-    #colors['vmax_norm'] = norm(colors['vmax'])
+    if center:
+        colors['vmin'] = -max(np.abs(x))
+        colors['vmax'] = max(np.abs(x))
+    else:
+        colors['vmin'] = min(x)
+        colors['vmax'] = max(x)
     mappable = plt.cm.ScalarMappable(cmap=cmap)
     mappable.set_array([colors['vmin'],colors['vmax']])
+    mappable.set_clim(vmin=colors['vmin'],vmax=colors['vmax'])
     colors['mappable'] = mappable
     c = mappable.to_rgba(x)
     colors['c'] = c
@@ -76,7 +77,8 @@ def scalarmap(figtitle='default figure title',
               xlabel='default xaxis label', ylabel='default yaxis label',
               figsize=(6,6), ax_loc=[0.15,0.1,0.7,0.7],
               axC_loc=[0.15,0.8,0.7,0.8], axC_mappable=None,
-              axC_label='default colorbar label'):
+              axC_label='default colorbar label',
+              axC_nticks=3):
     """
     Generates figure and axes for a typical scalar map (fibermaps, binmaps).
     Default axes is already square, so that coordinates come out as desired,
@@ -98,6 +100,12 @@ def scalarmap(figtitle='default figure title',
             kw = {'ticks':mpl.ticker.LogLocator(subs=range(10))}
         else:
             kw = {}
-        fig.colorbar(axC_mappable,ax=axC,label=axC_label,
-                     orientation='horizontal',**kw)
+        cb = fig.colorbar(axC_mappable,ax=axC,label=axC_label,
+                          orientation='horizontal',**kw)
+        ticks = axC_mappable.norm.inverse(cb.ax.xaxis.get_majorticklocs())
+        cb.set_ticks(ticks)
+        ticklabels = ['' for t in ticks]
+        skipticks = (len(ticklabels)-1)/axC_nticks + 1
+        ticklabels[::skipticks] = ticks[::skipticks]
+        cb.set_ticklabels(ticklabels)
     return fig, ax

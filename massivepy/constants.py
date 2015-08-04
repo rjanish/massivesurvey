@@ -30,6 +30,13 @@ mitchell_nominal_spec_resolution = 4.6  # Angstroms, Gaussian FWHM
 mitchell_crop_region = [3650, 5650] # Angstrom, galaxy rest frame
     # edges can have goofy extrapolated data, this is a stable safe region
 
+# some lines of interest to plot with spectra
+# x, y to be used with plt.text; y-offset will usually need normalizing
+emission_lines = {'O2': {'wave':3727, 'name':'OII', 'x':3728, 'y':0},
+                  'O3a': {'wave':4959, 'name':'OIII(a)', 'x':4960, 'y': 0},
+                  'O3b': {'wave':5007, 'name':'OIII(b)', 'x':5008, 'y': 1},
+                  'Hb': {'wave':4861, 'name':r'H$\beta$', 'x':4862, 'y':0}}
+
 # MASSIVE conventions
 selected_twelve = [14, 227, 303, 311, 547, 561, 586, 591, 052, 755, 844, 871]
     # MILES numbers of the twelve templates chosen by Jenny in November 2014.

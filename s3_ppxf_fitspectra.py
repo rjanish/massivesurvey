@@ -165,10 +165,19 @@ for paramfile_path in all_paramfile_paths:
 for plot_info in things_to_plot:
     print '\n\n====================================='
     print 'Plotting {}'.format(plot_info['gal_name'])
-    if plot_info['run_type']=='full':
-        plot_s3_fullfit(plot_info)
-    elif plot_info['run_type']=='bins':
-        plot_s3_binfit(plot_info)
+    run_type = plot_info.pop('run_type')
+    if run_type=='full':
+        del plot_info['compare_moments']
+        del plot_info['compare_bins']
+        del plot_info['mc_output']
+        del plot_info['moments_output']
+        del plot_info['mcmoments_output']
+        del plot_info['bininfo_path']
+        plot_s3_fullfit(**plot_info)
+    elif run_type=='bins':
+        del plot_info['templates_dir'] #this is silly, make it so these don't
+        del plot_info['temps_output']  #save in the first place
+        plot_s3_binfit(**plot_info)
 
 print '\n\n====================================='
-print '\n\n=====================================\n\n'
+print '====================================='

@@ -287,8 +287,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                 pbox = polar_box(bininfo['rmin'][ibin],bininfo['rmax'][ibin],
                                  bininfo['thmin'][ibin],bininfo['thmax'][ibin])
                 patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
-                ax.add_patch(patch(fc=momentcolors['c'][ibin],
-                                   alpha=0.5,zorder=-1))
+                ax.add_patch(patch(fc=momentcolors['c'][ibin],zorder=-1))
             else:
                 patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
                                         bininfo['y'][ibin]),fibersize,lw=0.25)

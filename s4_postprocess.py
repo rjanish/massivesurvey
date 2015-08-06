@@ -25,7 +25,8 @@ import astropy.io.fits as fits
 import utilities as utl
 import massivepy.constants as const
 import massivepy.io as mpio
-import massivepy.lambdaR as lam
+import massivepy.postprocess as post
+from massivepy.plot_s4 import plot_s4_postprocess
 
 # get cmd line arguments
 parser = argparse.ArgumentParser(description=__doc__,
@@ -58,8 +59,10 @@ for paramfile_path in all_paramfile_paths:
     plot_path = output_path_maker('lambda','pdf')
     lambda_path_med = output_path_maker('lambda-med','txt')
     lambda_path_jstyle = output_path_maker('lambda-jstyle','txt')
+    rprofiles_path = output_path_maker('rprofiles','txt')
     # save relevant info for plotting to a dict
     plot_info = {'fits_path': fits_path,
+                 'rprofiles_path': rprofiles_path,
                  'lambda_path': lambda_path,
                  'lambda_path_med': lambda_path_med,
                  'lambda_path_jstyle': lambda_path_jstyle,
@@ -89,90 +92,28 @@ for paramfile_path in all_paramfile_paths:
     fits.HDUList([hdu]).writeto(fits_path, clobber=True)
 
     # here is the calculation of lambda
-    lamR = lam.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
+    lamR = post.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
                        fitdata['gh']['moment'][:,1],bininfo['flux'])
     np.savetxt(lambda_path,lamR,header=' '.join(lamR.dtype.names))
 
     # do again using median
-    lamR_median = lam.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
+    lamR_median = post.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
                                   fitdata['gh']['moment'][:,1],bininfo['flux'],
                                   Vnorm='median')
     np.savetxt(lambda_path_med,lamR_median,header=' '.join(lamR.dtype.names))
 
     # do again using "Jenny style"
-    lamR_jstyle = lam.calc_lambda_Jennystyle(bininfo['r'],
+    lamR_jstyle = post.calc_lambda_Jennystyle(bininfo['r'],
                                              fitdata['gh']['moment'][:,0],
                                              fitdata['gh']['moment'][:,1],
                                              bininfo['flux'])
     np.savetxt(lambda_path_jstyle,lamR_jstyle,header=' '.join(lamR.dtype.names))
 
+    # do sigma thing
+    sig_fluxavg = post.calc_sigma(bininfo['r'],fitdata['gh']['moment'][:,1],
+                                  bininfo['flux'])
+    np.savetxt(rprofiles_path,sig_fluxavg,
+               header=' '.join(sig_fluxavg.dtype.names))
+
 for plot_info in things_to_plot:
-    lamR = np.genfromtxt(plot_info['lambda_path'],names=True)
-    lamR_median = np.genfromtxt(plot_info['lambda_path_med'],names=True)
-    lamR_jstyle = np.genfromtxt(plot_info['lambda_path_jstyle'],names=True)
-    labels = {'R': 'radius',
-              'Vavg': r'$\langle |V| \rangle$',
-              'RVavg': r'$\langle R |V| \rangle$',
-              'm2avg': r'$\langle \sqrt{V^2 + \sigma^2} \rangle$',
-              'Rm2avg': r'$\langle R \sqrt{V^2 + \sigma^2} \rangle$',
-              'lam': r'$\lambda_R$',
-              'V':r'$V$',
-              'Vraw':r'$V_{\rm raw}$',
-              'sigma':r'$\sigma$',
-              'flux':'flux'}
-
-    ### Plotting Begins! ###
-
-    pdf = PdfPages(plot_info['plot_path'])
-
-    # plot the actual lambda first
-    fig = plt.figure(figsize=(6,5))
-    fig.suptitle(labels['lam'])
-    ax = fig.add_axes([0.17,0.15,0.7,0.7])
-    ax.plot(lamR['R'],lamR['lam'],c='b',label='flux avg')
-    ax.plot(lamR_median['R'],lamR_median['lam'],c='c',label='median')
-    ax.plot(lamR_jstyle['R'],lamR_jstyle['lam'],c='r',label='jstyle')
-    ax.set_xlabel('radius')
-    ax.set_ylabel(labels['lam'])
-    if gal_name in ['NGC0057','NGC0507']:
-        Jf = os.path.join(os.path.dirname(plot_info['plot_path']),'jenny.txt')
-        Jthings = np.genfromtxt(Jf,names=True)
-        ax.plot(Jthings['rad'],Jthings['lam'],c='m',label='Jenny')
-    ax.legend()
-    pdf.savefig(fig)
-    plt.close(fig)
-
-    # plot the intermediate steps as subplots on one page
-    fig = plt.figure(figsize=(6,6))
-    fig.suptitle(r"Intermediate Steps (x-axis matching $\lambda_R$)")
-    for i, thing in enumerate(['Vavg','RVavg','m2avg','Rm2avg']):
-        ax = fig.add_subplot(2,2,i+1)
-        ax.plot(lamR['R'],lamR[thing],c='b')
-        ax.plot(lamR_median['R'],lamR_median[thing],c='c')
-        ax.plot(lamR_jstyle['R'],lamR_jstyle[thing],c='r')
-        if thing=='RVavg':
-            ax.plot(Jthings['rad'],Jthings['num'],c='m')
-            pass
-        elif thing=='Rm2avg':
-            ax.plot(Jthings['rad'],Jthings['denom'],c='m')
-            pass
-        ax.set_yscale('log')
-        ax.set_title(labels[thing])
-        ax.set_xticklabels([])
-    pdf.savefig(fig)
-    plt.close(fig)
-
-    # plot some of the important raw numbers
-    fig = plt.figure(figsize=(6,6))
-    fig.suptitle(r"Ingredients (x-axis matching $\lambda_R$)")
-    for i, thing in enumerate(['V','Vraw','sigma','flux']):
-        ax = fig.add_subplot(2,2,i+1)
-        ax.plot(lamR['R'],lamR[thing],c='b')
-        ax.plot(lamR_median['R'],lamR_median[thing],c='g')
-        ax.plot(lamR_jstyle['R'],lamR_jstyle[thing],c='c')
-        ax.set_title(labels[thing])
-        ax.set_xticklabels([])
-    pdf.savefig(fig)
-    plt.close(fig)
-
-    pdf.close()
+    plot_s4_postprocess(**plot_info)

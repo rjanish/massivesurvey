@@ -6,13 +6,6 @@ import functools
 
 import numpy as np
 
-# here are some numbers from Jenny to compare to
-Jgals = {'NGC0057':{'l.25Re':0.015350319,'lRe':0.021994471,'Re':27.0},
-         'NGC0507':{'l.25Re':0.10895942,'lRe':0.045241862,'Re':38.4},
-         'NGC0533':{'l.25Re':0.039903858,'lRe':0.040093599,'Re':40.7},
-         'NGC0708':{'l.25Re':0.027162062,'lRe':0.023545584,'Re':23.7},
-         'NGC0777':{'l.25Re':0.016094986,'lRe':0.013569772,'Re':18.6}}
-
 def calc_lambda(R,Vraw,sigma,flux,Vnorm='fluxavg'):
     nbins = len(R)
     if not len(Vraw)==nbins and len(sigma)==nbins and len(flux)==nbins:
@@ -63,6 +56,7 @@ def calc_lambda_Jennystyle(R,Vraw,sigma,flux,style='c'):
     V = V[ii]
     sigma = sigma[ii]
     flux = flux[ii]
+    #flux = np.max(flux)*np.ones(flux.shape)
     dt = {'names':['R','Vavg','RVavg','m2avg','Rm2avg','lam',
                    'V','Vraw','sigma','flux'],
           'formats':10*[np.float64]}
@@ -90,4 +84,15 @@ def calc_lambda_Jennystyle(R,Vraw,sigma,flux,style='c'):
                                         *flux[iused+1]*R[iused+1])
                 iused += 1
         output['lam'][j] = output['RVavg'][j]/output['Rm2avg'][j]
+    return output
+
+def calc_sigma(R,sigma,flux):
+    """
+    Calculate flux-weighted average sigma within R
+    """
+    output = np.zeros(R.shape,dtype={'names':['R','sig'],
+                                     'formats':2*['f8']})
+    ii = np.argsort(R)
+    output['R'] = R[ii]
+    output['sig'] = np.cumsum(sigma[ii]*flux[ii])/np.cumsum(flux[ii])
     return output

@@ -19,6 +19,7 @@ import massivepy.constants as const
 import massivepy.spectrum as spec
 import massivepy.io as mpio
 import massivepy.plot_massive as mplt
+import utilities as utl
 from plotting.geo_utils import polar_box
 
 
@@ -105,6 +106,14 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     # should add masking of bad_data as well!
     for m in mask:
         ax.axvspan(m[0],m[1],fc='k',ec='none',alpha=0.5,lw=0)
+    # mark prominent emission lines
+    elines = const.emission_lines
+    for eline in elines:
+        if elines[eline]['wave']<waves[0] or elines[eline]['wave']>waves[-1]:
+            continue
+        ax.axvline(elines[eline]['wave'],c='b')
+        ax.text(elines[eline]['x'],-0.05*elines[eline]['y'],
+                elines[eline]['name'],fontsize=7,weight='semibold')
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.set_yticks([0])
@@ -230,11 +239,43 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     
     # 2D kinematic maps at last, wheee
     fibersize=const.mitchell_fiber_radius.value
+
+    # do 4 versions of centered V
+    Vdata = fitdata['gh']['moment'][:,0]
+    V0 = [np.average(Vdata,weights=bininfo['flux']),np.average(Vdata),
+          utl.median(Vdata,weights=bininfo['flux']),np.median(Vdata)]
+    Vtitles = ['2D map of centered V (flux weighted average, V0={:.2f})'.format,
+               '2D map of centered V (average, V0={:.2f})'.format,
+               '2D map of centered V (flux weighted median, V0={:.2f})'.format,
+               '2D map of centered V (median, V0={:.2f})'.format]
+    for i in range(4):
+        Vcolors = mplt.lin_colormap_setup(Vdata-V0[i],cmap='BrBG',center=True)
+        fig, ax = mplt.scalarmap(figtitle=Vtitles[i](V0[i]),
+                                 xlabel=label_x,ylabel=label_y,
+                                 axC_mappable=Vcolors['mappable'],axC_label='V')
+        for ibin in range(nbins):
+            xbin = -bininfo['r'][ibin]*np.sin(np.deg2rad(bininfo['th'][ibin]))
+            ybin = bininfo['r'][ibin]*np.cos(np.deg2rad(bininfo['th'][ibin]))
+            if not np.isnan(bininfo['rmin'][ibin]):
+                pbox = polar_box(bininfo['rmin'][ibin],bininfo['rmax'][ibin],
+                                 bininfo['thmin'][ibin],bininfo['thmax'][ibin])
+                patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
+                ax.add_patch(patch(fc=Vcolors['c'][ibin],zorder=-1))
+            else:
+                patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
+                                        bininfo['y'][ibin]),fibersize,lw=0.25)
+                ax.add_patch(patch(fc=Vcolors['c'][ibin]))
+        ax.axis([-squaremax,squaremax,-squaremax,squaremax])
+        pdf.savefig(fig)
+        plt.close(fig)        
+
+    # do all the moments
     momentcmaps = ['Blues','Purples'] + (nmoments-2)*['bwr']
     center = 2*[False] + (nmoments-2)*[True]
     for i in range(nmoments):
-        momentcolors = mplt.lin_colormap_setup(fitdata['gh']['moment'][:,i],
-                                        cmap=momentcmaps[i],center=center[i])
+        momentdata = fitdata['gh']['moment'][:,i]
+        momentcolors = mplt.lin_colormap_setup(momentdata,cmap=momentcmaps[i],
+                                               center=center[i])
         title = '2D map of {}'.format(moment_names[i])
         fig, ax = mplt.scalarmap(figtitle=title,xlabel=label_x,ylabel=label_y,
                                  axC_mappable=momentcolors['mappable'],

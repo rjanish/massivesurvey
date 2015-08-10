@@ -207,7 +207,7 @@ for paramfile_path in all_paramfile_paths:
                 'ra':gal_position[0],'dec':gal_position[1],'pa':gal_pa,
                 'ifufile':ifuset.spectrumset.comments['rawfile'],
                 'ifufiledate':ifuset.spectrumset.comments['rawdate'],
-                'irfile':ir_path,
+                'irfile':os.path.basename(ir_path),
                 'irfiledate':time.ctime(os.path.getmtime(ir_path)),
                 'ar':aspect_ratio,'s2n':s2n_threshold}
     binning.write_bininfo(bininfo_path,bin_ids,grouped_ids,bin_fluxes,

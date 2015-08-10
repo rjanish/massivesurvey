@@ -351,27 +351,27 @@ def write_bininfo(path,bin_ids,grouped_fiberids,bin_fluxes,
     bininfo['thmax'] = np.rad2deg(np.pi/2 - bininfo['thmax'])
     binheader = 'Columns are as follows:'
     binheader += '\n' + ' '.join(dt['names'])
-    binheader += '\nCoordinate definitions:'
-    binheader += '\n x-direction is west, y-direction is north'
-    binheader += '\n units are {}'.format(comments['coordunit'])
-    binheader += '\n theta=0 is defined at +y (north)'
-    binheader += '\n theta increases counterclockwise (towards east)'
-    binheader += '\n theta is expressed in degrees'
-    binheader += '\nCenter Ra/Dec are {}, {}'.format(comments['ra'],
-                                                     comments['dec'])
-    binheader += '\nPA (degrees, above theta definition) is {}'.format(comments['pa'])
-    binheader += '\nNote that x,y are bin centers in cartesian coordinates,'
-    binheader += '\n while r,th are bin centers in polar coordinates,'
-    binheader += '\n and they do not represent the same points!'
-    ifufilename = comments['ifufile']
-    ifufiledate = comments['ifufiledate']
-    irfiledate = comments['irfiledate']
-    binheader += "\nSource file: {}".format(ifufilename)
-    binheader += "\n from {}".format(ifufiledate)
-    binheader += "\n with ir file {}".format(comments['irfile'])
-    binheader += "\n from {}".format(irfiledate)
-    binheader += "\nAspect ratio and s2n were set as:"
-    binheader += "\n {}, {}".format(comments['ar'], comments['s2n'])
+    binheader += '\nMetadata are as follows:'
+    binheader += '\n postitive x-direction: west'
+    binheader += '\n postitive y-direction: north'
+    binheader += '\n      coordinate units: {}'.format(comments['coordunit'])
+    binheader += '\n           theta units: degrees'
+    binheader += '\n             galaxy ra: {}'.format(comments['ra'])
+    binheader += '\n            galaxy dec: {}'.format(comments['dec'])
+    binheader += '\n             galaxy pa: {}'.format(comments['pa'])
+    binheader += "\n       source ifu file: {}".format(comments['ifufile'])
+    binheader += "\n         ifu file date: {}".format(comments['ifufiledate'])
+    binheader += "\n               ir file: {}".format(comments['irfile'])
+    binheader += "\n          ir file date: {}".format(comments['irfiledate'])
+    binheader += "\n          aspect ratio: {}".format(comments['ar'])
+    binheader += "\n         s2n threshold: {}".format(comments['s2n'])
+    binheader += '\nOther comments:'
+    binheader += '\n Theta=0 is defined at: +y (north)'
+    binheader += '\n Theta increases counterclockwise (towards east)'
+    binheader += '\n Galaxy PA is listed using the same definition of theta'
+    binheader += '\n Note that x,y are bin centers in cartesian coordinates,'
+    binheader += '\n  while r,th are bin centers in polar coordinates,'
+    binheader += '\n  and they do not represent the same points!'
     np.savetxt(path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
     return
 
@@ -382,23 +382,23 @@ def read_bininfo(path,plotprep=True):
       change theta from ccwise (0=y, north) to ccwise (0=x, west)
       add 'rx' and 'ry' coordinates to plot *polar* center more easily
       compute 'ma_x' and 'ma_y', x and y coords of end of ma line
+      compute 'rbinmax' where the outermost bin boundary is
     Can turn off plotprep for testing purposes, but by default it is on.
     """
     bindata = np.genfromtxt(path,names=True,skip_header=1)
-    binsettings = open(path,'r').readlines()[18]
-    aspect_ratio, s2n_threshold = binsettings.strip().split()[1:]
-    aspect_ratio, s2n_threshold = eval(aspect_ratio[:-1]), eval(s2n_threshold)
-    # these lines are a terrible idea.
-    ma_line = open(path,'r').readlines()[9]
-    ma_theta = np.pi/2 + np.deg2rad(float(ma_line.strip().split()[-1]))
     bincomments = {}
+    commentkeys = {7:'ra',8:'dec',9:'pa',14:'ar',15:'s2n'}
+        # lines where important metadata numbers are found
+    for i,line in enumerate(open(path,'r')):
+        if not line[0]=='#':
+            break
+        elif i in commentkeys:
+            bincomments[commentkeys[i]] = float(line.strip().split()[-1])
     if plotprep:
-        # convert from theta=0 at +y to theta=0 at +x
         names0 = list(bindata.dtype.names)
         formats0 = [bindata.dtype.fields[name][0] for name in names0]
         dt = {'names': names0 + ['rx', 'ry'],
               'formats': 2*['i8'] + formats0}
-        print dt['formats']
         bindata0 = bindata.copy()
         bindata = np.zeros(bindata0.shape,dtype=dt)
         for key in names0:
@@ -408,10 +408,8 @@ def read_bininfo(path,plotprep=True):
         bindata['rx'] = -bindata['r']*np.sin(np.deg2rad(bindata['th']))
         bindata['ry'] = bindata['r']*np.cos(np.deg2rad(bindata['th']))
         rmax = np.nanmax(bindata['rmax'])
+        ma_theta = np.pi/2 + np.deg2rad(bincomments['pa'])
         bincomments['ma_x'] = rmax*1.1*np.cos(ma_theta)
         bincomments['ma_y'] = rmax*1.1*np.sin(ma_theta)
         bincomments['rbinmax'] = rmax
-    bincomments['ar'] = aspect_ratio
-    bincomments['s2n'] = s2n_threshold
-    #bincomments['ma'] = ma_theta
     return bindata, bincomments

@@ -92,46 +92,35 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     label_s2n = r's2n'
 
     # set up fiber spectra to plot, optionally skipping some for speed
-    skipnumber = 1
+    skipnumber = 100
     plotfibers = ifuset.spectrumset.ids[::skipnumber]
     fiberwaves = ifuset.spectrumset.waves
     fiberspectra = ifuset.spectrumset.spectra
 
+
+
     ### plotting begins ###
     pdf = PdfPages(plot_path)
 
+
+
     # plot bin maps, bin fluxes/s2n, bin centers comparison
-    # (everything where looping over bins and/or fibers is necessary)
-    # should probably split some of these off for readability
-    fig_keys = ['map','flux','s2n','cent','fmap','fmap2','smap','smap2',
-                'fvr','fvr2','svr','svr2','spec','spec2']
+    fig_keys = ['map','flux','s2n','cent','fmap','fmap2','smap','smap2']
     titles = ['Bin map (s2n {}, ar {})'.format(s2n_threshold,aspect_ratio),
-              'Bin flux map',
-              'Bin s2n map',
-              'Bin centers (cartesian v polar)',
+              'Bin flux map','Bin s2n map','Bin centers (cartesian v polar)',
               'Fiber flux map (with cropping)',
               'Fiber flux map (with cropping and fiber removal)',
               'Fiber s2n map (with cropping)',
-              'Fiber s2n map (with cropping and fiber removal)',
-              'Fiber flux vs radius (with cropping)',
-              'Fiber flux vs radius (with cropping and fiber removal)',
-              'Fiber s2n vs radius (with cropping)',
-              'Fiber s2n vs radius (with cropping and fiber removal)',
-              'All fiber spectra (with cropping)',
-              'All fiber spectra (with cropping and fiber removal)']
-    xlabels = 8*[label_x] + 4*[label_r] + 2*[label_waves]
-    ylabels = 8*[label_y] + 2*[label_flux] + 2*[label_s2n] + 2*[label_flux]
+              'Fiber s2n map (with cropping and fiber removal)']
     mappables = [None,binfluxcolors['mappable'],bins2ncolors['mappable'],None,
                  fiberfluxcolors['mappable'],fiberfluxcolors2['mappable'],
-                 fibers2ncolors['mappable'],fibers2ncolors2['mappable'],
-                 None,None,None,None,None,None]
-    mlabels = [None,label_flux,label_s2n,None,label_flux,label_flux,
-               label_s2n,label_s2n,None,None,None,None,None,None]
+                 fibers2ncolors['mappable'],fibers2ncolors2['mappable']]
+    mlabels = [None,label_flux,label_s2n,None] + 2*[label_flux] + 2*[label_s2n]
     figs,axs = {}, {}
     # create figures and axes
     for i,k in enumerate(fig_keys):
         figs[k],axs[k] = mplt.scalarmap(figtitle=titles[i],
-                                        xlabel=xlabels[i],ylabel=ylabels[i],
+                                        xlabel=label_x,ylabel=label_y,
                                         axC_mappable=mappables[i],
                                         axC_label=mlabels[i])
     # draw cartesian bin centers
@@ -149,33 +138,12 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         axs['map'].add_patch(patch(fc=bincolors[bin_id],alpha=0.8,ec='none'))
         axs['fmap'].add_patch(patch(fc=fiberfluxcolors['c'][fiber_id]))
         axs['smap'].add_patch(patch(fc=fibers2ncolors['c'][fiber_id]))
-        axs['fmap'].text(x,y,str(fiber_id),**txtkw)
-        axs['fmap2'].text(x,y,str(fiber_id),**txtkw)
-        axs['smap'].text(x,y,str(fiber_id),**txtkw)
-        axs['smap2'].text(x,y,str(fiber_id),**txtkw)
-        if fiber_id in plotfibers:
-            axs['spec'].semilogy(fiberwaves,np.abs(fiberspectra[fiber_id]),
-                                 c='r',alpha=0.3)
-            axs['spec'].semilogy(fiberwaves,fiberspectra[fiber_id],
-                                 c='c',alpha=0.3,nonposy='mask') 
+        for k in ['fmap','fmap2','smap','smap2']:
+            axs[k].text(x,y,str(fiber_id),**txtkw)
         if fiber_id in goodfibers:
             axs['fmap2'].add_patch(patch(fc=fiberfluxcolors2['c'][i2]))
             axs['smap2'].add_patch(patch(fc=fibers2ncolors2['c'][i2]))
             i2 += 1
-            axs['fvr'].text(r,f,str(fiber_id),alpha=0.3,**txtkw)
-            axs['fvr2'].text(r,f,str(fiber_id),**txtkw)
-            axs['svr'].text(r,s,str(fiber_id),alpha=0.3,**txtkw)
-            axs['svr2'].text(r,s,str(fiber_id),**txtkw)
-            if fiber_id in plotfibers:
-                axs['spec2'].semilogy(fiberwaves,np.abs(fiberspectra[fiber_id]),
-                                      c='r',alpha=0.3)
-                axs['spec2'].semilogy(fiberwaves,fiberspectra[fiber_id],
-                                      c='c',alpha=0.3,nonposy='mask')
-        else:
-            axs['fvr'].text(r,f,str(fiber_id),**txtkw)
-            axs['fvr'].plot(r,f,ls='',marker='o',mec='r',mfc='none',ms=10)
-            axs['svr'].text(r,s,str(fiber_id),**txtkw)
-            axs['svr'].plot(r,s,ls='',marker='o',mec='r',mfc='none',ms=10)
     # loop over bins
     for ibin,bin_id in enumerate(bininfo['binid']):
         bincolor = bincolors[int(bin_id)]
@@ -196,40 +164,86 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
             axs['map'].add_patch(patch(fc='none'))
             axs['flux'].add_patch(patch(fc=binfluxcolors['c'][ibin]))
             axs['s2n'].add_patch(patch(fc=bins2ncolors['c'][ibin]))
-            axs['cent'].add_patch(patch(fc='none'))
-            axs['fmap'].add_patch(patch(fc='none'))
-            axs['fmap2'].add_patch(patch(fc='none'))
-            axs['smap'].add_patch(patch(fc='none'))
-            axs['smap2'].add_patch(patch(fc='none'))
+            for k in ['map','cent','fmap','fmap2','smap','smap2']:
+                axs[k].add_patch(patch(fc='none'))
         else:
             patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
                                         bininfo['y'][ibin]),fibersize,lw=0.25)
             axs['flux'].add_patch(patch(fc=binfluxcolors['c'][ibin]))
             axs['s2n'].add_patch(patch(fc=bins2ncolors['c'][ibin]))
-    # draw ma, set axis bounds
+    # draw ma, set axis bounds, save and close
     rmax = np.nanmax(bininfo['rmax'])
-    for k in ['map','flux','s2n','cent','fmap','fmap2','smap','smap2']:
+    # save and close
+    for k in fig_keys:
         axs[k].plot([-rmax*1.1*np.cos(ma_theta), rmax*1.1*np.cos(ma_theta)],
                     [-rmax*1.1*np.sin(ma_theta), rmax*1.1*np.sin(ma_theta)],
                     linewidth=1.5, color='r')
         axs[k].axis([-squaremax,squaremax,-squaremax,squaremax])
-    for k in['fvr','fvr2']:
-        axs[k].set_yscale('log')
-        axs[k].axis([min(rcoords),max(rcoords),
-                     fiberfluxcolors['vmin'],fiberfluxcolors['vmax']])
-    for k in['svr','svr2']:
-        axs[k].set_yscale('log')
-        axs[k].axis([min(rcoords),max(rcoords),
-                     fibers2ncolors['vmin'],fibers2ncolors['vmax']])
-    for k in ['spec','spec2']:
-        axs[k].set_rasterized(True)
-        axs[k].set_title('(red indicates negative values)')
-        axs[k].set_xlim(xmin=fiberwaves[0]-0.05*(fiberwaves[-1]-fiberwaves[0]),
-                        xmax=fiberwaves[-1]+0.05*(fiberwaves[-1]-fiberwaves[0]))
-    # save and close
-    for k in fig_keys:
         pdf.savefig(figs[k])
         plt.close(figs[k])
+
+
+
+    # plot flux and s2n vs radius
+    t1f = 'Fiber flux vs radius (with cropping)'
+    t2f = 'Fiber flux vs radius (with cropping and fiber removal)'
+    t1s = 'Fiber s2n vs radius (with cropping)'
+    t2s = 'Fiber s2n vs radius (with cropping and fiber removal)'
+    fig1f,ax1f = mplt.scalarmap(figtitle=t1f,xlabel=label_r,ylabel=label_flux)
+    fig2f,ax2f = mplt.scalarmap(figtitle=t2f,xlabel=label_r,ylabel=label_flux)
+    fig1s,ax1s = mplt.scalarmap(figtitle=t1s,xlabel=label_r,ylabel=label_s2n)
+    fig2s,ax2s = mplt.scalarmap(figtitle=t2s,xlabel=label_r,ylabel=label_s2n)
+    txtkw = {'horizontalalignment':'center','verticalalignment':'center',
+             'fontsize':5}
+    for fiber_id,bin_id in zip(fiberids,binids):
+        r = rcoords[fiber_id]
+        f, s = fiberfluxcolors['x'][fiber_id], fibers2ncolors['x'][fiber_id]
+        if fiber_id in goodfibers:
+            ax1f.text(r,f,str(fiber_id),alpha=0.3,**txtkw)
+            ax2f.text(r,f,str(fiber_id),**txtkw)
+            ax1s.text(r,s,str(fiber_id),alpha=0.3,**txtkw)
+            ax2s.text(r,s,str(fiber_id),**txtkw)
+        else:
+            ax1f.text(r,f,str(fiber_id),**txtkw)
+            ax1f.plot(r,f,ls='',marker='o',mec='r',mfc='none',ms=10)
+            ax1s.text(r,s,str(fiber_id),**txtkw)
+            ax1s.plot(r,s,ls='',marker='o',mec='r',mfc='none',ms=10)
+    rmin, rmax = min(rcoords), max(rcoords)
+    fmin, fmax = fiberfluxcolors['vmin'], fiberfluxcolors['vmax']
+    smin, smax = fibers2ncolors['vmin'], fibers2ncolors['vmax']
+    ax1f.axis([rmin,rmax,fmin,fmax])
+    ax2f.axis([rmin,rmax,fmin,fmax])
+    ax1s.axis([rmin,rmax,smin,smax])
+    ax2s.axis([rmin,rmax,smin,smax])
+    for ax in [ax1f,ax2f,ax1s,ax2s]:
+        ax.set_yscale('log')
+    for fig in [fig1f,fig2f,fig1s,fig2s]:
+        pdf.savefig(fig)
+        plt.close(fig)
+
+
+
+    # plot all fiber spectra
+    t1 = 'All fiber spectra (with cropping)'
+    t2 = 'All fiber spectra (with cropping and fiber removal)'
+    fig1,ax1 = mplt.scalarmap(figtitle=t1,xlabel=label_waves,ylabel=label_flux)
+    fig2,ax2 = mplt.scalarmap(figtitle=t2,xlabel=label_waves,ylabel=label_flux)
+    for fiber_id in plotfibers:
+        fspec = fiberspectra[fiber_id]
+        ax1.semilogy(fiberwaves,np.abs(fspec),c='r',alpha=0.3)
+        ax1.semilogy(fiberwaves,fspec,c='c',alpha=0.3,nonposy='mask') 
+        if fiber_id in goodfibers:
+            ax2.semilogy(fiberwaves,np.abs(fspec),c='r',alpha=0.3)
+            ax2.semilogy(fiberwaves,fspec,c='c',alpha=0.3,nonposy='mask')
+    for ax in [ax1,ax2]:
+        ax.set_rasterized(True)
+        ax.set_title('(red indicates negative values)')
+        ax.set_xlim(xmin=fiberwaves[0]-0.05*(fiberwaves[-1]-fiberwaves[0]),
+                    xmax=fiberwaves[-1]+0.05*(fiberwaves[-1]-fiberwaves[0]))
+    for fig in [fig1,fig2]:
+        pdf.savefig(fig)
+        plt.close(fig)
+
 
 
     # plot ir for each bin
@@ -242,6 +256,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
                 c=ircolors['c'][ibin],alpha=0.7)
     pdf.savefig(fig)
     plt.close(fig)
+
 
 
     # plot each spectrum, y-axis also represents bin number

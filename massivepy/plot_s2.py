@@ -132,8 +132,6 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     i2 = 0 # a hacky way to access only the fluxes for good fibers
     for fiber_id,bin_id in zip(fiberids,binids):
         x, y = fiber_coords[fiber_id,:]
-        r = rcoords[fiber_id]
-        f, s = fiberfluxcolors['x'][fiber_id], fibers2ncolors['x'][fiber_id]
         patch = functools.partial(patches.Circle,(x,y),fibersize,lw=0.25)
         axs['map'].add_patch(patch(fc=bincolors[bin_id],alpha=0.8,ec='none'))
         axs['fmap'].add_patch(patch(fc=fiberfluxcolors['c'][fiber_id]))
@@ -152,8 +150,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         ybin = bininfo['r'][ibin]*np.cos(np.deg2rad(bininfo['th'][ibin]))
         axs['map'].plot(xbin,ybin,ls='',marker='o',mew=1.0,ms=8.0,mec='k',
                         mfc=bincolor)
-        axs['map'].text(xbin-0.2,ybin-0.1,str(int(bin_id)),fontsize=5,
-                        horizontalalignment='center',verticalalignment='center')
+        axs['map'].text(xbin-0.2,ybin-0.1,str(int(bin_id)),**txtkw)
         # draw polar bin centers
         axs['cent'].plot(xbin,ybin,ls='',marker='o',mew=0,ms=5.0,mfc='k')
         if not np.isnan(bininfo['rmin'][ibin]):
@@ -215,8 +212,11 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     ax2f.axis([rmin,rmax,fmin,fmax])
     ax1s.axis([rmin,rmax,smin,smax])
     ax2s.axis([rmin,rmax,smin,smax])
+    rmax = np.nanmax(bininfo['rmax'])
     for ax in [ax1f,ax2f,ax1s,ax2s]:
         ax.set_yscale('log')
+        ax.axvline(rmax,c='g')
+        ax.set_title('(max bin radius marked in green)')
     for fig in [fig1f,fig2f,fig1s,fig2s]:
         pdf.savefig(fig)
         plt.close(fig)

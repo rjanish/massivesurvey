@@ -69,9 +69,9 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     fig = plt.figure(figsize=(6,5))
     fig.suptitle('Templates (raw weights)')
     ax = fig.add_axes([0.17,0.05,0.7,0.7*1.2])
-    patches, labels, txt = ax.pie(weights,labels=pielabels,
-                                  colors=piecolors,labeldistance=1.1,
-                                  autopct='%1.1f%%',wedgeprops={'lw':0.2})
+    piepatches, labels, txt = ax.pie(weights,labels=pielabels,
+                                     colors=piecolors,labeldistance=1.1,
+                                     autopct='%1.1f%%',wedgeprops={'lw':0.2})
     for label in labels: label.set_fontsize(7)
     pdf.savefig(fig)
     plt.close(fig)
@@ -79,9 +79,9 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     fig = plt.figure(figsize=(6,5))
     fig.suptitle('Templates (flux-normalized weights)')
     ax = fig.add_axes([0.15,0.05,0.7,0.7*1.2])
-    patches, labels, txt = ax.pie(fluxweights,labels=pielabels,
-                                  colors=piecolors,labeldistance=1.1,
-                                  autopct='%1.1f%%',wedgeprops={'lw':0.2})
+    piepatches, labels, txt = ax.pie(fluxweights,labels=pielabels,
+                                     colors=piecolors,labeldistance=1.1,
+                                     autopct='%1.1f%%',wedgeprops={'lw':0.2})
     for label in labels: label.set_fontsize(7)
     pdf.savefig(fig)
     plt.close(fig)
@@ -127,7 +127,8 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
 def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                    bininfo_path=None,main_output=None,mc_output=None,
                    moments_output=None,mcmoments_output=None,fit_range=None,
-                   mask=None,compare_moments=None,compare_bins=None):
+                   mask=None,compare_moments=None,compare_bins=None,
+                   templates_dir=None):
     # get data from fits files of ppxf fit output
     fitdata = mpio.get_friendly_ppxf_output(main_output)
     nbins = fitdata['nbins']
@@ -225,8 +226,12 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                     label='comparison run')
             mainlabel = 'this run'
         # plot moments
-        ax.plot(moments_r,moments,ls='',marker='o',mfc='b',ms=5.0,alpha=0.8,
+        ax.plot(moments_r,moments,ls='',marker='o',mfc='c',ms=7.0,alpha=0.8,
                 label=mainlabel)
+        for imom,ibin in enumerate(ibins):
+            ax.text(moments_r[imom]-0.002*max(moments_r),moments[imom],
+                    str(int(bininfo['binid'][ibin])),fontsize=5,
+                    horizontalalignment='center',verticalalignment='center')
         # symmetrize y axis for all but v and sigma
         if not i in (0,1):
             ylim = max(np.abs(ax.get_ylim()))
@@ -339,5 +344,31 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     pdf.savefig(fig)
     plt.close(fig)
     
+
+    # template plots
+    catalogfile = os.path.join(templates_dir,'catalog.txt')
+    catalog = pd.read_csv(catalogfile,index_col='miles_id')
+    fig_ar = ((nbins-1)/5 + 2)/5.0
+    fig = plt.figure(figsize=(6,fig_ar*6))
+    fig.suptitle('Template weights for each bin (raw weights)')
+    for ibin in range(nbins):
+        spectype = np.array(catalog['spt'][fitdata['temps']['id'][0,:]],
+                            dtype='S1')
+        # sort by spectype for pie chart
+        ii = np.argsort(spectype,kind='mergesort')
+        weights = fitdata['temps']['weight'][0,ii]
+        spectype = spectype[ii]
+        piecolors = [const.spectype_colors[s[0]] for s in spectype]
+        irow, icol = ibin/5, ibin%5
+        width, height = 0.2, 0.2/fig_ar
+        ax = fig.add_axes([icol*width,1-(irow+2)*height,width,height])
+        ax.pie(weights,colors=piecolors,wedgeprops={'lw':0.0},radius=1.2)
+        ax.plot(0,0,marker='o',mfc='w',ms=12.0)
+        ax.text(-0.02,-0.01,fitdata['bins']['id'][ibin],fontsize=8.0,
+                horizontalalignment='center',verticalalignment='center')
+    pdf.savefig(fig)
+    plt.close(fig)
+
     pdf.close()
+
     return

@@ -175,7 +175,7 @@ for plot_info in things_to_plot:
         del plot_info['bininfo_path']
         plot_s3_fullfit(**plot_info)
     elif run_type=='bins':
-        del plot_info['templates_dir'] #this is silly, make it so these don't
+        #del plot_info['templates_dir'] #this is silly, make it so these don't
         del plot_info['temps_output']  #save in the first place
         plot_s3_binfit(**plot_info)
 

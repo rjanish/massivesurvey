@@ -374,3 +374,24 @@ def write_bininfo(path,bin_ids,grouped_fiberids,bin_fluxes,
     binheader += "\n {}, {}".format(comments['ar'], comments['s2n'])
     np.savetxt(path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
     return
+
+def read_bininfo(path,convert=True):
+    """
+    Read bininfo.txt file into convenient form.
+    If convert = True, convert coordinates into "plotting coordinates":
+      change theta from ccwise (0=y, north) to ccwise (0=x, west)
+      add 'rx' and 'ry' coordinates to plot *polar* center more easily
+    """
+    bininfo = np.genfromtxt(path,names=True,skip_header=1)
+    bininfo['thmin'] = 90 + bininfo['thmin']
+    bininfo['thmax'] = 90 + bininfo['thmax']
+    binsettings = open(path,'r').readlines()[18]
+    aspect_ratio, s2n_threshold = binsettings.strip().split()[1:]
+    aspect_ratio, s2n_threshold = eval(aspect_ratio[:-1]), eval(s2n_threshold)
+    # these lines are a terrible idea.
+    ma_line = open(path,'r').readlines()[9]
+    ma_theta = np.pi/2 + np.deg2rad(float(ma_line.strip().split()[-1]))
+    bincomments = {'ar':aspect_ratio,
+                   's2n': s2n_threshold,
+                   'ma': ma_theta}
+    return bininfo, bincomments

@@ -16,6 +16,7 @@ import descartes
 import massivepy.constants as const
 import massivepy.IFUspectrum as ifu
 import massivepy.spectrum as spec
+import massivepy.binning as binning
 import massivepy.plot_massive as mplt
 from plotting.geo_utils import polar_box
 
@@ -27,16 +28,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # read fiber and bin info
     fiberids, binids = np.genfromtxt(fiberinfo_path,
                                      dtype=int,unpack=True)
-    bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
-    bininfo['thmin'] = 90 + bininfo['thmin']
-    bininfo['thmax'] = 90 + bininfo['thmax']
-    binsettings = open(bininfo_path,'r').readlines()[18]
-    aspect_ratio, s2n_threshold = binsettings.strip().split()[1:]
-    aspect_ratio, s2n_threshold = eval(aspect_ratio[:-1]), eval(s2n_threshold)
-    nbins = len(bininfo)
-    # these lines are a terrible idea.
-    ma_line = open(bininfo_path,'r').readlines()[9]
-    ma_theta = np.pi/2 + np.deg2rad(float(ma_line.strip().split()[-1]))
+    bindata, binetc = binning.read_bininfo(bininfo_path)
+    nbins = len(bindata)
     # set up bin colors
     mycolors = ['b','g','c','m','r','y']
     bincolors = {}
@@ -49,7 +42,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for fiberid,binid in zip(fiberids,binids):
         if not binid==-99:
             goodfibers.append(fiberid)
-    ircolors = mplt.lin_colormap_setup(bininfo['binid'],cmap='cool')
+    ircolors = mplt.lin_colormap_setup(bindata['binid'],cmap='cool')
     label_ir = 'fwhm in wavelength units'
 
     # read spectra fits files
@@ -78,7 +71,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # set up colormaps for bin flux, s2n (don't use logsafe, shouldn't need it)
     # note this should be able to use specset.compute_flux(), BUTBUTBUT
     #  the spectra in binspectra.fits are still normalized arbitrarily
-    binfluxcolors = mplt.colormap_setup(bininfo['flux'],cmap='Reds')
+    binfluxcolors = mplt.colormap_setup(bindata['flux'],cmap='Reds')
     bins2ncolors = mplt.colormap_setup(specset.compute_mean_s2n(),cmap='Greens')
     fiberfluxcolors = mplt.colormap_setup(ifuset.spectrumset.compute_flux(),
                                           cmap='Reds',logsafe='max')
@@ -106,7 +99,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
     # plot bin maps, bin fluxes/s2n, bin centers comparison
     fig_keys = ['map','flux','s2n','cent','fmap','fmap2','smap','smap2']
-    titles = ['Bin map (s2n {}, ar {})'.format(s2n_threshold,aspect_ratio),
+    titles = ['Bin map (s2n {}, ar {})'.format(binetc['s2n'],binetc['ar']),
               'Bin flux map','Bin s2n map','Bin centers (cartesian v polar)',
               'Fiber flux map (with cropping)',
               'Fiber flux map (with cropping and fiber removal)',
@@ -124,7 +117,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
                                         axC_mappable=mappables[i],
                                         axC_label=mlabels[i])
     # draw cartesian bin centers
-    axs['cent'].plot(bininfo['x'],bininfo['y'],ls='',marker='s',mew=0,ms=5.0,
+    axs['cent'].plot(bindata['x'],bindata['y'],ls='',marker='s',mew=0,ms=5.0,
                      mfc='r')
     # loop over fibers
     txtkw = {'horizontalalignment':'center','verticalalignment':'center',
@@ -143,19 +136,19 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
             axs['smap2'].add_patch(patch(fc=fibers2ncolors2['c'][i2]))
             i2 += 1
     # loop over bins
-    for ibin,bin_id in enumerate(bininfo['binid']):
+    for ibin,bin_id in enumerate(bindata['binid']):
         bincolor = bincolors[int(bin_id)]
         # draw bin number at bin center
-        xbin = -bininfo['r'][ibin]*np.sin(np.deg2rad(bininfo['th'][ibin]))
-        ybin = bininfo['r'][ibin]*np.cos(np.deg2rad(bininfo['th'][ibin]))
+        xbin = -bindata['r'][ibin]*np.sin(np.deg2rad(bindata['th'][ibin]))
+        ybin = bindata['r'][ibin]*np.cos(np.deg2rad(bindata['th'][ibin]))
         axs['map'].plot(xbin,ybin,ls='',marker='o',mew=1.0,ms=8.0,mec='k',
                         mfc=bincolor)
         axs['map'].text(xbin-0.2,ybin-0.1,str(int(bin_id)),**txtkw)
         # draw polar bin centers
         axs['cent'].plot(xbin,ybin,ls='',marker='o',mew=0,ms=5.0,mfc='k')
-        if not np.isnan(bininfo['rmin'][ibin]):
-            pbox = polar_box(bininfo['rmin'][ibin],bininfo['rmax'][ibin],
-                             bininfo['thmin'][ibin],bininfo['thmax'][ibin])
+        if not np.isnan(bindata['rmin'][ibin]):
+            pbox = polar_box(bindata['rmin'][ibin],bindata['rmax'][ibin],
+                             bindata['thmin'][ibin],bindata['thmax'][ibin])
             patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
             axs['map'].add_patch(patch(fc=bincolor,alpha=0.5,zorder=-1))
             axs['map'].add_patch(patch(fc='none'))
@@ -164,16 +157,17 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
             for k in ['map','cent','fmap','fmap2','smap','smap2']:
                 axs[k].add_patch(patch(fc='none'))
         else:
-            patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
-                                        bininfo['y'][ibin]),fibersize,lw=0.25)
+            patch = functools.partial(patches.Circle,(bindata['x'][ibin],
+                                        bindata['y'][ibin]),fibersize,lw=0.25)
             axs['flux'].add_patch(patch(fc=binfluxcolors['c'][ibin]))
             axs['s2n'].add_patch(patch(fc=bins2ncolors['c'][ibin]))
     # draw ma, set axis bounds, save and close
-    rmax = np.nanmax(bininfo['rmax'])
-    # save and close
+    rmax = np.nanmax(bindata['rmax'])
     for k in fig_keys:
-        axs[k].plot([-rmax*1.1*np.cos(ma_theta), rmax*1.1*np.cos(ma_theta)],
-                    [-rmax*1.1*np.sin(ma_theta), rmax*1.1*np.sin(ma_theta)],
+        axs[k].plot([-rmax*1.1*np.cos(binetc['ma']),
+                     rmax*1.1*np.cos(binetc['ma'])],
+                    [-rmax*1.1*np.sin(binetc['ma']),
+                     rmax*1.1*np.sin(binetc['ma'])],
                     linewidth=1.5, color='r')
         axs[k].axis([-squaremax,squaremax,-squaremax,squaremax])
         pdf.savefig(figs[k])
@@ -212,7 +206,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     ax2f.axis([rmin,rmax,fmin,fmax])
     ax1s.axis([rmin,rmax,smin,smax])
     ax2s.axis([rmin,rmax,smin,smax])
-    rmax = np.nanmax(bininfo['rmax'])
+    rmax = np.nanmax(bindata['rmax'])
     for ax in [ax1f,ax2f,ax1s,ax2s]:
         ax.set_yscale('log')
         ax.axvline(rmax,c='g')

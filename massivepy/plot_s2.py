@@ -138,14 +138,13 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # loop over bins
     for ibin,bin_id in enumerate(bindata['binid']):
         bincolor = bincolors[int(bin_id)]
+        x, y = bindata['rx'][ibin], bindata['ry'][ibin]
         # draw bin number at bin center
-        xbin = -bindata['r'][ibin]*np.sin(np.deg2rad(bindata['th'][ibin]))
-        ybin = bindata['r'][ibin]*np.cos(np.deg2rad(bindata['th'][ibin]))
-        axs['map'].plot(xbin,ybin,ls='',marker='o',mew=1.0,ms=8.0,mec='k',
+        axs['map'].plot(x,y,ls='',marker='o',mew=1.0,ms=8.0,mec='k',
                         mfc=bincolor)
-        axs['map'].text(xbin-0.2,ybin-0.1,str(int(bin_id)),**txtkw)
+        axs['map'].text(x-0.2,y-0.1,str(bin_id),**txtkw)
         # draw polar bin centers
-        axs['cent'].plot(xbin,ybin,ls='',marker='o',mew=0,ms=5.0,mfc='k')
+        axs['cent'].plot(x,y,ls='',marker='o',mew=0,ms=5.0,mfc='k')
         if not np.isnan(bindata['rmin'][ibin]):
             pbox = polar_box(bindata['rmin'][ibin],bindata['rmax'][ibin],
                              bindata['thmin'][ibin],bindata['thmax'][ibin])
@@ -162,13 +161,10 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
             axs['flux'].add_patch(patch(fc=binfluxcolors['c'][ibin]))
             axs['s2n'].add_patch(patch(fc=bins2ncolors['c'][ibin]))
     # draw ma, set axis bounds, save and close
-    rmax = np.nanmax(bindata['rmax'])
     for k in fig_keys:
-        axs[k].plot([-rmax*1.1*np.cos(binetc['ma']),
-                     rmax*1.1*np.cos(binetc['ma'])],
-                    [-rmax*1.1*np.sin(binetc['ma']),
-                     rmax*1.1*np.sin(binetc['ma'])],
-                    linewidth=1.5, color='r')
+        axs[k].plot([-binetc['ma_x'],binetc['ma_x']],
+                    [-binetc['ma_y'],binetc['ma_y']],
+                    linewidth=1.5,color='r')
         axs[k].axis([-squaremax,squaremax,-squaremax,squaremax])
         pdf.savefig(figs[k])
         plt.close(figs[k])
@@ -206,10 +202,9 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     ax2f.axis([rmin,rmax,fmin,fmax])
     ax1s.axis([rmin,rmax,smin,smax])
     ax2s.axis([rmin,rmax,smin,smax])
-    rmax = np.nanmax(bindata['rmax'])
     for ax in [ax1f,ax2f,ax1s,ax2s]:
         ax.set_yscale('log')
-        ax.axvline(rmax,c='g')
+        ax.axvline(binetc['rbinmax'],c='g')
         ax.set_title('(max bin radius marked in green)')
     for fig in [fig1f,fig2f,fig1s,fig2s]:
         pdf.savefig(fig)

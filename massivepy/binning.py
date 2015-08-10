@@ -375,23 +375,43 @@ def write_bininfo(path,bin_ids,grouped_fiberids,bin_fluxes,
     np.savetxt(path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
     return
 
-def read_bininfo(path,convert=True):
+def read_bininfo(path,plotprep=True):
     """
     Read bininfo.txt file into convenient form.
-    If convert = True, convert coordinates into "plotting coordinates":
+    If plotprep = True, does the following:
       change theta from ccwise (0=y, north) to ccwise (0=x, west)
       add 'rx' and 'ry' coordinates to plot *polar* center more easily
+      compute 'ma_x' and 'ma_y', x and y coords of end of ma line
+    Can turn off plotprep for testing purposes, but by default it is on.
     """
-    bininfo = np.genfromtxt(path,names=True,skip_header=1)
-    bininfo['thmin'] = 90 + bininfo['thmin']
-    bininfo['thmax'] = 90 + bininfo['thmax']
+    bindata = np.genfromtxt(path,names=True,skip_header=1)
     binsettings = open(path,'r').readlines()[18]
     aspect_ratio, s2n_threshold = binsettings.strip().split()[1:]
     aspect_ratio, s2n_threshold = eval(aspect_ratio[:-1]), eval(s2n_threshold)
     # these lines are a terrible idea.
     ma_line = open(path,'r').readlines()[9]
     ma_theta = np.pi/2 + np.deg2rad(float(ma_line.strip().split()[-1]))
-    bincomments = {'ar':aspect_ratio,
-                   's2n': s2n_threshold,
-                   'ma': ma_theta}
-    return bininfo, bincomments
+    bincomments = {}
+    if plotprep:
+        # convert from theta=0 at +y to theta=0 at +x
+        names0 = list(bindata.dtype.names)
+        formats0 = [bindata.dtype.fields[name][0] for name in names0]
+        dt = {'names': names0 + ['rx', 'ry'],
+              'formats': 2*['i8'] + formats0}
+        print dt['formats']
+        bindata0 = bindata.copy()
+        bindata = np.zeros(bindata0.shape,dtype=dt)
+        for key in names0:
+            bindata[key] = bindata0[key]
+        bindata['thmin'] = 90 + bindata['thmin']
+        bindata['thmax'] = 90 + bindata['thmax']
+        bindata['rx'] = -bindata['r']*np.sin(np.deg2rad(bindata['th']))
+        bindata['ry'] = bindata['r']*np.cos(np.deg2rad(bindata['th']))
+        rmax = np.nanmax(bindata['rmax'])
+        bincomments['ma_x'] = rmax*1.1*np.cos(ma_theta)
+        bincomments['ma_y'] = rmax*1.1*np.sin(ma_theta)
+        bincomments['rbinmax'] = rmax
+    bincomments['ar'] = aspect_ratio
+    bincomments['s2n'] = s2n_threshold
+    #bincomments['ma'] = ma_theta
+    return bindata, bincomments

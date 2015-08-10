@@ -365,6 +365,8 @@ def write_bininfo(path,bin_ids,grouped_fiberids,bin_fluxes,
     binheader += "\n          ir file date: {}".format(comments['irfiledate'])
     binheader += "\n          aspect ratio: {}".format(comments['ar'])
     binheader += "\n         s2n threshold: {}".format(comments['s2n'])
+    binheader += "\n   best fullbin radius: {}".format(comments['r_bestfull'])
+    binheader += "\n          binning type: {}".format(comments['bin_type'])
     binheader += '\nOther comments:'
     binheader += '\n Theta=0 is defined at: +y (north)'
     binheader += '\n Theta increases counterclockwise (towards east)'
@@ -387,7 +389,7 @@ def read_bininfo(path,plotprep=True):
     """
     bindata = np.genfromtxt(path,names=True,skip_header=1)
     bincomments = {}
-    commentkeys = {7:'ra',8:'dec',9:'pa',14:'ar',15:'s2n'}
+    commentkeys = {7:'ra',8:'dec',9:'pa',14:'ar',15:'s2n',16:'r_bestfull'}
         # lines where important metadata numbers are found
     for i,line in enumerate(open(path,'r')):
         if not line[0]=='#':

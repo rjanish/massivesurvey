@@ -73,6 +73,7 @@ for paramfile_path in all_paramfile_paths:
     s2n_threshold = input_params['s2n_threshold']
     bin_type = input_params['bin_type']
     crop_region = [input_params['crop_min'], input_params['crop_max']]
+    fullbin_radius = input_params['fullbin_radius']
 
     # construct output file names
     output_path_maker = lambda f,ext: os.path.join(output_dir,
@@ -120,12 +121,6 @@ for paramfile_path in all_paramfile_paths:
     gal_position, gal_pa, gal_re= mpio.get_gal_center_pa(targets_path, gal_name)
     ma_bin = np.pi/2 - np.deg2rad(gal_pa) #theta=0 at +x (=east), ccwise
     fiber_radius = const.mitchell_fiber_radius.value
-    # do the full galaxy bin
-    full_galaxy = ifuset.spectrumset.collapse(id=0)
-    full_galaxy.comments["binning"] = ("this spectrum is the coadditon "
-                                       "of all fibers in the galaxy")
-    full_galaxy.name = "fullgalaxybin"
-    full_galaxy.write_to_fits(fullbin_path)
     # do all the bins
     if bin_type=='unfolded':
         apf = functools.partial(binning.partition_quadparity,
@@ -209,9 +204,43 @@ for paramfile_path in all_paramfile_paths:
                 'ifufiledate':ifuset.spectrumset.comments['rawdate'],
                 'irfile':os.path.basename(ir_path),
                 'irfiledate':time.ctime(os.path.getmtime(ir_path)),
-                'ar':aspect_ratio,'s2n':s2n_threshold}
+                'ar':aspect_ratio,'s2n':s2n_threshold,
+                'r_bestfull':fullbin_radius,
+                'bin_type':bin_type}
     binning.write_bininfo(bininfo_path,bin_ids,grouped_ids,bin_fluxes,
                           bin_coords,bin_bounds,**comments)
+    # do the full galaxy bins
+    fullids = [0,-1,-2]
+    greatfibers = [f for f in goodfibers
+                   if not fiber_binnumbers[f]==const.unusedfiber_bin_id]
+    bestfibers = [] # this is where I will make a symmetrical one
+    for fiber in greatfibers:
+        x,y = ifuset.get_subset(fiber).coords[0]
+        if np.sqrt(x**2 + y**2) < fullbin_radius:
+            bestfibers.append(fiber)
+    binned_comments["binning"] = ("bin 0 contains all good fibers, "
+                                  "bin -1 contains all binned fibers, "
+                                  "bin -2 contains all binned fibers within "
+                                  "radius {}.".format(fullbin_radius))
+    fullbin_data = {}
+    fullbin_shape = (len(fullids),ifuset.spectrumset.num_samples)
+    fullbin_data['wavelengths'] = ifuset.spectrumset.waves
+    fullbin_data['spectra_ids'] = fullids
+    for key in ['spectra','bad_data','noise','ir']:
+        fullbin_data[key] = np.zeros(fullbin_shape)
+    for i,f in enumerate([goodfibers,greatfibers,bestfibers]):
+        full_galaxy = ifuset.get_subset(f).spectrumset.collapse(id=fullids[i])
+        fullbin_data['spectra'][i,:] = full_galaxy.spectra
+        fullbin_data['bad_data'][i,:] = full_galaxy.metaspectra['bad_data']
+        fullbin_data['noise'][i,:] = full_galaxy.metaspectra['noise']
+        fullbin_data['ir'][i,:] = full_galaxy.metaspectra['ir']
+    full_galaxy = spec.SpectrumSet(spectra_unit=spec_unit,
+                                   wavelength_unit=wave_unit,
+                                   comments=binned_comments,
+                                   name="fullgalaxybins",
+                                   **fullbin_data)
+    full_galaxy.write_to_fits(fullbin_path)
+
 
 for plot_info in things_to_plot:
     print '\n\n====================================='

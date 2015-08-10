@@ -19,6 +19,7 @@ import massivepy.constants as const
 import massivepy.spectrum as spec
 import massivepy.io as mpio
 import massivepy.plot_massive as mplt
+import utilities as utl
 from plotting.geo_utils import polar_box
 
 
@@ -68,9 +69,9 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     fig = plt.figure(figsize=(6,5))
     fig.suptitle('Templates (raw weights)')
     ax = fig.add_axes([0.17,0.05,0.7,0.7*1.2])
-    patches, labels, txt = ax.pie(weights,labels=pielabels,
-                                  colors=piecolors,labeldistance=1.1,
-                                  autopct='%1.1f%%',wedgeprops={'lw':0.2})
+    piepatches, labels, txt = ax.pie(weights,labels=pielabels,
+                                     colors=piecolors,labeldistance=1.1,
+                                     autopct='%1.1f%%',wedgeprops={'lw':0.2})
     for label in labels: label.set_fontsize(7)
     pdf.savefig(fig)
     plt.close(fig)
@@ -78,9 +79,9 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     fig = plt.figure(figsize=(6,5))
     fig.suptitle('Templates (flux-normalized weights)')
     ax = fig.add_axes([0.15,0.05,0.7,0.7*1.2])
-    patches, labels, txt = ax.pie(fluxweights,labels=pielabels,
-                                  colors=piecolors,labeldistance=1.1,
-                                  autopct='%1.1f%%',wedgeprops={'lw':0.2})
+    piepatches, labels, txt = ax.pie(fluxweights,labels=pielabels,
+                                     colors=piecolors,labeldistance=1.1,
+                                     autopct='%1.1f%%',wedgeprops={'lw':0.2})
     for label in labels: label.set_fontsize(7)
     pdf.savefig(fig)
     plt.close(fig)
@@ -105,6 +106,14 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     # should add masking of bad_data as well!
     for m in mask:
         ax.axvspan(m[0],m[1],fc='k',ec='none',alpha=0.5,lw=0)
+    # mark prominent emission lines
+    elines = const.emission_lines
+    for eline in elines:
+        if elines[eline]['wave']<waves[0] or elines[eline]['wave']>waves[-1]:
+            continue
+        ax.axvline(elines[eline]['wave'],c='b')
+        ax.text(elines[eline]['x'],-0.05*elines[eline]['y'],
+                elines[eline]['name'],fontsize=7,weight='semibold')
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.set_yticks([0])
@@ -118,7 +127,8 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
 def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                    bininfo_path=None,main_output=None,mc_output=None,
                    moments_output=None,mcmoments_output=None,fit_range=None,
-                   mask=None,compare_moments=None,compare_bins=None):
+                   mask=None,compare_moments=None,compare_bins=None,
+                   templates_dir=None):
     # get data from fits files of ppxf fit output
     fitdata = mpio.get_friendly_ppxf_output(main_output)
     nbins = fitdata['nbins']
@@ -216,8 +226,12 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                     label='comparison run')
             mainlabel = 'this run'
         # plot moments
-        ax.plot(moments_r,moments,ls='',marker='o',mfc='b',ms=5.0,alpha=0.8,
+        ax.plot(moments_r,moments,ls='',marker='o',mfc='c',ms=7.0,alpha=0.8,
                 label=mainlabel)
+        for imom,ibin in enumerate(ibins):
+            ax.text(moments_r[imom]-0.002*max(moments_r),moments[imom],
+                    str(int(bininfo['binid'][ibin])),fontsize=5,
+                    horizontalalignment='center',verticalalignment='center')
         # symmetrize y axis for all but v and sigma
         if not i in (0,1):
             ylim = max(np.abs(ax.get_ylim()))
@@ -230,11 +244,43 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     
     # 2D kinematic maps at last, wheee
     fibersize=const.mitchell_fiber_radius.value
+
+    # do 4 versions of centered V
+    Vdata = fitdata['gh']['moment'][:,0]
+    V0 = [np.average(Vdata,weights=bininfo['flux']),np.average(Vdata),
+          utl.median(Vdata,weights=bininfo['flux']),np.median(Vdata)]
+    Vtitles = ['2D map of centered V (flux weighted average, V0={:.2f})'.format,
+               '2D map of centered V (average, V0={:.2f})'.format,
+               '2D map of centered V (flux weighted median, V0={:.2f})'.format,
+               '2D map of centered V (median, V0={:.2f})'.format]
+    for i in range(4):
+        Vcolors = mplt.lin_colormap_setup(Vdata-V0[i],cmap='BrBG',center=True)
+        fig, ax = mplt.scalarmap(figtitle=Vtitles[i](V0[i]),
+                                 xlabel=label_x,ylabel=label_y,
+                                 axC_mappable=Vcolors['mappable'],axC_label='V')
+        for ibin in range(nbins):
+            xbin = -bininfo['r'][ibin]*np.sin(np.deg2rad(bininfo['th'][ibin]))
+            ybin = bininfo['r'][ibin]*np.cos(np.deg2rad(bininfo['th'][ibin]))
+            if not np.isnan(bininfo['rmin'][ibin]):
+                pbox = polar_box(bininfo['rmin'][ibin],bininfo['rmax'][ibin],
+                                 bininfo['thmin'][ibin],bininfo['thmax'][ibin])
+                patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
+                ax.add_patch(patch(fc=Vcolors['c'][ibin],zorder=-1))
+            else:
+                patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
+                                        bininfo['y'][ibin]),fibersize,lw=0.25)
+                ax.add_patch(patch(fc=Vcolors['c'][ibin]))
+        ax.axis([-squaremax,squaremax,-squaremax,squaremax])
+        pdf.savefig(fig)
+        plt.close(fig)        
+
+    # do all the moments
     momentcmaps = ['Blues','Purples'] + (nmoments-2)*['bwr']
     center = 2*[False] + (nmoments-2)*[True]
     for i in range(nmoments):
-        momentcolors = mplt.lin_colormap_setup(fitdata['gh']['moment'][:,i],
-                                        cmap=momentcmaps[i],center=center[i])
+        momentdata = fitdata['gh']['moment'][:,i]
+        momentcolors = mplt.lin_colormap_setup(momentdata,cmap=momentcmaps[i],
+                                               center=center[i])
         title = '2D map of {}'.format(moment_names[i])
         fig, ax = mplt.scalarmap(figtitle=title,xlabel=label_x,ylabel=label_y,
                                  axC_mappable=momentcolors['mappable'],
@@ -246,8 +292,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                 pbox = polar_box(bininfo['rmin'][ibin],bininfo['rmax'][ibin],
                                  bininfo['thmin'][ibin],bininfo['thmax'][ibin])
                 patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
-                ax.add_patch(patch(fc=momentcolors['c'][ibin],
-                                   alpha=0.5,zorder=-1))
+                ax.add_patch(patch(fc=momentcolors['c'][ibin],zorder=-1))
             else:
                 patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
                                         bininfo['y'][ibin]),fibersize,lw=0.25)
@@ -299,5 +344,31 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     pdf.savefig(fig)
     plt.close(fig)
     
+
+    # template plots
+    catalogfile = os.path.join(templates_dir,'catalog.txt')
+    catalog = pd.read_csv(catalogfile,index_col='miles_id')
+    fig_ar = ((nbins-1)/5 + 2)/5.0
+    fig = plt.figure(figsize=(6,fig_ar*6))
+    fig.suptitle('Template weights for each bin (raw weights)')
+    for ibin in range(nbins):
+        spectype = np.array(catalog['spt'][fitdata['temps']['id'][0,:]],
+                            dtype='S1')
+        # sort by spectype for pie chart
+        ii = np.argsort(spectype,kind='mergesort')
+        weights = fitdata['temps']['weight'][0,ii]
+        spectype = spectype[ii]
+        piecolors = [const.spectype_colors[s[0]] for s in spectype]
+        irow, icol = ibin/5, ibin%5
+        width, height = 0.2, 0.2/fig_ar
+        ax = fig.add_axes([icol*width,1-(irow+2)*height,width,height])
+        ax.pie(weights,colors=piecolors,wedgeprops={'lw':0.0},radius=1.2)
+        ax.plot(0,0,marker='o',mfc='w',ms=12.0)
+        ax.text(-0.02,-0.01,fitdata['bins']['id'][ibin],fontsize=8.0,
+                horizontalalignment='center',verticalalignment='center')
+    pdf.savefig(fig)
+    plt.close(fig)
+
     pdf.close()
+
     return

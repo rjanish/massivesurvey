@@ -407,7 +407,16 @@ def compute_projected_confidences(prob_draws, fraction=0.683):
     return covariance, intervals
 
 
-
-
-
+def median(x,weights=None):
+    x = np.array(x)
+    if weights is None:
+        return np.median(x)
+    else:
+        weights = np.array(weights)
+    ii = np.argsort(x)
+    sums = np.cumsum(weights[ii])
+    center = 0.5*sums[-1]
+    icenter = np.searchsorted(sums,center)
+    median = 0.5*(x[ii][icenter]+x[ii][icenter+1])
+    return median
 

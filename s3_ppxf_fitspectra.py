@@ -167,6 +167,7 @@ for plot_info in things_to_plot:
     print 'Plotting {}'.format(plot_info['gal_name'])
     run_type = plot_info.pop('run_type')
     if run_type=='full':
+        mpio.friendly_temps(plot_info['main_output'],plot_info['temps_output'])
         del plot_info['compare_moments']
         del plot_info['compare_bins']
         del plot_info['mc_output']

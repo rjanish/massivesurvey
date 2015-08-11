@@ -36,17 +36,6 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     # get spectrum and bin information
     specset = spec.read_datacube(binspectra_path)
     specset = specset.get_subset(fitdata['bins']['id'])
-    # save "friendly" text output for theorists
-    txtfile_header = 'Columns are as follows:'
-    colnames = fitdata['temps'].dtype.names
-    txtfile_header += '\n ' + ' '.join(colnames)
-    txtfile_header += '\n{} nonzero templates out of {}'.format(
-        len(fitdata['temps']),fitdata['ntemps'])
-    fmt = ['%i']
-    fmt.extend(['%-8g']*(len(colnames)-1))
-    np.savetxt(temps_output,fitdata['temps'],fmt=fmt,
-               header=txtfile_header,delimiter='\t')
-
 
     ### Plotting Begins! ###
 
@@ -55,53 +44,58 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     # template plots
     catalogfile = os.path.join(templates_dir,'catalog.txt')
     catalog = pd.read_csv(catalogfile,index_col='miles_id')
-    spectype = np.array(catalog['spt'][fitdata['temps']['id']],dtype='S1')
-    # sort by spectype for pie chart
-    ii = np.argsort(spectype,kind='mergesort')
-    templates = fitdata['temps']['id'][ii]
-    weights = fitdata['temps']['weight'][ii]
-    fluxweights = fitdata['temps']['fluxweight'][ii]
-    spectype = spectype[ii]
-    spt_long = catalog['spt'][templates]
-    pielabels = ["{} ({})".format(s,t) for s,t in zip(spt_long,templates)]
-    piecolors = [const.spectype_colors[s[0]] for s in spectype]
-    # plot raw weights
-    fig = plt.figure(figsize=(6,5))
-    fig.suptitle('Templates (raw weights)')
-    ax = fig.add_axes([0.17,0.05,0.7,0.7*1.2])
-    piepatches, labels, txt = ax.pie(weights,labels=pielabels,
-                                     colors=piecolors,labeldistance=1.1,
-                                     autopct='%1.1f%%',wedgeprops={'lw':0.2})
-    for label in labels: label.set_fontsize(7)
-    pdf.savefig(fig)
-    plt.close(fig)
-    # plot flux-normalized weights
-    fig = plt.figure(figsize=(6,5))
-    fig.suptitle('Templates (flux-normalized weights)')
-    ax = fig.add_axes([0.15,0.05,0.7,0.7*1.2])
-    piepatches, labels, txt = ax.pie(fluxweights,labels=pielabels,
-                                     colors=piecolors,labeldistance=1.1,
-                                     autopct='%1.1f%%',wedgeprops={'lw':0.2})
-    for label in labels: label.set_fontsize(7)
-    pdf.savefig(fig)
-    plt.close(fig)
+    spectype = np.array(catalog['spt'][fitdata['temps']['id'][0,:]],dtype='S1')
+    for i in range(fitdata['nbins']):
+        binid = fitdata['bins']['id'][i]
+        # sort by spectype for pie chart
+        ii = np.argsort(spectype,kind='mergesort')
+        jj = np.nonzero(fitdata['temps']['weight'][i,ii])
+        templates = fitdata['temps']['id'][i,ii][jj]
+        weights = fitdata['temps']['weight'][i,ii][jj]
+        fluxweights = fitdata['temps']['fluxweight'][i,ii][jj]
+        spectype = spectype[ii][jj]
+        spt_long = catalog['spt'][templates]
+        pielabels = ["{} ({})".format(s,t) for s,t in zip(spt_long,templates)]
+        piecolors = [const.spectype_colors[s[0]] for s in spectype]
+        # plot raw weights
+        fig = plt.figure(figsize=(6,5))
+        fig.suptitle('Templates (raw weights) bin {}'.format(binid))
+        ax = fig.add_axes([0.17,0.05,0.7,0.7*1.2])
+        piepatches, labels, txt = ax.pie(weights,labels=pielabels,
+                                         colors=piecolors,labeldistance=1.1,
+                                        autopct='%1.1f%%',wedgeprops={'lw':0.2})
+        for label in labels: label.set_fontsize(7)
+        pdf.savefig(fig)
+        plt.close(fig)
+        # plot flux-normalized weights
+        fig = plt.figure(figsize=(6,5))
+        fig.suptitle('Templates (flux-normalized weights) bin {}'.format(binid))
+        ax = fig.add_axes([0.15,0.05,0.7,0.7*1.2])
+        piepatches, labels, txt = ax.pie(fluxweights,labels=pielabels,
+                                         colors=piecolors,labeldistance=1.1,
+                                        autopct='%1.1f%%',wedgeprops={'lw':0.2})
+        for label in labels: label.set_fontsize(7)
+        pdf.savefig(fig)
+        plt.close(fig)
     
     # plot the fit spectrum
-    fig = plt.figure(figsize=(6, 5))
-    fig.suptitle('full galaxy spectrum fit')
-    ax = fig.add_axes([0.15,0.1,0.7,0.7])
+    fig = plt.figure(figsize=(6, nbins+3))
+    fig.suptitle('bin spectra by bin number')
+    yspace = 1/float(nbins+3)
+    ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
     target_specset = specset.crop(fit_range)
-    spectrum = target_specset.spectra[0]
-    spectrum = spectrum/np.median(spectrum)
-    waves = target_specset.waves
-    model = fitdata['spec']['bestmodel'][0]
-    modelwaves = fitdata['waves']
-    # modelwaves should be same as waves, but is longer by one pixel!!
-    # this bug shows up only (so far) in NGC1129
-    ax.plot(waves,spectrum-spectrum[0],c='k')
-    ax.plot(modelwaves,model-spectrum[0],c='r',lw=0.7)
-    ax.text(waves[0],0.4,
-            r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][0]))
+    for i,binid in enumerate(fitdata['bins']['id']):
+        spectrum = target_specset.spectra[i]
+        spectrum = spectrum/np.median(spectrum)
+        waves = target_specset.waves
+        model = fitdata['spec']['bestmodel'][i]
+        modelwaves = fitdata['waves']
+        # modelwaves should be same as waves, but is longer by one pixel!!
+        # this bug shows up only (so far) in NGC1129
+        ax.plot(waves,i-spectrum+spectrum[0],c='k')
+        ax.plot(modelwaves,i-model+spectrum[0],c='r',lw=0.7)
+        ax.text(waves[0],i-0.4,
+                r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][0]))
     # find regions to mask
     # should add masking of bad_data as well!
     for m in mask:
@@ -112,12 +106,17 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
         if elines[eline]['wave']<waves[0] or elines[eline]['wave']>waves[-1]:
             continue
         ax.axvline(elines[eline]['wave'],c='b')
-        ax.text(elines[eline]['x'],-0.05*elines[eline]['y'],
+        ax.text(elines[eline]['x'],-1.9+0.1*elines[eline]['y'],
                 elines[eline]['name'],fontsize=7,weight='semibold')
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.set_yticks([0])
     ax.autoscale(tight=True)
+    ax.set_yticks(range(nbins))
+    ax.set_yticklabels(fitdata['bins']['id'])
+    ax.set_ylim(ymin=-2,ymax=nbins)
+    ax.invert_yaxis()
+    ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)
     plt.close(fig)
     
@@ -302,8 +301,6 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         plt.close(fig)
 
     # plot each spectrum, y-axis also represents bin number
-    #figheight = max(fitdata['bins']['id'])
-    #figheight = max(figheight,4)
     fig = plt.figure(figsize=(6, nbins+3))
     fig.suptitle('bin spectra by bin number')
     yspace = 1/float(nbins+3)
@@ -331,14 +328,14 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         if elines[eline]['wave']<waves[0] or elines[eline]['wave']>waves[-1]:
             continue
         ax.axvline(elines[eline]['wave'],c='b')
-        ax.text(elines[eline]['x'],-0.9+0.15*elines[eline]['y'],
+        ax.text(elines[eline]['x'],-1.9+0.15*elines[eline]['y'],
                 elines[eline]['name'],fontsize=7,weight='semibold')
     ax.set_xlabel('wavelength ({})'.format("units"))
     ax.set_ylabel('bin number')
     ax.autoscale(tight=True)
     ax.set_yticks(range(nbins))
     ax.set_yticklabels(fitdata['bins']['id'])
-    ax.set_ylim(ymin=-1,ymax=nbins)
+    ax.set_ylim(ymin=-2,ymax=nbins)
     ax.invert_yaxis()
     ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)

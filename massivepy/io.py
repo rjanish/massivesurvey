@@ -4,6 +4,7 @@ Basic repetiitve io tasks
 
 import os
 import re
+import functools
 
 import numpy as np
 import pandas as pd
@@ -184,10 +185,6 @@ def get_friendly_ppxf_output(path):
         ii = np.argsort(data[1][1,ibin,:]) # sort by weight
         for i,field in enumerate(dt['names']): # need fields in fits file order
             friendly_data['temps'][field][ibin,:] = data[1][i,ibin,:][ii][::-1]
-    if nbins==1:
-        friendly_data['temps'] = friendly_data['temps'][0,:]
-        ii = np.nonzero(friendly_data['temps']['weight'])
-        friendly_data['temps'] = friendly_data['temps'][ii]
 
     # populate bin stuff
     dt = {'names':['id','chisq'],'formats':[int,np.float64]}
@@ -234,3 +231,33 @@ def get_friendly_ppxf_output_mc(path):
             friendly_data['err'][ibin,imom] = np.std(data[0][0,ibin,:,imom])
 
     return friendly_data
+
+def friendly_temps(fits_path,temps_path):
+    """
+    Save template information in a nice friendly text file.
+    All information is taken from the main fits file of the run, and only
+     relevant information for template runs is saved to the new file.
+    One template file for each bin is saved, since there can sometimes be
+     multiple fullgalaxy bins. The bin number is stuck onto the generic
+     temps_path just before the extension.
+    """
+    fitdata = get_friendly_ppxf_output(fits_path)
+    ncols = len(fitdata['temps'].dtype.names)
+    colnames = ' '.join(fitdata['temps'].dtype.names)
+    header = ('Columns are as follows:'
+              '\n {colnames}'
+              '\nMetadata is as follows:'
+              '\n nonzero templates: {ntemps_nonzero}'
+              '\n out of total templates: {ntemps_total}'.format)
+    header = functools.partial(header,colnames=colnames,
+                               ntemps_total=fitdata['ntemps'])
+    for i in range(fitdata['nbins']):
+        fmt = ['%i']
+        fmt.extend(['%-8g']*(ncols-1))
+        temps_root, temps_ext = os.path.splitext(temps_path)
+        ii = np.nonzero(fitdata['temps']['weight'][i,:])[0]
+        binpath = temps_root + str(fitdata['bins']['id'][i]) + temps_ext
+        np.savetxt(binpath,fitdata['temps'][i,ii],fmt=fmt,
+                   header=header(ntemps_nonzero=len(ii)),
+                   delimiter='\t')
+    return

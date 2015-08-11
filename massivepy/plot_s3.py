@@ -195,9 +195,8 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     else:
         do_comparison = False
     if do_comparison:
-        fitdata2 = mpio.get_friendly_ppxf_output(plot_info['compare_moments'])
-        bininfo2 = np.genfromtxt(plot_info['compare_bins'],names=True,
-                                 skip_header=12)
+        fitdata2 = mpio.get_friendly_ppxf_output(compare_moments)
+        bininfo2 = np.genfromtxt(compare_bins,names=True,skip_header=1)
         ibins_all2 = {int(bininfo2['binid'][i]):i for i in range(len(bininfo2))}
         ibins2 = [ibins_all2[binid] for binid in fitdata2['bins']['id']]
 
@@ -221,9 +220,10 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                         marker=None,ecolor='k',elinewidth=1.0,label='mc')
         mainlabel = None
         if do_comparison:
-            ax.plot(bininfo2['r'][ibins2],fitdata2['gh']['moment'][:,i],
-                    ls='',marker='s',mfc='g',ms=5.0,alpha=0.8,
-                    label='comparison run')
+            moments2 = fitdata2['gh']['moment'][:,i]
+            moments_r2 = bininfo2['r'][ibins2]
+            ax.plot(moments_r2,moments2,ls='',marker='s',mfc='g',ms=5.0,
+                    alpha=0.8,label='comparison run')
             mainlabel = 'this run'
         # plot moments
         ax.plot(moments_r,moments,ls='',marker='o',mfc='c',ms=7.0,alpha=0.8,

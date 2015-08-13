@@ -4,6 +4,7 @@ Basic repetiitve io tasks
 
 import os
 import re
+import time
 import functools
 
 import numpy as np
@@ -243,21 +244,30 @@ def friendly_temps(fits_path,temps_path):
     """
     fitdata = get_friendly_ppxf_output(fits_path)
     ncols = len(fitdata['temps'].dtype.names)
-    colnames = ' '.join(fitdata['temps'].dtype.names)
     header = ('Columns are as follows:'
               '\n {colnames}'
               '\nMetadata is as follows:'
-              '\n nonzero templates: {ntemps_nonzero}'
-              '\n out of total templates: {ntemps_total}'.format)
-    header = functools.partial(header,colnames=colnames,
-                               ntemps_total=fitdata['ntemps'])
+              '\n      nonzero templates: {ntemps_nonzero}'
+              '\n out of total templates: {ntemps}'
+              '\n       bin spectra file: PLACEHOLDER'
+              '\n  bin spectra file date: PLACEHOLDER'
+              '\n       output fits file: {fitsfile}'
+              '\n  output fits file date: {fitsfiledate}'
+              '\nThe best-fit moments are:'
+              '\n {moments}'.format)
+    colnames = ' '.join(fitdata['temps'].dtype.names)
+    fitsfile = os.path.basename(fits_path)
+    fitsfiledate = time.ctime(os.path.getmtime(fits_path))
+    header=functools.partial(header,colnames=colnames,ntemps=fitdata['ntemps'],
+                             fitsfile=fitsfile,fitsfiledate=fitsfiledate)
     for i in range(fitdata['nbins']):
         fmt = ['%i']
         fmt.extend(['%-8g']*(ncols-1))
         temps_root, temps_ext = os.path.splitext(temps_path)
         ii = np.nonzero(fitdata['temps']['weight'][i,:])[0]
         binpath = temps_root + str(fitdata['bins']['id'][i]) + temps_ext
+        moments = ' '.join(['%-8g'%m for m in fitdata['gh']['moment'][i,:]])
         np.savetxt(binpath,fitdata['temps'][i,ii],fmt=fmt,
-                   header=header(ntemps_nonzero=len(ii)),
+                   header=header(ntemps_nonzero=len(ii),moments=moments),
                    delimiter='\t')
     return

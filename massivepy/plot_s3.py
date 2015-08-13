@@ -44,24 +44,21 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     # template plots
     catalogfile = os.path.join(templates_dir,'catalog.txt')
     catalog = pd.read_csv(catalogfile,index_col='miles_id')
-    spectype = np.array(catalog['spt'][fitdata['temps']['id'][0,:]],dtype='S1')
     for i in range(fitdata['nbins']):
         binid = fitdata['bins']['id'][i]
-        # sort by spectype for pie chart
-        ii = np.argsort(spectype,kind='mergesort')
-        jj = np.nonzero(fitdata['temps']['weight'][i,ii])
-        templates = fitdata['temps']['id'][i,ii][jj]
-        weights = fitdata['temps']['weight'][i,ii][jj]
-        fluxweights = fitdata['temps']['fluxweight'][i,ii][jj]
-        spectype = spectype[ii][jj]
-        spt_long = catalog['spt'][templates]
-        pielabels = ["{} ({})".format(s,t) for s,t in zip(spt_long,templates)]
+        temps = fitdata['temps'][i,:]
+        ii = np.nonzero(temps['weight']) # use only nonzero templates
+        temps = temps[ii]
+        spectype = np.array(catalog['spt'][temps['id']])
+        ii = np.argsort(spectype,kind='mergesort') # sort by spectype
+        temps, spectype = temps[ii], spectype[ii]
+        pielabels = ["{} ({})".format(s,t) for s,t in zip(spectype,temps['id'])]
         piecolors = [const.spectype_colors[s[0]] for s in spectype]
         # plot raw weights
         fig = plt.figure(figsize=(6,5))
         fig.suptitle('Templates (raw weights) bin {}'.format(binid))
         ax = fig.add_axes([0.17,0.05,0.7,0.7*1.2])
-        piepatches, labels, txt = ax.pie(weights,labels=pielabels,
+        piepatches, labels, txt = ax.pie(temps['weight'],labels=pielabels,
                                          colors=piecolors,labeldistance=1.1,
                                         autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
@@ -71,7 +68,7 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
         fig = plt.figure(figsize=(6,5))
         fig.suptitle('Templates (flux-normalized weights) bin {}'.format(binid))
         ax = fig.add_axes([0.15,0.05,0.7,0.7*1.2])
-        piepatches, labels, txt = ax.pie(fluxweights,labels=pielabels,
+        piepatches, labels, txt = ax.pie(temps['fluxweight'],labels=pielabels,
                                          colors=piecolors,labeldistance=1.1,
                                         autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
@@ -349,17 +346,15 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     fig = plt.figure(figsize=(6,fig_ar*6))
     fig.suptitle('Template weights for each bin (raw weights)')
     for ibin in range(nbins):
-        spectype = np.array(catalog['spt'][fitdata['temps']['id'][0,:]],
-                            dtype='S1')
-        # sort by spectype for pie chart
-        ii = np.argsort(spectype,kind='mergesort')
-        weights = fitdata['temps']['weight'][0,ii]
-        spectype = spectype[ii]
+        temps = fitdata['temps'][i,:]
+        spectype = np.array(catalog['spt'][temps['id']])
+        ii = np.argsort(spectype,kind='mergesort') # sort by spectype
+        temps, spectype = temps[ii], spectype[ii]
         piecolors = [const.spectype_colors[s[0]] for s in spectype]
         irow, icol = ibin/5, ibin%5
         width, height = 0.2, 0.2/fig_ar
         ax = fig.add_axes([icol*width,1-(irow+2)*height,width,height])
-        ax.pie(weights,colors=piecolors,wedgeprops={'lw':0.0},radius=1.2)
+        ax.pie(temps['weight'],colors=piecolors,wedgeprops={'lw':0},radius=1.2)
         ax.plot(0,0,marker='o',mfc='w',ms=12.0)
         ax.text(-0.02,-0.01,fitdata['bins']['id'][ibin],fontsize=8.0,
                 horizontalalignment='center',verticalalignment='center')

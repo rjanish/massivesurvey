@@ -243,8 +243,8 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
 
     # do 4 versions of centered V
     Vdata = fitdata['gh']['moment'][:,0]
-    V0 = [np.average(Vdata,weights=bininfo['flux']),np.average(Vdata),
-          utl.median(Vdata,weights=bininfo['flux']),np.median(Vdata)]
+    V0 = [np.average(Vdata,weights=bininfo['flux'][ibins]),np.average(Vdata),
+          utl.median(Vdata,weights=bininfo['flux'][ibins]),np.median(Vdata)]
     Vtitles = ['2D map of centered V (flux weighted average, V0={:.2f})'.format,
                '2D map of centered V (average, V0={:.2f})'.format,
                '2D map of centered V (flux weighted median, V0={:.2f})'.format,

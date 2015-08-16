@@ -136,33 +136,39 @@ class pPXFDriver(object):
                                   "ir":  np.zeros(temp_lib_shape),
                                   "waves":  np.zeros(self.num_temp_samples)}
         # pPXF outputs
-        output_shapes = {
-            "best_model": [num_samples],
-            "gh_params": [self.ppxf_kwargs['moments']],
-            "chisq_dof": [1],
-            "template_weights": [self.num_temps],
-            "add_weights": [num_add_weights],
-            "mul_weights": [num_mul_weights],
-            "unscaled_lsq_errors": [self.ppxf_kwargs['moments']],
-                # error estimate from least-square fit's covariance matrix
-            "scaled_lsq_errors": [self.ppxf_kwargs['moments']],
-                # least-square error estimate scaled by best-fit chi-squared
-            "mul_poly": [num_samples],
-            "add_poly": [num_samples],
-            "smoothed_temps": [self.num_temps, self.num_temp_samples],
-                # templates smoothed by losvd
-            "model_temps": [self.num_temps, num_samples],
-                # smoothed templates also scaled by multiplicative polynomial
-            "model_temps_fluxes": [self.num_temps],
-            "add_fluxweights": [num_add_weights],
-                # weighted normalized to equal fractional flux level
-            "template_fluxweights": [self.num_temps]}
+        self.output_shapetypes = ["scalar","momentlike","templike","speclike",
+                                  "addlike","mullike","temp2","temp3"]
+        self.output_shapes = {"scalar": [1],
+                              "momentlike": [self.ppxf_kwargs['moments']],
+                              "templike": [self.num_temps],
+                              "speclike": [num_samples],
+                              "addlike": [num_add_weights],
+                              "mullike": [num_mul_weights],
+                              "temp2": [self.num_temps,self.num_temp_samples],
+                              "temp3": [self.num_temps,num_samples]}
+        self.output_names = {"scalar": ["chisq_dof"],
+                             "momentlike": ["gh_params","unscaled_lsq_errors",
+                                            "scaled_lsq_errors"],
+                             # unscaled_lsq is estimate from least-square fit's
+                             #  covariance matrix, scaled_lsq scales by chisq.
+                             "templike": ["template_weights",
+                                          "model_temps_fluxes",
+                                          "template_fluxweights"],
+                             "speclike": ["best_model","mul_poly","add_poly"],
+                             "addlike": ["add_weights","add_fluxweights"],
+                             # add_fluxweights are weighted normalied to equal
+                             #  fractional flux level
+                             "mullike": ["mul_weights"],
+                             "temp2": ["smoothed_temps"], # smoothed by losvd
+                             "temp3": ["model_temps"]} # also scaled by mulpoly
         self.bestfit_output = {}
         self.mc_output = {}
-        for output, shape in output_shapes.iteritems():
-            self.bestfit_output[output] = np.zeros([num_spectra] + shape)
-            self.mc_output[output] = np.zeros([num_spectra, num_trials]
-                                              + shape)
+        for shapetype in self.output_shapetypes:
+            shape = [num_spectra] + self.output_shapes[shapetype]
+            mcshape = [num_spectra, num_trials] + self.output_shapes[shapetype]
+            for outputname in self.output_names[shapetype]:
+                self.bestfit_output[outputname] = np.zeros(shape)
+                self.mc_output[outputname] = np.zeros(mcshape)
         # trial noises and spectra
         self.mc_inputs = {
             "noiselevels": np.zeros((num_spectra, num_samples)),

@@ -200,8 +200,8 @@ def get_friendly_ppxf_output(path):
     friendly_data['spec']['bestmodel'] = data[2][0, ...]
 
     # populate waves 
-    # pretty sure this can go away since its all in the bin output!
-    friendly_data['waves'] = data[6]
+    # this *should* match the bin spectra waves, but sometimes is off by 1
+    friendly_data['waves'] = data[4]
 
     return friendly_data
 

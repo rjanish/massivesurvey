@@ -2,7 +2,7 @@
 This is a wrapper for ppxf, facilitating kinematic fitting.
 """
 
-
+import os
 import warnings
 import functools
 import copy
@@ -136,22 +136,21 @@ class pPXFDriver(object):
                                   "ir":  np.zeros(temp_lib_shape),
                                   "waves":  np.zeros(self.num_temp_samples)}
         # pPXF outputs
-        self.output_shapetypes = ["scalar","momentlike","templike","speclike",
-                                  "addlike","mullike","temp2","temp3"]
-        self.output_shapes = {"scalar": [1],
-                              "momentlike": [self.ppxf_kwargs['moments']],
-                              "templike": [self.num_temps],
-                              "speclike": [num_samples],
-                              "addlike": [num_add_weights],
-                              "mullike": [num_mul_weights],
-                              "temp2": [self.num_temps,self.num_temp_samples],
-                              "temp3": [self.num_temps,num_samples]}
-        self.output_names = {"scalar": ["chisq_dof"],
+        self.output_shapetypes = ["momentlike","templike","speclike","scalars",
+                                  "waves","addlike","mullike","temp2","temp3"]
+        self.mcoutput_shapetypes = ["momentlike","templike","speclike",
+                                    "scalars","addlike","mullike","temp2",
+                                    "temp3"]
+        # these must match the keys in output_shapes and output_names!
+        # defined as a separate list so that the order of hdus in the output
+        #  files can be deterministic, set by the order in this list. these
+        #  names will determine the names of each hdu.
+        self.output_names = {"scalars": ["binid","chisq_dof"],
                              "momentlike": ["gh_params","unscaled_lsq_errors",
                                             "scaled_lsq_errors"],
                              # unscaled_lsq is estimate from least-square fit's
                              #  covariance matrix, scaled_lsq scales by chisq.
-                             "templike": ["template_weights",
+                             "templike": ["template_ids","template_weights",
                                           "model_temps_fluxes",
                                           "template_fluxweights"],
                              "speclike": ["best_model","mul_poly","add_poly"],
@@ -160,15 +159,38 @@ class pPXFDriver(object):
                              #  fractional flux level
                              "mullike": ["mul_weights"],
                              "temp2": ["smoothed_temps"], # smoothed by losvd
-                             "temp3": ["model_temps"]} # also scaled by mulpoly
+                             "temp3": ["model_temps"], # also scaled by mulpoly
+                             "waves": ["waves"]}
+        self.mcoutput_names = copy.deepcopy(self.output_names)
+        self.mcoutput_names["speclike"].append("spectrum")
+        # these "standard shapes" will have num_spectra, num_trials prepended
+        output_shapes = {"scalars": [],
+                         "momentlike": [self.ppxf_kwargs['moments']],
+                         "templike": [self.num_temps],
+                         "speclike": [num_samples],
+                         "addlike": [num_add_weights],
+                         "mullike": [num_mul_weights],
+                         "temp2": [self.num_temps,self.num_temp_samples],
+                         "temp3": [self.num_temps,num_samples]}
+        mc_shapes = copy.deepcopy(output_shapes)
+        for shape in output_shapes:
+            output_shapes[shape] = [num_spectra] + output_shapes[shape]
+        for shape in mc_shapes:
+            mc_shapes[shape] = [num_spectra, num_trials] + mc_shapes[shape]
+        # now the non "standard" shapes
+        output_shapes["waves"] = num_samples
+        mc_shapes["waves"] = num_samples
+        # now create the output containers
         self.bestfit_output = {}
-        self.mc_output = {}
         for shapetype in self.output_shapetypes:
-            shape = [num_spectra] + self.output_shapes[shapetype]
-            mcshape = [num_spectra, num_trials] + self.output_shapes[shapetype]
+            shape = output_shapes[shapetype]
             for outputname in self.output_names[shapetype]:
                 self.bestfit_output[outputname] = np.zeros(shape)
-                self.mc_output[outputname] = np.zeros(mcshape)
+        self.mc_output = {}
+        for shapetype in self.mcoutput_shapetypes:
+            shape = mc_shapes[shapetype]
+            for outputname in self.output_names[shapetype]:
+                self.mc_output[outputname] = np.zeros(shape)
         # trial noises and spectra
         self.mc_inputs = {
             "noiselevels": np.zeros((num_spectra, num_samples)),
@@ -371,6 +393,7 @@ class pPXFDriver(object):
         Compute useful outputs not directly returned by pPXF.
         """
         proc_outputs = {}
+        proc_outputs["template_ids"] = self.templib.spectrumset.ids
         proc_outputs["scaled_lsq_errors"] = self.scale_lsq_variance(fitter)
             # least-square error estimate scaled by fit chi-squared
         add_poly, mul_poly = self.evalute_continuum_polys(fitter)
@@ -432,6 +455,7 @@ class pPXFDriver(object):
         self.num_temps = test_matched_library.spectrumset.num_spectra
         # prep for fit
         self.init_output_containers()
+        self.bestfit_output["waves"] = self.specset.waves
         # run actual fit
         for spec_iter, target_id in enumerate(self.specset.ids):
             print ("fitting spectrum {} ({} of {})..."
@@ -465,6 +489,7 @@ class pPXFDriver(object):
             bestfit_output = self.get_raw_pPXF_results(fitter)
             proc_results = self.process_pPXF_results(fitter, self.VEL_FACTOR)
             bestfit_output.update(proc_results)
+            bestfit_output["binid"] = target_id
             utl.fill_dict(self.bestfit_output, bestfit_output, spec_iter)
             self.save_matched_templates(matched_library, spec_iter)
             # construct error estimate from Monte Carlo trial spectra
@@ -529,97 +554,28 @@ class pPXFDriver(object):
             baseheader.append(("{}_0".format(param_name), init_value,
                                "starting value of {} [{}]"
                                "".format(param_name, unit)))
-        #Now do stuff that does not match between bins
-        #HDU 1: gh moments and lsq errors
-        gh_params = self.bestfit_output['gh_params']
-        lsqerr = self.bestfit_output['unscaled_lsq_errors']
-        scaledlsq = self.bestfit_output['scaled_lsq_errors']
-        moment_info = [gh_params,lsqerr,scaledlsq]
-        moment_info_columns = "ghparams,lsqerr,scaledlsq"
-        header_gh = baseheader.copy()
-        header_gh.append(("axis1", "moment"))
-        header_gh.append(("axis2", "bin"))
-        header_gh.append(("axis3", moment_info_columns))
-        header_gh.append(("primary","gh_moments"))
-        hdu_gh = fits.PrimaryHDU(data=moment_info,
-                                 header=header_gh)
 
-        #HDU 2: templates and weights (raw and flux-weighted)
-        t_ids = [self.templib.spectrumset.ids
-                 for i in range(self.specset.num_spectra)]
-        t_weights = self.bestfit_output['template_weights']
-        t_mflux = self.bestfit_output['model_temps_fluxes']
-        t_fw = self.bestfit_output['template_fluxweights']
-        template_info = [t_ids,t_weights,t_mflux,t_fw]
-        template_info_columns = "id,weight,modelflux,fluxweight"
-        header_temps = baseheader.copy()
-        header_temps.append(("axis1", "template"))
-        header_temps.append(("axis2", "bin"))
-        header_temps.append(("axis3", template_info_columns))
-        hdu_temps = fits.ImageHDU(data=template_info,
-                                  header=header_temps,
-                                  name='template_info')
+        # save main fits file, looping over output containers automatically
+        hdulist = []
+        primaryhdu = True
+        for shapetype in self.output_shapetypes:
+            header = baseheader.copy()
+            outputnames = self.output_names[shapetype]
+            if len(outputnames)==1:
+                data = self.bestfit_output[outputnames[0]]
+            else:
+                data = [self.bestfit_output[name] for name in outputnames]
+            header.append(("columns", ",".join(outputnames)))
+            if primaryhdu:
+                header.append(("primary",shapetype))
+                hdu = fits.PrimaryHDU(data=data,header=header)
+                primaryhdu = False
+            else:
+                hdu = fits.ImageHDU(data=data,header=header,name=shapetype)
+            hdulist.append(hdu)
+        fitshdulist = fits.HDUList(hdus=hdulist)
+        fitshdulist.writeto(paths_dict['main'], clobber=True)
 
-        #HDU 3: spectrum and other related things (per bin)
-        best_model = self.bestfit_output['best_model']
-        mul_poly = self.bestfit_output['mul_poly']
-        add_poly = self.bestfit_output['add_poly']
-        spec_info = [best_model,mul_poly,add_poly]
-        spec_info_columns = "bestmodel,mulpoly,addpoly"
-        header_spec = baseheader.copy()
-        header_spec.append(("axis1", "pixel"))
-        header_spec.append(("axis2", "bin"))
-        header_spec.append(("axis3", spec_info_columns))
-        hdu_spec = fits.ImageHDU(data=spec_info,
-                                 header=header_spec,
-                                 name='spectrum_info')
-
-        #HDU 4: anything that goes one-number-per-bin
-        binids = self.specset.ids
-        chisq_dof = self.bestfit_output['chisq_dof'].reshape(binids.shape)
-        bins_info = [binids,chisq_dof]
-        bins_info_columns = "binid,chisq"
-        header_bins = baseheader.copy()
-        header_bins.append(("axis1", "bin"))
-        header_bins.append(("axis2", bins_info_columns))
-        hdu_bins = fits.ImageHDU(data=bins_info,
-                                header=header_bins,
-                                name='bin_info')
-
-        #HDU 5: The add_weights, mul_weights
-        nbins = len(self.bestfit_output['add_weights'])
-        addmul_info = []
-        for i in range(nbins):
-            add_weights = list(self.bestfit_output['add_weights'][i])
-            mul_weights = list(self.bestfit_output['mul_weights'][i])
-            flux_add_weights = list(self.bestfit_output['add_fluxweights'][i])
-            addmul_info.append(add_weights + flux_add_weights + mul_weights)
-        addmul_info_columns = "{}addweights,fluxaddweights,{}mulweights".format(len(add_weights),len(mul_weights))
-        header_addmul = baseheader.copy()
-        header_addmul.append(("axis1", addmul_info_columns))
-        header_addmul.append(("axis2", "bin"))
-        hdu_addmul = fits.ImageHDU(data=addmul_info,
-                                header=header_addmul,
-                                name='add_mul_weights')
-
-        #HDU 6: The model templates
-        header_mtemps = baseheader.copy()
-        header_mtemps.append(("axis1", "pixel"))
-        header_mtemps.append(("axis2", "template"))
-        hdu_mtemps = fits.ImageHDU(data=self.bestfit_output['model_temps'],
-                                   header=header_mtemps,
-                                   name='model_temps')
-
-        #HDU 7: The wavelengths (same for all bins, so not in spectrum hdu)
-        header_waves = baseheader.copy()
-        hdu_waves = fits.ImageHDU(data=self.specset.waves,
-                                  header=header_waves,
-                                  name='wavelengths')
-
-        #Now collect all the HDUs for the fits file
-        hdu_all = fits.HDUList(hdus=[hdu_gh,hdu_temps,hdu_spec,hdu_bins,
-                                     hdu_addmul,hdu_mtemps,hdu_waves])
-        hdu_all.writeto(paths_dict['main'], clobber=True)
 
         #Now do everything again for the mc runs. Only save things that
         # actually change by run, i.e. input spectrum and all of the outputs
@@ -678,14 +634,4 @@ class pPXFDriver(object):
         mc_fits = fits.HDUList(hdus=mc_hdu_all)
         mc_fits.writeto(paths_dict['mc'], clobber=True)
 
-        ###
-        #Notes about what I am saving of the mc runs!
-        #   -from self.mc_input: spectrum
-        #   -from self.mc_rawoutput: gh_params, template_weights, 
-        #    unscaled_lsq_errors, best_model
-        #   -from self.mc_procoutput: model_temps_fluxes, scaled_lsq_errors,
-        #    mul_poly, flux_template_weights, add_poly
-        #Everything else is left out. If debug_mc=False, everything but the
-        # moment stuff is left out.
-        ###
         return

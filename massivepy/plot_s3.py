@@ -146,7 +146,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
     if os.path.isfile(mc_output):
         have_mc = True
-        mcdata = mpio.get_friendly_ppxf_output_mc(plot_info['mc_output'])
+        mcdata = mpio.get_friendly_ppxf_output_mc(mc_output)
     else:
         have_mc = False
 
@@ -173,15 +173,14 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
 
     # check for mc runs
     if have_mc:
-        if os.path.isdir(plot_info['mcmoments_output']):
-            shutil.rmtree(plot_info['mcmoments_output'])
-        os.mkdir(plot_info['mcmoments_output'])
+        if os.path.isdir(mcmoments_output):
+            shutil.rmtree(mcmoments_output)
+        os.mkdir(mcmoments_output)
         txtfile_header = 'Columns are as follows:'
         txtfile_header += '\n' + ' '.join(moment_names)
         fmt = nmoments*['%-6f']
         for ibin,binid in enumerate(fitdata['bins']['id']):
-            binpath = os.path.join(plot_info['mcmoments_output'],
-                                   'bin{:d}.txt'.format(binid))
+            binpath = os.path.join(mcmoments_output,'bin{:d}.txt'.format(binid))
             np.savetxt(binpath,mcdata['moments'][ibin].T,fmt=fmt,
                        delimiter='\t',header=txtfile_header)
 

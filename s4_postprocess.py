@@ -82,8 +82,8 @@ for paramfile_path in all_paramfile_paths:
             raise Exception("skip_rerun must be yes or no")
 
     # ingest required data
-    #bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
-    bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=12)
+    bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
+    #bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=12)
     fitdata = mpio.get_friendly_ppxf_output(ppxf_output_path)
 
     # here is a placeholder for the code to write the public fits file
@@ -91,29 +91,48 @@ for paramfile_path in all_paramfile_paths:
     hdu = fits.PrimaryHDU(data=bininfo['flux'],header=header)
     fits.HDUList([hdu]).writeto(fits_path, clobber=True)
 
+
+    # create a container for all of my radial profiles
+    n_rsteps = len(bininfo['r'])
+    dt = {'names': ['lastbin','rtoplot','rbin','rencl','lam','sig','lam_med','lam_old'],
+          'formats': ['i8'] + ['b'] + 6*['f8']}
+    rprofiles = np.zeros(n_rsteps,dtype=dt)
+    ii = np.argsort(bininfo['r'])
+    rprofiles['rbin'] = bininfo['r'][ii]
+    outerbinr = bininfo['rmax'][ii]
+    jj = np.isnan(outerbinr)
+    outerbinr[jj] = bininfo['r'][ii][jj]
+    rdiffs = np.diff(outerbinr)
+    kk = np.nonzero(rdiffs)
+    rprofiles['rtoplot'] = False
+    rprofiles['rtoplot'][kk] = True
+    rprofiles['rtoplot'][-1] = True
+
     # here is the calculation of lambda
     lamR = post.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
-                       fitdata['gh']['moment'][:,1],bininfo['flux'])
+                    fitdata['gh']['moment'][:,1],bininfo['flux'],Vnorm='median')
     np.savetxt(lambda_path,lamR,header=' '.join(lamR.dtype.names))
-
+    rprofiles['lam_old'] = lamR['lam']
     # do again using median
+    luminosities = bininfo['flux']*bininfo['nfibers']
     lamR_median = post.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
-                                  fitdata['gh']['moment'][:,1],bininfo['flux'],
+                                  fitdata['gh']['moment'][:,1],luminosities,
                                   Vnorm='median')
     np.savetxt(lambda_path_med,lamR_median,header=' '.join(lamR.dtype.names))
-
-    # do again using "Jenny style"
-    lamR_jstyle = post.calc_lambda_Jennystyle(bininfo['r'],
-                                             fitdata['gh']['moment'][:,0],
-                                             fitdata['gh']['moment'][:,1],
-                                             bininfo['flux'])
-    np.savetxt(lambda_path_jstyle,lamR_jstyle,header=' '.join(lamR.dtype.names))
-
+    rprofiles['lam_med'] = lamR_median['lam']
+    # do again with the correct weighting!
+    luminosities = bininfo['flux']*bininfo['nfibers']
+    lamR_new = post.calc_lambda(bininfo['r'],fitdata['gh']['moment'][:,0],
+                                fitdata['gh']['moment'][:,1],luminosities)
+    rprofiles['lam'] = lamR_new['lam']
+    
     # do sigma thing
     sig_fluxavg = post.calc_sigma(bininfo['r'],fitdata['gh']['moment'][:,1],
                                   bininfo['flux'])
-    np.savetxt(rprofiles_path,sig_fluxavg,
-               header=' '.join(sig_fluxavg.dtype.names))
+    rprofiles['sig'] = sig_fluxavg['sig']
+
+    # save the radial profiles
+    np.savetxt(rprofiles_path,rprofiles,header=' '.join(rprofiles.dtype.names))
 
 for plot_info in things_to_plot:
     plot_s4_postprocess(**plot_info)

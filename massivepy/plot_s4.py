@@ -27,9 +27,9 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,lambda_path=None,
                         fits_path=None,rprofiles_path=None):
     # get data
     rprofiles = np.genfromtxt(rprofiles_path, names=True)
-    lamR = np.genfromtxt(lambda_path,names=True)
-    lamR_median = np.genfromtxt(lambda_path_med,names=True)
-    lamR_jstyle = np.genfromtxt(lambda_path_jstyle,names=True)
+    #lamR = np.genfromtxt(lambda_path,names=True)
+    #lamR_median = np.genfromtxt(lambda_path_med,names=True)
+    #lamR_jstyle = np.genfromtxt(lambda_path_jstyle,names=True)
     labels = {'R': 'radius',
               'Vavg': r'$\langle |V| \rangle$',
               'RVavg': r'$\langle R |V| \rangle$',
@@ -49,19 +49,33 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,lambda_path=None,
     fig = plt.figure(figsize=(6,5))
     fig.suptitle(labels['lam'])
     ax = fig.add_axes([0.17,0.15,0.7,0.7])
-    ax.plot(lamR['R'],lamR['lam'],c='b',label='flux avg')
-    ax.plot(lamR_median['R'],lamR_median['lam'],c='c',label='median')
-    ax.plot(lamR_jstyle['R'],lamR_jstyle['lam'],c='r',label='jstyle')
+    ax.plot(rprofiles['rbin'],rprofiles['lam'],c='b',label='flux avg')
+    ax.plot(rprofiles['rbin'],rprofiles['lam_med'],c='c',label='median')
+    ax.plot(rprofiles['rbin'],rprofiles['lam_old'],c='r',label='old median')
+    #ax.plot(lamR_jstyle['R'],lamR_jstyle['lam'],c='r',label='jstyle')
     ax.set_xlabel('radius')
     ax.set_ylabel(labels['lam'])
-    if gal_name in ['NGC0057','NGC0507']:
-        Jf = os.path.join(os.path.dirname(plot_path),'jenny.txt')
-        Jthings = np.genfromtxt(Jf,names=True)
-        ax.plot(Jthings['rad'],Jthings['lam'],c='m',label='Jenny')
+    #if gal_name in ['NGC0057','NGC0507']:
+    #    Jf = os.path.join(os.path.dirname(plot_path),'jenny.txt')
+    #    Jthings = np.genfromtxt(Jf,names=True)
+    #    ax.plot(Jthings['rad'],Jthings['lam'],c='m',label='Jenny')
     ax.legend()
     pdf.savefig(fig)
     plt.close(fig)
 
+    fig = plt.figure(figsize=(6,5))
+    fig.suptitle(labels['lam'])
+    ax = fig.add_axes([0.17,0.15,0.7,0.7])
+    ax.plot(rprofiles['rbin'],rprofiles['lam'],c='b',marker='s',label='all')
+    ii = rprofiles['rtoplot'].astype(bool)
+    ax.plot(rprofiles['rbin'][ii],rprofiles['lam'][ii],c='c',marker='o',label='good')
+    ax.set_xlabel('radius')
+    ax.set_ylabel(labels['lam'])
+    ax.legend()
+    pdf.savefig(fig)
+    plt.close(fig)
+
+    '''
     # plot the intermediate steps as subplots on one page
     fig = plt.figure(figsize=(6,6))
     fig.suptitle(r"Intermediate Steps (x-axis matching $\lambda_R$)")
@@ -81,25 +95,13 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,lambda_path=None,
         ax.set_xticklabels([])
     pdf.savefig(fig)
     plt.close(fig)
-
-    # plot some of the important raw numbers
-    fig = plt.figure(figsize=(6,6))
-    fig.suptitle(r"Ingredients (x-axis matching $\lambda_R$)")
-    for i, thing in enumerate(['V','Vraw','sigma','flux']):
-        ax = fig.add_subplot(2,2,i+1)
-        ax.plot(lamR['R'],lamR[thing],c='b')
-        ax.plot(lamR_median['R'],lamR_median[thing],c='g')
-        ax.plot(lamR_jstyle['R'],lamR_jstyle[thing],c='c')
-        ax.set_title(labels[thing])
-        ax.set_xticklabels([])
-    pdf.savefig(fig)
-    plt.close(fig)
+    '''
 
     fig, ax = mplt.scalarmap(figtitle='sigma stuff',xlabel='',ylabel='')
-    ax.plot(rprofiles['R'],rprofiles['sig'],c='b')
-    if gal_name in ['NGC0057','NGC0507']:
+    ax.plot(rprofiles['rbin'],rprofiles['sig'],c='b')
+    #if gal_name in ['NGC0057','NGC0507']:
         # should already have Jthings
-        ax.plot(Jthings['rad'],Jthings['sig_weighted'],c='m')
+    #    ax.plot(Jthings['rad'],Jthings['sig_weighted'],c='m')
     pdf.savefig(fig)
     plt.close(fig)
 

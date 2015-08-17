@@ -44,6 +44,7 @@ def calc_lambda(R,Vraw,sigma,flux,Vnorm='fluxavg'):
         output['lam'][i] = output['RVavg'][i]/output['Rm2avg'][i]
     return output
 
+'''
 def calc_lambda_Jennystyle(R,Vraw,sigma,flux,style='c'):
     nbins = len(R)
     if not len(Vraw)==nbins and len(sigma)==nbins and len(flux)==nbins:
@@ -85,6 +86,7 @@ def calc_lambda_Jennystyle(R,Vraw,sigma,flux,style='c'):
                 iused += 1
         output['lam'][j] = output['RVavg'][j]/output['Rm2avg'][j]
     return output
+'''
 
 def calc_sigma(R,sigma,flux):
     """

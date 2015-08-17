@@ -148,13 +148,8 @@ def get_gal_center_pa(targets_path,gal_name):
 def get_friendly_ppxf_output(path):
     """
     Returns a friendly dict- and recarray-based set of ppxf output.
-    Only return the data we actually use in plots and want in text files.
+    See pPXFdriver.init_output_containers for details of fits file structure.
     """
-    #Anything not used here should probably get dropped from the fits files
-    # as well, except in a debug=True type case.
-    #Will want to make sure none of this information could come from earlier
-    # files like the binned spectra files, because we should avoid too much
-    # duplication. E.g. should avoid getting the spectra from here.
     data, headers = utl.fits_quickread(path)
     friendly_data = {}
 
@@ -194,7 +189,6 @@ def get_friendly_ppxf_output(path):
         friendly_data['bins'][ibin] = tuple(data[3][:2,ibin])
 
     # populate spectrum stuff
-    # pretty sure this can go away since its all in the bin output!
     dt = {'names':['bestmodel'], 'formats':['<f8']}
     friendly_data['spec'] = np.zeros((nbins,npixels),dtype=dt)
     friendly_data['spec']['bestmodel'] = data[2][0, ...]
@@ -209,7 +203,7 @@ def get_friendly_ppxf_output(path):
 def get_friendly_ppxf_output_mc(path):
     """
     Returns a friendly dict- and recarray-based set of ppxf mc output.
-    Only return the data we actually use in plots and want in text files.
+    See pPXFdriver.init_output_containers for details of fits file structure.
     """
     data, headers = utl.fits_quickread(path)
     friendly_data = {}
@@ -230,7 +224,6 @@ def get_friendly_ppxf_output_mc(path):
     for ibin in range(nbins):
         for imom in range(nmoments):
             friendly_data['err'][ibin,imom] = np.std(data[0][0,ibin,:,imom])
-
     return friendly_data
 
 def friendly_temps(fits_path,temps_path):

@@ -159,12 +159,16 @@ def get_friendly_ppxf_output(path):
     nmoments = headers[0]['NAXIS1']
     npixels = headers[2]['NAXIS1']
     ntemps = headers[1]['NAXIS1']
-    friendly_data['nmoments'] = nmoments
-    friendly_data['nbins'] = nbins
-    #friendly_data['npixels'] = npixels
-    friendly_data['ntemps'] = ntemps
-    friendly_data['add_deg'] = headers[0]['ADD_DEG']
-    friendly_data['mul_deg'] = headers[0]['MUL_DEG']
+
+    friendly_data['metadata'] = {}
+    keys = ['nbins','nmoments','add_deg','mul_deg','bias','sourcefile',
+            'sourcedate','v_0','sig_0']
+    hkeys = ['NAXIS2','NAXIS1','ADD_DEG','MUL_DEG','BIAS','SRCFILE',
+             'SRCDATE','VEL_0','SIGMA_0']
+    keys += ['h{}_0'.format(m) for m in range(3,nmoments+1)]
+    hkeys += ['H{}_0'.format(m) for m in range(3,nmoments+1)]
+    for key,hkey in zip(keys,hkeys):
+        friendly_data['metadata'][key] = headers[0][hkey]
 
     # populate moment stuff
     dt = {'names':['moment','err','scalederr'],'formats':3*[np.float64]}
@@ -271,20 +275,21 @@ def friendly_moments(fits_path,mc_fits_path,moments_path,mc_moments_dir):
     Save friendly text file version of the ppxf output (moments and errors).
     """
     fitdata = get_friendly_ppxf_output(fits_path)
-    nbins, nmoments = fitdata['nbins'], fitdata['nmoments']
+    nbins = fitdata['metadata']['nbins']
+    nmoments = fitdata['metadata']['nmoments']
     if os.path.isfile(mc_fits_path):
         have_mc = True
         mcdata = get_friendly_ppxf_output_mc(mc_fits_path)
     else:
         have_mc = False
     header = 'Columns are as follows:'
-    momentnames = ['V','sigma'] + ['h{}'.format(m) for m in range(2,nmoments+1)]
+    momentnames = ['V','sigma'] + ['h{}'.format(m) for m in range(3,nmoments+1)]
     colnames = ['bin'] + momentnames + [m+'err' for m in momentnames]
     header += '\n ' + ' '.join(colnames)
     header += '\nPPXF input parameters were as follows:'
-    # need to add bias, gh_init, etc to this!
-    for param in ['add_deg', 'mul_deg']:
-        header += '\n {} = {}'.format(param,fitdata[param])
+    params = ['add_deg','mul_deg','bias','sourcefile','sourcedate']
+    for param in params:
+        header += '\n {} = {}'.format(param,fitdata['metadata'][param])
     textdata = np.zeros((nbins,1+2*nmoments))
     textdata[:,0] = fitdata['bins']['id']
     textdata[:,1:1+nmoments] = fitdata['gh']['moment']

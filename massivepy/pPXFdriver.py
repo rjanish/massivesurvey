@@ -44,7 +44,8 @@ class pPXFDriver(object):
     VEL_FACTOR = const.ppxf_losvd_sampling_factor
 
     def __init__(self, specset=None, templib=None, fit_range=None,
-                 initial_gh=None, num_trials=None, **ppxf_kwargs):
+                 initial_gh=None, num_trials=None, sourcefile=None,
+                 sourcedate=None, **ppxf_kwargs):
         """
         This validates the passed pPXF settings, and prepares the
         input spectra for fitting.
@@ -65,6 +66,11 @@ class pPXFDriver(object):
         num_trials - int
             The number of Monte Carlo trials to run in order to
             determine the errors in the output fit parameters
+        sourcefile - str
+            The file name of the fits file containing the spectra to
+            be fit, for metadata tracking purposes
+        sourcedate - str
+            The last modified date of the sourcefile
         add_deg - int
             The degree of the additive Legendre polynomial series
             used to model the continuum
@@ -104,6 +110,8 @@ class pPXFDriver(object):
                              "must match number of moments to fit {}"
                              "".format(self.initial_gh.shape,
                                        self.ppxf_kwargs["moments"]))
+        self.sourcefile = sourcefile
+        self.sourcedate = sourcedate
         # prep spectra
         print ("preparing {} spectra for fitting..."
                "".format(self.specset.num_spectra))
@@ -576,6 +584,8 @@ class pPXFDriver(object):
             baseheader.append(("{}_0".format(param_name), init_value,
                                "starting value of {} [{}]"
                                "".format(param_name, unit)))
+        baseheader.append(("srcfile", self.sourcefile, "source file"))
+        baseheader.append(("srcdate", self.sourcedate, "source file date"))
 
         # save main fits file, looping over output containers automatically
         hdulist = []

@@ -29,8 +29,8 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
                     temps_output=None,fit_range=None,mask=None):
     # get data from fits files of ppxf fit output
     fitdata = mpio.get_friendly_ppxf_output(main_output)
-    nbins = fitdata['nbins']
-    nmoments = fitdata['nmoments']
+    nbins = fitdata['metadata']['nbins']
+    nmoments = fitdata['metadata']['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'
@@ -128,8 +128,8 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                    templates_dir=None):
     # get data from fits files of ppxf fit output
     fitdata = mpio.get_friendly_ppxf_output(main_output)
-    nbins = fitdata['nbins']
-    nmoments = fitdata['nmoments']
+    nbins = fitdata['metadata']['nbins']
+    nmoments = fitdata['metadata']['nmoments']
     moment_names = ['h{}'.format(m+1) for m in range(nmoments)]
     moment_names[0] = 'V'
     moment_names[1] = 'sigma'

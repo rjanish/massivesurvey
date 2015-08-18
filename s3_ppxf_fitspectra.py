@@ -17,7 +17,7 @@ output:
 import os
 import re
 import argparse
-import pickle
+import time
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -135,6 +135,7 @@ for paramfile_path in all_paramfile_paths:
     # get data
     print "reading spectra to fit..."
     specset = spec.read_datacube(binned_cube_path)
+    binned_cube_date = time.ctime(os.path.getmtime(binned_cube_path))
     masked = utl.in_union_of_intervals(specset.waves, mask)
     if mask:
         print "masking the regions:"
@@ -157,6 +158,8 @@ for paramfile_path in all_paramfile_paths:
                                   fit_range=fit_range,
                                   initial_gh=gh_init,
                                   num_trials=num_trials,
+                                  sourcefile=os.path.basename(binned_cube_path),
+                                  sourcedate=binned_cube_date,
                                   **fit_settings)
     driver.run_fit()
     driver.write_outputs(output_paths_dict)

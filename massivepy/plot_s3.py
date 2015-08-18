@@ -19,6 +19,7 @@ import massivepy.constants as const
 import massivepy.spectrum as spec
 import massivepy.io as mpio
 import massivepy.plot_massive as mplt
+import massivepy.binning as binning
 import utilities as utl
 from plotting.geo_utils import polar_box
 
@@ -135,14 +136,11 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     # get spectrum and bin information
     specset = spec.read_datacube(binspectra_path)
     specset = specset.get_subset(fitdata['bins']['id'])
-    bininfo = np.genfromtxt(bininfo_path,names=True,skip_header=1)
-    bininfo['thmin'] = 90 + bininfo['thmin']
-    bininfo['thmax'] = 90 + bininfo['thmax']
-    squaremax = np.nanmax(bininfo['rmax'])
+    bindata, binetc = binning.read_bininfo(bininfo_path)
     coordunit = 'arcsec'
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
-    ibins_all = {int(bininfo['binid'][i]):i for i in range(len(bininfo))}
+    ibins_all = {int(bindata['binid'][i]):i for i in range(len(bindata))}
     ibins = [ibins_all[binid] for binid in fitdata['bins']['id']]
     if os.path.isfile(mc_output):
         have_mc = True
@@ -157,8 +155,8 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         do_comparison = False
     if do_comparison:
         fitdata2 = mpio.get_friendly_ppxf_output(compare_moments)
-        bininfo2 = np.genfromtxt(compare_bins,names=True,skip_header=1)
-        ibins_all2 = {int(bininfo2['binid'][i]):i for i in range(len(bininfo2))}
+        bindata2, binetc2 = binning.read_bininfo(compare_bins)
+        ibins_all2 = {int(bindata2['binid'][i]):i for i in range(len(bindata2))}
         ibins2 = [ibins_all2[binid] for binid in fitdata2['bins']['id']]
 
     ### Plotting Begins! ###
@@ -170,7 +168,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         fig.suptitle('Moment vs radius ({})'.format(moment_names[i]))
         ax = fig.add_axes([0.15,0.1,0.8,0.7])
         moments = fitdata['gh']['moment'][:,i]
-        moments_r = bininfo['r'][ibins]
+        moments_r = bindata['r'][ibins]
         moments_err = fitdata['gh']['scalederr'][:,i]
         ax.errorbar(moments_r,moments,yerr=moments_err,ls='',
                     marker=None,ecolor='0.7',elinewidth=0.7,label='ppxf')
@@ -182,7 +180,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         mainlabel = None
         if do_comparison:
             moments2 = fitdata2['gh']['moment'][:,i]
-            moments_r2 = bininfo2['r'][ibins2]
+            moments_r2 = bindata2['r'][ibins2]
             ax.plot(moments_r2,moments2,ls='',marker='s',mfc='g',ms=5.0,
                     alpha=0.8,label='comparison run')
             mainlabel = 'this run'
@@ -191,7 +189,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                 label=mainlabel)
         for imom,ibin in enumerate(ibins):
             ax.text(moments_r[imom]-0.002*max(moments_r),moments[imom],
-                    str(int(bininfo['binid'][ibin])),fontsize=5,
+                    str(int(bindata['binid'][ibin])),fontsize=5,
                     horizontalalignment='center',verticalalignment='center')
         # symmetrize y axis for all but v and sigma
         if not i in (0,1):
@@ -208,8 +206,8 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
 
     # do 4 versions of centered V
     Vdata = fitdata['gh']['moment'][:,0]
-    V0 = [np.average(Vdata,weights=bininfo['flux'][ibins]),np.average(Vdata),
-          utl.median(Vdata,weights=bininfo['flux'][ibins]),np.median(Vdata)]
+    V0 = [np.average(Vdata,weights=bindata['flux'][ibins]),np.average(Vdata),
+          utl.median(Vdata,weights=bindata['flux'][ibins]),np.median(Vdata)]
     Vtitles = ['2D map of centered V (flux weighted average, V0={:.2f})'.format,
                '2D map of centered V (average, V0={:.2f})'.format,
                '2D map of centered V (flux weighted median, V0={:.2f})'.format,
@@ -220,18 +218,17 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                                  xlabel=label_x,ylabel=label_y,
                                  axC_mappable=Vcolors['mappable'],axC_label='V')
         for ibin in range(nbins):
-            xbin = -bininfo['r'][ibin]*np.sin(np.deg2rad(bininfo['th'][ibin]))
-            ybin = bininfo['r'][ibin]*np.cos(np.deg2rad(bininfo['th'][ibin]))
-            if not np.isnan(bininfo['rmin'][ibin]):
-                pbox = polar_box(bininfo['rmin'][ibin],bininfo['rmax'][ibin],
-                                 bininfo['thmin'][ibin],bininfo['thmax'][ibin])
+            if not np.isnan(bindata['rmin'][ibin]):
+                pbox = polar_box(bindata['rmin'][ibin],bindata['rmax'][ibin],
+                                 bindata['thmin'][ibin],bindata['thmax'][ibin])
                 patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
                 ax.add_patch(patch(fc=Vcolors['c'][ibin],zorder=-1))
             else:
-                patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
-                                        bininfo['y'][ibin]),fibersize,lw=0.25)
+                patch = functools.partial(patches.Circle,(bindata['x'][ibin],
+                                        bindata['y'][ibin]),fibersize,lw=0.25)
                 ax.add_patch(patch(fc=Vcolors['c'][ibin]))
-        ax.axis([-squaremax,squaremax,-squaremax,squaremax])
+        ax.axis([-binetc['rbinmax'],binetc['rbinmax'],
+                 -binetc['rbinmax'],binetc['rbinmax']])
         pdf.savefig(fig)
         plt.close(fig)        
 
@@ -247,18 +244,17 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                                  axC_mappable=momentcolors['mappable'],
                                  axC_label=moment_names[i])
         for ibin in range(nbins):
-            xbin = -bininfo['r'][ibin]*np.sin(np.deg2rad(bininfo['th'][ibin]))
-            ybin = bininfo['r'][ibin]*np.cos(np.deg2rad(bininfo['th'][ibin]))
-            if not np.isnan(bininfo['rmin'][ibin]):
-                pbox = polar_box(bininfo['rmin'][ibin],bininfo['rmax'][ibin],
-                                 bininfo['thmin'][ibin],bininfo['thmax'][ibin])
+            if not np.isnan(bindata['rmin'][ibin]):
+                pbox = polar_box(bindata['rmin'][ibin],bindata['rmax'][ibin],
+                                 bindata['thmin'][ibin],bindata['thmax'][ibin])
                 patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
                 ax.add_patch(patch(fc=momentcolors['c'][ibin],zorder=-1))
             else:
-                patch = functools.partial(patches.Circle,(bininfo['x'][ibin],
-                                        bininfo['y'][ibin]),fibersize,lw=0.25)
+                patch = functools.partial(patches.Circle,(bindata['x'][ibin],
+                                        bindata['y'][ibin]),fibersize,lw=0.25)
                 ax.add_patch(patch(fc=momentcolors['c'][ibin]))
-        ax.axis([-squaremax,squaremax,-squaremax,squaremax])
+        ax.axis([-binetc['rbinmax'],binetc['rbinmax'],
+                 -binetc['rbinmax'],binetc['rbinmax']])
         pdf.savefig(fig)
         plt.close(fig)
 

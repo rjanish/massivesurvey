@@ -150,40 +150,6 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     else:
         have_mc = False
 
-    # save "friendly" text output for theorists
-    txtfile_array = np.zeros((nbins,1+2*nmoments))
-    txtfile_header = 'Fit results for {}'.format(gal_name)
-    txtfile_header += '\nPPXF input parameters were as follows:'
-    for param in ['add_deg', 'mul_deg']:
-        txtfile_header += '\n {} = {}'.format(param,fitdata[param])
-    txtfile_array[:,0] = fitdata['bins']['id']
-    txtfile_array[:,1:1+nmoments] = fitdata['gh']['moment']
-    if have_mc:
-        txtfile_array[:,-nmoments:] = mcdata['err']
-        txtfile_header += '\nErrors from {} mc runs'.format(mcdata['nruns'])
-    else:
-        txtfile_array[:,-nmoments:] = fitdata['gh']['scalederr']
-        txtfile_header += '\nErrors from ppxf, scaled'
-    txtfile_header += '\nColumns are as follows:'
-    colnames = ['bin'] + moment_names + [m+'err' for m in moment_names]
-    txtfile_header += '\n' + ' '.join(colnames)
-    fmt = ['%i'] + 2*nmoments*['%-6f']
-    np.savetxt(moments_output,txtfile_array,fmt=fmt,
-               delimiter='\t',header=txtfile_header)
-
-    # check for mc runs
-    if have_mc:
-        if os.path.isdir(mcmoments_output):
-            shutil.rmtree(mcmoments_output)
-        os.mkdir(mcmoments_output)
-        txtfile_header = 'Columns are as follows:'
-        txtfile_header += '\n' + ' '.join(moment_names)
-        fmt = nmoments*['%-6f']
-        for ibin,binid in enumerate(fitdata['bins']['id']):
-            binpath = os.path.join(mcmoments_output,'bin{:d}.txt'.format(binid))
-            np.savetxt(binpath,mcdata['moments'][ibin].T,fmt=fmt,
-                       delimiter='\t',header=txtfile_header)
-
     # prep comparison plot info, if available
     if not compare_moments=='none':
         do_comparison = True

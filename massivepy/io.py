@@ -6,6 +6,7 @@ import os
 import re
 import time
 import functools
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -263,4 +264,47 @@ def friendly_temps(fits_path,temps_path):
         np.savetxt(binpath,fitdata['temps'][i,ii],fmt=fmt,
                    header=header(ntemps_nonzero=len(ii),moments=moments),
                    delimiter='\t')
+    return
+
+def friendly_moments(fits_path,mc_fits_path,moments_path,mc_moments_dir):
+    """
+    Save friendly text file version of the ppxf output (moments and errors).
+    """
+    fitdata = get_friendly_ppxf_output(fits_path)
+    nbins, nmoments = fitdata['nbins'], fitdata['nmoments']
+    if os.path.isfile(mc_fits_path):
+        have_mc = True
+        mcdata = get_friendly_ppxf_output_mc(mc_fits_path)
+    else:
+        have_mc = False
+    header = 'Columns are as follows:'
+    momentnames = ['V','sigma'] + ['h{}'.format(m) for m in range(2,nmoments+1)]
+    colnames = ['bin'] + momentnames + [m+'err' for m in momentnames]
+    header += '\n ' + ' '.join(colnames)
+    header += '\nPPXF input parameters were as follows:'
+    # need to add bias, gh_init, etc to this!
+    for param in ['add_deg', 'mul_deg']:
+        header += '\n {} = {}'.format(param,fitdata[param])
+    textdata = np.zeros((nbins,1+2*nmoments))
+    textdata[:,0] = fitdata['bins']['id']
+    textdata[:,1:1+nmoments] = fitdata['gh']['moment']
+    if have_mc:
+        textdata[:,-nmoments:] = mcdata['err']
+        header += '\nErrors from stdev of {} mc runs'.format(mcdata['nruns'])
+        # also save mc moments to text files
+        if os.path.isdir(mc_moments_dir):
+            shutil.rmtree(mc_moments_dir)
+        os.mkdir(mc_moments_dir)
+        mc_header = 'Columns are as follows:'
+        mc_header += '\n ' + ' '.join(momentnames)
+        fmt = nmoments*['%-6f']
+        for ibin,binid in enumerate(fitdata['bins']['id']):
+            binpath = os.path.join(mc_moments_dir,'bin{:d}.txt'.format(binid))
+            np.savetxt(binpath,mcdata['moments'][ibin].T,fmt=fmt,
+                       delimiter='\t',header=mc_header)
+    else:
+        textdata[:,-nmoments:] = fitdata['gh']['scalederr']
+        header += '\nErrors from ppxf, scaled'
+    fmt = ['%i'] + 2*nmoments*['%-6f']
+    np.savetxt(moments_path,textdata,fmt=fmt,delimiter='\t',header=header)
     return

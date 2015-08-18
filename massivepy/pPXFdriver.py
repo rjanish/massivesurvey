@@ -125,6 +125,17 @@ class pPXFDriver(object):
         """
         Prepare containers for all pPXF outputs. This is where the structure
         of the output fits files is determined.
+
+        Changing debug_mode to True results in keeping the full list of hdu
+        names for later saving to file by write_outputs; the default
+        debug_mode = False sets up a shortened list of hdu names to save to
+        file. This shortened list leaves out all storage intensive items
+        (which in practice means anything shaped like a spectrum) unless
+        they are routinely used in the normal plotting/analysis.
+
+        Note that regardless of debug_mode setting, the full list of outputs
+        is initialized and saved to the output containers, as debug_mode
+        only impacts what will be saved to file.
         """
         # shorthand for all of the relevant dimensions
         n_mom = self.ppxf_kwargs['moments']
@@ -200,13 +211,6 @@ class pPXFDriver(object):
             shape = mc_shapes[hduname]
             for outputname in self.mcoutput_names[hduname]:
                 self.mc_output[outputname] = np.zeros(shape)
-        # some of this output is never used for regular plotting and analysis,
-        # so remove the storage-intensive items unless debug_mode is on.
-        # (right now debug_mode is not exposed to the parameter file,
-        # but it's probably easier to just set it by hand in the code whenever
-        # major debugging needs to happen.)
-        # note these things will all still be saved to the output containers
-        # which were already made; this affects on what gets saved to file.
         if not debug_mode:
             self.output_hdunames.remove("smoothed_templates")
             self.output_hdunames.remove("model_templates")
@@ -451,16 +455,7 @@ class pPXFDriver(object):
         ensures that the data and templates are properly prepared.
 
         Fit outputs are not returned, but stored in six pPXFdriver
-        attributes. The first of these store the results of the fits
-        to the passed spectra:
-          main_input - record of inputs to pPXF
-          main_rawoutput - record of direct pPXF outputs
-          main_procoutput - processed pPXF outputs
-        and the next three hold the corresponding results for the Monte
-        Carlo fits, one set of trial fits for each input spectrum:
-          mc_input - record of inputs to pPXF
-          mc_rawoutput - record of direct pPXF outputs
-          mc_procoutput - processed pPXF outputs
+        attributes. See init_output_containers for details.
         """
         if self.fit_complete:
             warnings.warn("A pPXF fit to this set of spectra has "

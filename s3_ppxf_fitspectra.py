@@ -1,6 +1,4 @@
 """
-This is a temporary testing script!
-
 This script accepts spectral datacubes and fits each spectrum therein
 using pPXF.
 
@@ -11,7 +9,9 @@ input:
   (give one param file per galaxy)
 
 output:
-  nothing at the moment
+  one or two fits files for each galaxy, depending on if mc runs are done
+  "friendly" text file versions of important output for theorists
+  one pdf of various diagnostic plots
 """
 
 import os

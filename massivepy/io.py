@@ -168,7 +168,10 @@ def get_friendly_ppxf_output(path):
     keys += ['h{}_0'.format(m) for m in range(3,nmoments+1)]
     hkeys += ['H{}_0'.format(m) for m in range(3,nmoments+1)]
     for key,hkey in zip(keys,hkeys):
-        friendly_data['metadata'][key] = headers[0][hkey]
+        try:
+            friendly_data['metadata'][key] = headers[0][hkey]
+        except KeyError:
+            friendly_data['metadata'][key] = 'NOT IN FITS FILE'
 
     # populate moment stuff
     dt = {'names':['moment','err','scalederr'],'formats':3*[np.float64]}
@@ -200,6 +203,7 @@ def get_friendly_ppxf_output(path):
 
     # populate waves 
     # this *should* match the bin spectra waves, but sometimes is off by 1
+    #friendly_data['waves'] = data[-1] # use this for pre-aug-18-2015 files
     friendly_data['waves'] = data[4]
 
     return friendly_data
@@ -247,18 +251,20 @@ def friendly_temps(fits_path,temps_path):
               '\nMetadata is as follows:'
               '\n      nonzero templates: {ntemps_nonzero}'
               '\n out of total templates: {ntemps}'
-              '\n       bin spectra file: PLACEHOLDER'
-              '\n  bin spectra file date: PLACEHOLDER'
-              '\n       output fits file: {fitsfile}'
-              '\n  output fits file date: {fitsfiledate}'
+              '\n       bin spectra file: {sourcefile}'
+              '\n  bin spectra file date: {sourcedate}'
+              '\n              fits file: {fitsfile}'
+              '\n         fits file date: {fitsdate}'
               '\nThe best-fit moments are:'
               '\n {moments}'.format)
-    colnames = ' '.join(fitdata['temps'].dtype.names)
-    fitsfile = os.path.basename(fits_path)
-    fitsfiledate = time.ctime(os.path.getmtime(fits_path))
-    header=functools.partial(header,colnames=colnames,ntemps=fitdata['ntemps'],
-                             fitsfile=fitsfile,fitsfiledate=fitsfiledate)
-    for i in range(fitdata['nbins']):
+    hkw = {'colnames': ' '.join(fitdata['temps'].dtype.names),
+           'ntemps': fitdata['temps'].shape[1],
+           'sourcefile': fitdata['metadata']['sourcefile'],
+           'sourcedate': fitdata['metadata']['sourcedate'],
+           'fitsfile': os.path.basename(fits_path),
+           'fitsdate': time.ctime(os.path.getmtime(fits_path))}
+    header=functools.partial(header,**hkw)
+    for i in range(fitdata['metadata']['nbins']):
         fmt = ['%i']
         fmt.extend(['%-8g']*(ncols-1))
         temps_root, temps_ext = os.path.splitext(temps_path)
@@ -282,20 +288,32 @@ def friendly_moments(fits_path,mc_fits_path,moments_path,mc_moments_dir):
         mcdata = get_friendly_ppxf_output_mc(mc_fits_path)
     else:
         have_mc = False
-    header = 'Columns are as follows:'
     momentnames = ['V','sigma'] + ['h{}'.format(m) for m in range(3,nmoments+1)]
-    colnames = ['bin'] + momentnames + [m+'err' for m in momentnames]
-    header += '\n ' + ' '.join(colnames)
-    header += '\nPPXF input parameters were as follows:'
-    params = ['add_deg','mul_deg','bias','sourcefile','sourcedate']
-    for param in params:
-        header += '\n {} = {}'.format(param,fitdata['metadata'][param])
+    colnames = ' '.join(['bin'] + momentnames + [m+'err' for m in momentnames])
+    header = ('Columns are as follows:'
+              '\n {colnames}'
+              '\nMetadata is as follows:'
+              '\n               add_deg: {add_deg}'
+              '\n               mul_deg: {mul_deg}'
+              '\n                  bias: {bias}'
+              '\n      bin spectra file: {sourcefile}'
+              '\n bin spectra file date: {sourcedate}'
+              '\n             fits file: {fitsfile}'
+              '\n        fits file date: {fitsdate}'
+              '\nErrors from {errsource}'.format)
+    hkw = {}
+    fitsparams = ['add_deg','mul_deg','bias','sourcefile','sourcedate']
+    for param in fitsparams:
+        hkw[param] = fitdata['metadata'][param]
+    hkw['fitsfile'] = os.path.basename(fits_path)
+    hkw['fitsdate'] = time.ctime(os.path.getmtime(fits_path))
+    header = functools.partial(header,colnames=colnames,**hkw)
     textdata = np.zeros((nbins,1+2*nmoments))
     textdata[:,0] = fitdata['bins']['id']
     textdata[:,1:1+nmoments] = fitdata['gh']['moment']
     if have_mc:
         textdata[:,-nmoments:] = mcdata['err']
-        header += '\nErrors from stdev of {} mc runs'.format(mcdata['nruns'])
+        header = header(errsource='stdev of {} mc runs'.format(mcdata['nruns']))
         # also save mc moments to text files
         if os.path.isdir(mc_moments_dir):
             shutil.rmtree(mc_moments_dir)
@@ -309,7 +327,7 @@ def friendly_moments(fits_path,mc_fits_path,moments_path,mc_moments_dir):
                        delimiter='\t',header=mc_header)
     else:
         textdata[:,-nmoments:] = fitdata['gh']['scalederr']
-        header += '\nErrors from ppxf, scaled'
+        header = header(errsource='ppxf, scaled')
     fmt = ['%i'] + 2*nmoments*['%-6f']
     np.savetxt(moments_path,textdata,fmt=fmt,delimiter='\t',header=header)
     return

@@ -45,7 +45,7 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     # template plots
     catalogfile = os.path.join(templates_dir,'catalog.txt')
     catalog = pd.read_csv(catalogfile,index_col='miles_id')
-    for i in range(fitdata['nbins']):
+    for i in range(nbins):
         binid = fitdata['bins']['id'][i]
         temps = fitdata['temps'][i,:]
         ii = np.nonzero(temps['weight']) # use only nonzero templates

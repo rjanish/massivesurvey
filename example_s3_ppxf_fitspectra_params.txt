@@ -30,7 +30,10 @@ run_type		full
 #run_type		bins
 
 bins_to_fit		all
-#bins_to_fit		[4,14]
+#bins_to_fit		[4,14]   #Use this to fit any subset of bins for testing
+#bins_to_fit		[0]      #Use bin 0 in fullgalaxy mode for all good fibers
+#bins_to_fit		[-1]     #Use bin -1 for fullgalaxy with only binned fibers
+#bins_to_fit		[-2]     #Use bin -2 for "symmetrized" fullgalaxy (within some R)
 
 add_deg			0
 mul_deg			7

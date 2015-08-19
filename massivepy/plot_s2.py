@@ -162,6 +162,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
             axs['s2n'].add_patch(patch(fc=bins2ncolors['c'][ibin]))
     # draw ma, set axis bounds, save and close
     for k in fig_keys:
+        axs[k].add_patch(patches.Circle((0,0),binetc['r_bestfull'],
+                                        ls='dashed',fc='none'))
         axs[k].plot([-binetc['ma_x'],binetc['ma_x']],
                     [-binetc['ma_y'],binetc['ma_y']],
                     linewidth=1.5,color='r')
@@ -256,8 +258,19 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for ibin in range(nbins):
         spectrum = specset.spectra[ibin,:] 
         ax.plot(specset.waves,specset.ids[ibin]-spectrum+spectrum[0],c='k')
-    fullspectrum = specset_full.spectra[0,:] 
-    ax.plot(specset_full.waves,-fullspectrum+fullspectrum[0],c='k') #id=0
+    # assuming all 3 full spectra are present, overplot with different colors
+    # if the spectra are identical, you will see only the black one
+    fullcolors = {0: 'k', -1: 'g', -2: 'r'}
+    full_labels = {0: 'all good fibers', -1: 'binned fibers only',
+                   -2: 'binned fibers within r={}'.format(binetc['r_bestfull'])}
+    for ifull,fullid in reversed(list(enumerate(specset_full.ids))):
+        spectrum = specset_full.spectra[ifull,:]
+        ax.plot(specset_full.waves,-spectrum+spectrum[0],c=fullcolors[fullid],
+                label=full_labels[fullid])
+    legend = ax.legend(loc=(0,1-1.3/(nbins+3.0)),fontsize=8,
+                       title='For full galaxy (bin 0):')
+    plt.setp(legend.get_title(),fontsize=8)
+    # show where prominent emission lines go
     elines = const.emission_lines
     for eline in elines:
         ax.axvline(elines[eline]['wave'],c='b')

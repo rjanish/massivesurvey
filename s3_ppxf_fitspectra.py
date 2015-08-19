@@ -1,6 +1,4 @@
 """
-This is a temporary testing script!
-
 This script accepts spectral datacubes and fits each spectrum therein
 using pPXF.
 
@@ -11,13 +9,15 @@ input:
   (give one param file per galaxy)
 
 output:
-  nothing at the moment
+  one or two fits files for each galaxy, depending on if mc runs are done
+  "friendly" text file versions of important output for theorists
+  one pdf of various diagnostic plots
 """
 
 import os
 import re
 import argparse
-import pickle
+import time
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -135,6 +135,7 @@ for paramfile_path in all_paramfile_paths:
     # get data
     print "reading spectra to fit..."
     specset = spec.read_datacube(binned_cube_path)
+    binned_cube_date = time.ctime(os.path.getmtime(binned_cube_path))
     masked = utl.in_union_of_intervals(specset.waves, mask)
     if mask:
         print "masking the regions:"
@@ -157,6 +158,8 @@ for paramfile_path in all_paramfile_paths:
                                   fit_range=fit_range,
                                   initial_gh=gh_init,
                                   num_trials=num_trials,
+                                  sourcefile=os.path.basename(binned_cube_path),
+                                  sourcedate=binned_cube_date,
                                   **fit_settings)
     driver.run_fit()
     driver.write_outputs(output_paths_dict)
@@ -167,6 +170,7 @@ for plot_info in things_to_plot:
     print 'Plotting {}'.format(plot_info['gal_name'])
     run_type = plot_info.pop('run_type')
     if run_type=='full':
+        mpio.friendly_temps(plot_info['main_output'],plot_info['temps_output'])
         del plot_info['compare_moments']
         del plot_info['compare_bins']
         del plot_info['mc_output']
@@ -175,6 +179,9 @@ for plot_info in things_to_plot:
         del plot_info['bininfo_path']
         plot_s3_fullfit(**plot_info)
     elif run_type=='bins':
+        mpio.friendly_moments(plot_info['main_output'],plot_info['mc_output'],
+                              plot_info['moments_output'],
+                              plot_info['mcmoments_output'])
         #del plot_info['templates_dir'] #this is silly, make it so these don't
         del plot_info['temps_output']  #save in the first place
         plot_s3_binfit(**plot_info)

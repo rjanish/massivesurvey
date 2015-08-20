@@ -4,6 +4,9 @@ Basic repetiitve io tasks
 
 import os
 import re
+import time
+import functools
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -146,13 +149,8 @@ def get_gal_center_pa(targets_path,gal_name):
 def get_friendly_ppxf_output(path):
     """
     Returns a friendly dict- and recarray-based set of ppxf output.
-    Only return the data we actually use in plots and want in text files.
+    See pPXFdriver.init_output_containers for details of fits file structure.
     """
-    #Anything not used here should probably get dropped from the fits files
-    # as well, except in a debug=True type case.
-    #Will want to make sure none of this information could come from earlier
-    # files like the binned spectra files, because we should avoid too much
-    # duplication. E.g. should avoid getting the spectra from here.
     data, headers = utl.fits_quickread(path)
     friendly_data = {}
 
@@ -161,12 +159,19 @@ def get_friendly_ppxf_output(path):
     nmoments = headers[0]['NAXIS1']
     npixels = headers[2]['NAXIS1']
     ntemps = headers[1]['NAXIS1']
-    friendly_data['nmoments'] = nmoments
-    friendly_data['nbins'] = nbins
-    #friendly_data['npixels'] = npixels
-    friendly_data['ntemps'] = ntemps
-    friendly_data['add_deg'] = headers[0]['ADD_DEG']
-    friendly_data['mul_deg'] = headers[0]['MUL_DEG']
+
+    friendly_data['metadata'] = {}
+    keys = ['nbins','nmoments','add_deg','mul_deg','bias','sourcefile',
+            'sourcedate','v_0','sig_0']
+    hkeys = ['NAXIS2','NAXIS1','ADD_DEG','MUL_DEG','BIAS','SRCFILE',
+             'SRCDATE','VEL_0','SIGMA_0']
+    keys += ['h{}_0'.format(m) for m in range(3,nmoments+1)]
+    hkeys += ['H{}_0'.format(m) for m in range(3,nmoments+1)]
+    for key,hkey in zip(keys,hkeys):
+        try:
+            friendly_data['metadata'][key] = headers[0][hkey]
+        except KeyError:
+            friendly_data['metadata'][key] = 'NOT IN FITS FILE'
 
     # populate moment stuff
     dt = {'names':['moment','err','scalederr'],'formats':3*[np.float64]}
@@ -184,10 +189,6 @@ def get_friendly_ppxf_output(path):
         ii = np.argsort(data[1][1,ibin,:]) # sort by weight
         for i,field in enumerate(dt['names']): # need fields in fits file order
             friendly_data['temps'][field][ibin,:] = data[1][i,ibin,:][ii][::-1]
-    if nbins==1:
-        friendly_data['temps'] = friendly_data['temps'][0,:]
-        ii = np.nonzero(friendly_data['temps']['weight'])
-        friendly_data['temps'] = friendly_data['temps'][ii]
 
     # populate bin stuff
     dt = {'names':['id','chisq'],'formats':[int,np.float64]}
@@ -196,14 +197,14 @@ def get_friendly_ppxf_output(path):
         friendly_data['bins'][ibin] = tuple(data[3][:2,ibin])
 
     # populate spectrum stuff
-    # pretty sure this can go away since its all in the bin output!
     dt = {'names':['bestmodel'], 'formats':['<f8']}
     friendly_data['spec'] = np.zeros((nbins,npixels),dtype=dt)
     friendly_data['spec']['bestmodel'] = data[2][0, ...]
 
     # populate waves 
-    # pretty sure this can go away since its all in the bin output!
-    friendly_data['waves'] = data[6]
+    # this *should* match the bin spectra waves, but sometimes is off by 1
+    #friendly_data['waves'] = data[-1] # use this for pre-aug-18-2015 files
+    friendly_data['waves'] = data[4]
 
     return friendly_data
 
@@ -211,7 +212,7 @@ def get_friendly_ppxf_output(path):
 def get_friendly_ppxf_output_mc(path):
     """
     Returns a friendly dict- and recarray-based set of ppxf mc output.
-    Only return the data we actually use in plots and want in text files.
+    See pPXFdriver.init_output_containers for details of fits file structure.
     """
     data, headers = utl.fits_quickread(path)
     friendly_data = {}
@@ -232,5 +233,101 @@ def get_friendly_ppxf_output_mc(path):
     for ibin in range(nbins):
         for imom in range(nmoments):
             friendly_data['err'][ibin,imom] = np.std(data[0][0,ibin,:,imom])
-
     return friendly_data
+
+def friendly_temps(fits_path,temps_path):
+    """
+    Save template information in a nice friendly text file.
+    All information is taken from the main fits file of the run, and only
+     relevant information for template runs is saved to the new file.
+    One template file for each bin is saved, since there can sometimes be
+     multiple fullgalaxy bins. The bin number is stuck onto the generic
+     temps_path just before the extension.
+    """
+    fitdata = get_friendly_ppxf_output(fits_path)
+    ncols = len(fitdata['temps'].dtype.names)
+    header = ('Columns are as follows:'
+              '\n {colnames}'
+              '\nMetadata is as follows:'
+              '\n      nonzero templates: {ntemps_nonzero}'
+              '\n out of total templates: {ntemps}'
+              '\n       bin spectra file: {sourcefile}'
+              '\n  bin spectra file date: {sourcedate}'
+              '\n              fits file: {fitsfile}'
+              '\n         fits file date: {fitsdate}'
+              '\nThe best-fit moments are:'
+              '\n {moments}'.format)
+    hkw = {'colnames': ' '.join(fitdata['temps'].dtype.names),
+           'ntemps': fitdata['temps'].shape[1],
+           'sourcefile': fitdata['metadata']['sourcefile'],
+           'sourcedate': fitdata['metadata']['sourcedate'],
+           'fitsfile': os.path.basename(fits_path),
+           'fitsdate': time.ctime(os.path.getmtime(fits_path))}
+    header=functools.partial(header,**hkw)
+    for i in range(fitdata['metadata']['nbins']):
+        fmt = ['%i']
+        fmt.extend(['%-8g']*(ncols-1))
+        temps_root, temps_ext = os.path.splitext(temps_path)
+        ii = np.nonzero(fitdata['temps']['weight'][i,:])[0]
+        binpath = temps_root + str(fitdata['bins']['id'][i]) + temps_ext
+        moments = ' '.join(['%-8g'%m for m in fitdata['gh']['moment'][i,:]])
+        np.savetxt(binpath,fitdata['temps'][i,ii],fmt=fmt,
+                   header=header(ntemps_nonzero=len(ii),moments=moments),
+                   delimiter='\t')
+    return
+
+def friendly_moments(fits_path,mc_fits_path,moments_path,mc_moments_dir):
+    """
+    Save friendly text file version of the ppxf output (moments and errors).
+    """
+    fitdata = get_friendly_ppxf_output(fits_path)
+    nbins = fitdata['metadata']['nbins']
+    nmoments = fitdata['metadata']['nmoments']
+    if os.path.isfile(mc_fits_path):
+        have_mc = True
+        mcdata = get_friendly_ppxf_output_mc(mc_fits_path)
+    else:
+        have_mc = False
+    momentnames = ['V','sigma'] + ['h{}'.format(m) for m in range(3,nmoments+1)]
+    colnames = ' '.join(['bin'] + momentnames + [m+'err' for m in momentnames])
+    header = ('Columns are as follows:'
+              '\n {colnames}'
+              '\nMetadata is as follows:'
+              '\n               add_deg: {add_deg}'
+              '\n               mul_deg: {mul_deg}'
+              '\n                  bias: {bias}'
+              '\n      bin spectra file: {sourcefile}'
+              '\n bin spectra file date: {sourcedate}'
+              '\n             fits file: {fitsfile}'
+              '\n        fits file date: {fitsdate}'
+              '\nErrors from {errsource}'.format)
+    hkw = {}
+    fitsparams = ['add_deg','mul_deg','bias','sourcefile','sourcedate']
+    for param in fitsparams:
+        hkw[param] = fitdata['metadata'][param]
+    hkw['fitsfile'] = os.path.basename(fits_path)
+    hkw['fitsdate'] = time.ctime(os.path.getmtime(fits_path))
+    header = functools.partial(header,colnames=colnames,**hkw)
+    textdata = np.zeros((nbins,1+2*nmoments))
+    textdata[:,0] = fitdata['bins']['id']
+    textdata[:,1:1+nmoments] = fitdata['gh']['moment']
+    if have_mc:
+        textdata[:,-nmoments:] = mcdata['err']
+        header = header(errsource='stdev of {} mc runs'.format(mcdata['nruns']))
+        # also save mc moments to text files
+        if os.path.isdir(mc_moments_dir):
+            shutil.rmtree(mc_moments_dir)
+        os.mkdir(mc_moments_dir)
+        mc_header = 'Columns are as follows:'
+        mc_header += '\n ' + ' '.join(momentnames)
+        fmt = nmoments*['%-6f']
+        for ibin,binid in enumerate(fitdata['bins']['id']):
+            binpath = os.path.join(mc_moments_dir,'bin{:d}.txt'.format(binid))
+            np.savetxt(binpath,mcdata['moments'][ibin].T,fmt=fmt,
+                       delimiter='\t',header=mc_header)
+    else:
+        textdata[:,-nmoments:] = fitdata['gh']['scalederr']
+        header = header(errsource='ppxf, scaled')
+    fmt = ['%i'] + 2*nmoments*['%-6f']
+    np.savetxt(moments_path,textdata,fmt=fmt,delimiter='\t',header=header)
+    return

@@ -73,6 +73,7 @@ for paramfile_path in all_paramfile_paths:
     s2n_threshold = input_params['s2n_threshold']
     bin_type = input_params['bin_type']
     crop_region = [input_params['crop_min'], input_params['crop_max']]
+    fullbin_radius = input_params['fullbin_radius']
 
     # construct output file names
     output_path_maker = lambda f,ext: os.path.join(output_dir,
@@ -120,12 +121,6 @@ for paramfile_path in all_paramfile_paths:
     gal_position, gal_pa, gal_re= mpio.get_gal_center_pa(targets_path, gal_name)
     ma_bin = np.pi/2 - np.deg2rad(gal_pa) #theta=0 at +x (=east), ccwise
     fiber_radius = const.mitchell_fiber_radius.value
-    # do the full galaxy bin
-    full_galaxy = ifuset.spectrumset.collapse(id=0)
-    full_galaxy.comments["binning"] = ("this spectrum is the coadditon "
-                                       "of all fibers in the galaxy")
-    full_galaxy.name = "fullgalaxybin"
-    full_galaxy.write_to_fits(fullbin_path)
     # do all the bins
     if bin_type=='unfolded':
         apf = functools.partial(binning.partition_quadparity,
@@ -203,48 +198,49 @@ for paramfile_path in all_paramfile_paths:
     np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t',
                header=fiberheader)
     # save bin number vs number of fibers, bin center coords, and bin boundaries
-    dt = {'names':['binid','nfibers','flux','x','y','r','th',
-                   'rmin','rmax','thmin','thmax'],
-          'formats':2*['i4']+9*['f32']}
-    fmt = 2*['%1i']+9*['%9.5f']
-    bininfo = np.zeros(number_bins,dtype=dt)
-    bininfo['binid'] = bin_ids
-    bininfo['nfibers'] = [len(fibers) for fibers in grouped_ids]
-    bininfo['flux'] = bin_fluxes
-    for i,coord in enumerate(['x','y','r','th']):
-        bininfo[coord] = bin_coords[:,i]
-    # convert thetas from "binning" units (ccwise from +x=east)
-    #  to "map" units (ccwise/towards -x/east from +y=north)
-    #  by switching min, max and doing th_map = pi/2 - th_binning
-    for i,bound in enumerate(['rmin','rmax','thmax','thmin']):
-        bininfo[bound] = bin_bounds[i,:]
-    bininfo['thmin'] = np.rad2deg(np.pi/2 - bininfo['thmin'])
-    bininfo['thmax'] = np.rad2deg(np.pi/2 - bininfo['thmax'])
-    binheader = 'Columns are as follows:'
-    binheader += '\n' + ' '.join(dt['names'])
-    binheader += '\nCoordinate definitions:'
-    binheader += '\n x-direction is west, y-direction is north'
-    binheader += '\n units are {}'.format(ifuset.coords_unit)
-    binheader += '\n theta=0 is defined at +y (north)'
-    binheader += '\n theta increases counterclockwise (towards east)'
-    binheader += '\n theta is expressed in degrees'
-    binheader += '\nCenter Ra/Dec are {}, {}'.format(gal_position[0],
-                                                     gal_position[1])
-    binheader += '\nPA (degrees, above theta definition) is {}'.format(gal_pa)
-    binheader += '\nNote that x,y are bin centers in cartesian coordinates,'
-    binheader += '\n while r,th are bin centers in polar coordinates,'
-    binheader += '\n and they do not represent the same points!'
-    ifufilename = os.path.basename(ifuset.spectrumset.comments['rawfile'])
-    ifufiledate = ifuset.spectrumset.comments['rawdate']
-    irfiledate = time.ctime(os.path.getctime(ir_path))
-    binheader += "\nSource file: {}".format(ifufilename)
-    binheader += "\n from {}".format(ifufiledate)
-    binheader += "\n with ir file {}".format(ir_path)
-    binheader += "\n from {}".format(irfiledate)
-    binheader += "\nAspect ratio and s2n were set as:"
-    binheader += "\n {}, {}".format(aspect_ratio, s2n_threshold)
-    np.savetxt(bininfo_path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
-    print 'You may ignore the weird underflow error, it is not important.'
+    comments = {'coordunit':ifuset.coords_unit,
+                'ra':gal_position[0],'dec':gal_position[1],'pa':gal_pa,
+                'ifufile':ifuset.spectrumset.comments['rawfile'],
+                'ifufiledate':ifuset.spectrumset.comments['rawdate'],
+                'irfile':os.path.basename(ir_path),
+                'irfiledate':time.ctime(os.path.getmtime(ir_path)),
+                'ar':aspect_ratio,'s2n':s2n_threshold,
+                'r_bestfull':fullbin_radius,
+                'bin_type':bin_type}
+    binning.write_bininfo(bininfo_path,bin_ids,grouped_ids,bin_fluxes,
+                          bin_coords,bin_bounds,**comments)
+    # do the full galaxy bins
+    fullids = [0,-1,-2]
+    greatfibers = [f for f in goodfibers
+                   if not fiber_binnumbers[f]==const.unusedfiber_bin_id]
+    bestfibers = [] # this is where I will make a symmetrical one
+    for fiber in greatfibers:
+        x,y = ifuset.get_subset(fiber).coords[0]
+        if np.sqrt(x**2 + y**2) < fullbin_radius:
+            bestfibers.append(fiber)
+    binned_comments["binning"] = ("bin 0 contains all good fibers, "
+                                  "bin -1 contains all binned fibers, "
+                                  "bin -2 contains all binned fibers within "
+                                  "radius {}.".format(fullbin_radius))
+    fullbin_data = {}
+    fullbin_shape = (len(fullids),ifuset.spectrumset.num_samples)
+    fullbin_data['wavelengths'] = ifuset.spectrumset.waves
+    fullbin_data['spectra_ids'] = fullids
+    for key in ['spectra','bad_data','noise','ir']:
+        fullbin_data[key] = np.zeros(fullbin_shape)
+    for i,f in enumerate([goodfibers,greatfibers,bestfibers]):
+        full_galaxy = ifuset.get_subset(f).spectrumset.collapse(id=fullids[i])
+        fullbin_data['spectra'][i,:] = full_galaxy.spectra
+        fullbin_data['bad_data'][i,:] = full_galaxy.metaspectra['bad_data']
+        fullbin_data['noise'][i,:] = full_galaxy.metaspectra['noise']
+        fullbin_data['ir'][i,:] = full_galaxy.metaspectra['ir']
+    full_galaxy = spec.SpectrumSet(spectra_unit=spec_unit,
+                                   wavelength_unit=wave_unit,
+                                   comments=binned_comments,
+                                   name="fullgalaxybins",
+                                   **fullbin_data)
+    full_galaxy.write_to_fits(fullbin_path)
+
 
 for plot_info in things_to_plot:
     print '\n\n====================================='

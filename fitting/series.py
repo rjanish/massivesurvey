@@ -156,7 +156,7 @@ class SeriesFit(object):
             overlap = (lowers[current] < uppers[previous])
             if overlap:
                 regions[-1] = [lowers[previous], uppers[current]]
-                features[-1].append(current)
+                features.append([current])
             else:
                 regions.append([lowers[current], uppers[current]])
                 features.append([current])

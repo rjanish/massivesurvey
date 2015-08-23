@@ -52,6 +52,8 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     waves = ifuset.spectrumset.waves
     arc_waves = waves*(1+ifuset.spectrumset.comments['redshift'])
     spectra = ifuset.spectrumset.spectra[::skipnumber]
+    # do some "by hand" masking to make the plot more convenient
+    spectra[ifuset.spectrumset.metaspectra['bad_data'][::skipnumber]] = -1000
     arc_spectra = arcs[::skipnumber]
     arc_spectra = (arc_spectra.T/np.max(arc_spectra, axis=1)).T #normalize
     ir_waves = ir['fitcenter'][::skipnumber,:]

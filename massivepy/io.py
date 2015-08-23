@@ -199,7 +199,7 @@ def get_friendly_ppxf_output(path):
     # populate spectrum stuff
     dt = {'names':['bestmodel'], 'formats':['<f8']}
     friendly_data['spec'] = np.zeros((nbins,npixels),dtype=dt)
-    friendly_data['spec']['bestmodel'] = data[2][0, ...]
+    friendly_data['spec']['bestmodel'] = data[2]
 
     # populate waves 
     # this *should* match the bin spectra waves, but sometimes is off by 1

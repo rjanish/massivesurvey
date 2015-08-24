@@ -88,7 +88,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     skipnumber = 1
     plotfibers = ifuset.spectrumset.ids[::skipnumber]
     fiberwaves = ifuset.spectrumset.waves
-    fiberspectra = ifuset.spectrumset.spectra
+    fiberspectra = ifuset.spectrumset.spectra[::skipnumber]
+    fiberspectra[ifuset.spectrumset.metaspectra['bad_data'][::skipnumber]]=-1000
 
 
 
@@ -123,12 +124,12 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     txtkw = {'horizontalalignment':'center','verticalalignment':'center',
              'fontsize':5}
     i2 = 0 # a hacky way to access only the fluxes for good fibers
-    for fiber_id,bin_id in zip(fiberids,binids):
-        x, y = fiber_coords[fiber_id,:]
+    for ifiber, (fiber_id,bin_id) in enumerate(zip(fiberids,binids)):
+        x, y = fiber_coords[ifiber,:]
         patch = functools.partial(patches.Circle,(x,y),fibersize,lw=0.25)
         axs['map'].add_patch(patch(fc=bincolors[bin_id],alpha=0.8,ec='none'))
-        axs['fmap'].add_patch(patch(fc=fiberfluxcolors['c'][fiber_id]))
-        axs['smap'].add_patch(patch(fc=fibers2ncolors['c'][fiber_id]))
+        axs['fmap'].add_patch(patch(fc=fiberfluxcolors['c'][ifiber]))
+        axs['smap'].add_patch(patch(fc=fibers2ncolors['c'][ifiber]))
         for k in ['fmap','fmap2','smap','smap2']:
             axs[k].text(x,y,str(fiber_id),**txtkw)
         if fiber_id in goodfibers:
@@ -184,9 +185,9 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fig2s,ax2s = mplt.scalarmap(figtitle=t2s,xlabel=label_r,ylabel=label_s2n)
     txtkw = {'horizontalalignment':'center','verticalalignment':'center',
              'fontsize':5}
-    for fiber_id,bin_id in zip(fiberids,binids):
-        r = rcoords[fiber_id]
-        f, s = fiberfluxcolors['x'][fiber_id], fibers2ncolors['x'][fiber_id]
+    for ifiber, (fiber_id,bin_id) in enumerate(zip(fiberids,binids)):
+        r = rcoords[ifiber]
+        f, s = fiberfluxcolors['x'][ifiber], fibers2ncolors['x'][ifiber]
         if fiber_id in goodfibers:
             ax1f.text(r,f,str(fiber_id),alpha=0.3,**txtkw)
             ax2f.text(r,f,str(fiber_id),**txtkw)
@@ -219,8 +220,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     t2 = 'All fiber spectra (with cropping and fiber removal)'
     fig1,ax1 = mplt.scalarmap(figtitle=t1,xlabel=label_waves,ylabel=label_flux)
     fig2,ax2 = mplt.scalarmap(figtitle=t2,xlabel=label_waves,ylabel=label_flux)
-    for fiber_id in plotfibers:
-        fspec = fiberspectra[fiber_id]
+    for ifiber,fiber_id in enumerate(plotfibers):
+        fspec = fiberspectra[ifiber]
         ax1.semilogy(fiberwaves,np.abs(fspec),c='r',alpha=0.3)
         ax1.semilogy(fiberwaves,fspec,c='c',alpha=0.3,nonposy='mask') 
         if fiber_id in goodfibers:

@@ -239,6 +239,9 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             try:
                 angle_parition = angle_partition_func(rad_interval)
             except ValueError:
+                print ("I'm pretty sure you are stuck. While {}<{}"
+                       .format(starting_index, final_index))
+                print "Try messing with the aspect ratio."
                 break # invalid annulus - increase outer radius
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             grouped_annular_ids = []

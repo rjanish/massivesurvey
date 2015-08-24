@@ -295,18 +295,8 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
     nfibers, npixels = spectra.shape
     wavelengths = gal_waves
     comments['frame'] = 'galaxy rest frame'
-    bad_data = np.zeros(spectra.shape, dtype=bool)
-    #bad_data=np.where(spectra<0,np.ones(spectra.shape),np.zeros(spectra.shape))
-    if ir_path is None:
-        ir = np.nan*np.ones(spectra.shape)
-    else:
-        ir_samples = res.read_specres(ir_path)
-        # assuming ir_samples is in instrument rest frame
-        # res.specres_for_galaxy will shift it to galaxy frame to match spectra
-        ir = res.specres_for_galaxy(ir_samples['fitcenter'],ir_samples['fwhm'],
-                                    wavelengths, redshift)
-        comments['irfile'] = os.path.basename(ir_path)
-        comments['irdate'] = time.ctime(os.path.getctime(ir_path))
+    bad_data = (spectra==-6.66e19)|np.isnan(spectra)
+    ir = np.nan*np.ones(spectra.shape)
     # we assume units won't change, but check anyway
     if not spectra_h['bunit'] == 'ergs/s/cm^2/A':
         raise Exception("Unexpected flux units in datacube!")
@@ -338,6 +328,24 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
                          coord_comments=coord_comments,
                          footprint=footprint,
                          linear_scale=linear_scale)
+    # remove bad fibers and add in real ir if available
+    bad_fibers = np.where(np.all(bad_data,axis=1))[0]
+    if len(bad_fibers)>0:
+        print 'Entire fiber is bad for the following, skipping them entirely!'
+        print bad_fibers
+    good_fibers = np.where(~np.all(bad_data,axis=1))[0]
+    ifuset = ifuset.get_subset(good_fibers)
+    arcs = arcs[good_fibers,:]
+    if not ir_path is None:
+        ir_samples = res.read_specres(ir_path)
+        # assuming ir_samples is in instrument rest frame
+        # res.specres_for_galaxy will shift it to galaxy frame to match spectra
+        ir = res.specres_for_galaxy(ir_samples['fitcenter'],ir_samples['fwhm'],
+                                    wavelengths, redshift)
+        ircomments = {'irfile': os.path.basename(ir_path),
+                      'irdate': time.ctime(os.path.getctime(ir_path))}
+        ifuset.spectrumset.metaspectra['ir'] = ir
+        ifuset.spectrumset.comments.update(ircomments)
     if return_arcs:
         return ifuset, arcs
     else:

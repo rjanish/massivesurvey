@@ -330,8 +330,9 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
                          linear_scale=linear_scale)
     # remove bad fibers and add in real ir if available
     bad_fibers = np.where(np.all(bad_data,axis=1))[0]
-    print 'Entire fiber is bad for the following, skipping them entirely!'
-    print bad_fibers
+    if len(bad_fibers)>0:
+        print 'Entire fiber is bad for the following, skipping them entirely!'
+        print bad_fibers
     good_fibers = np.where(~np.all(bad_data,axis=1))[0]
     ifuset = ifuset.get_subset(good_fibers)
     arcs = arcs[good_fibers,:]

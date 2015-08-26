@@ -74,15 +74,17 @@ for paramfile_path in all_paramfile_paths:
             print '\nRunning {} again, will overwrite output'.format(gal_name)
         else:
             raise Exception("skip_rerun must be yes or no")
+    else:
+        print '\nRunning {}'.format(gal_name)
 
     # ingest required data
-    #bindata, binetc = binning.read_bininfo(bininfo_path)
-    bindata = np.genfromtxt(bininfo_path,names=True,skip_header=12)
+    bindata, binetc = binning.read_bininfo(bininfo_path)
+    #bindata = np.genfromtxt(bininfo_path,names=True,skip_header=12)
     fitdata = mpio.get_friendly_ppxf_output(binfit_path)
 
     # create a container for all of my radial profiles
     n_rsteps = len(bindata['r'])
-    dt = {'names': ['lastbin','rbin','toplot','rencl','sig',
+    dt = {'names': ['lastbin','toplot','rbin','rencl','sig',
                     'lam','lam_med','lam_fluxw'],
           'formats': ['i8'] + ['b'] + 6*['f8']}
     rprofiles = np.zeros(n_rsteps,dtype=dt)
@@ -118,15 +120,13 @@ for paramfile_path in all_paramfile_paths:
     rprofiles['sig'] = sig_fluxavg['sig']
 
     # save the radial profiles
-    header = ('Columns are as follows:'
-              '\n {colnames}'
-              '\nMetadata is as follows:'
-              '\n (still need to set up metadata)'
-              '\nFor now, lam uses the flux-weighted average V as V0'
-              '\nlam is luminosity weighted except lam_fluxw'
-              '\nsig is flux-weighted average sigma within R'.format)
-    header = header(colnames=' '.join(rprofiles.dtype.names))
-    np.savetxt(rprofiles_path,rprofiles,header=header)
+    metadata = {'fullbin_index': -1,'test_thing': 15.6}
+    comments = ['For now, lam uses the flux-weighted average V as V0',
+                'lam is luminosity weighted except lam_fluxw',
+                'sig is flux-weighted average sigma within R']
+    post.save_rprofiles(rprofiles_path,rprofiles,metadata,comments)
 
 for plot_info in things_to_plot:
+    print '\n\n====================================='
+    print 'Plotting {}'.format(plot_info['gal_name'])
     plot_s4_postprocess(**plot_info)

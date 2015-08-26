@@ -6,32 +6,21 @@ import functools
 
 import numpy as np
 
-def calc_lambda(R,Vraw,sigma,flux,Vnorm='fluxavg'):
+def calc_lambda(R,V,sigma,flux,Vnorm='fluxavg'):
     nbins = len(R)
-    if not len(Vraw)==nbins and len(sigma)==nbins and len(flux)==nbins:
+    if not len(V)==nbins and len(sigma)==nbins and len(flux)==nbins:
         raise Exception('u broke it.')
-    if Vnorm=='fluxavg':
-        Voffset = np.average(Vraw,weights=flux)
-    elif Vnorm=='no_offset':
-        Voffset = 0
-    elif Vnorm=='median':
-        Voffset = np.median(Vraw)
-    else:
-        raise Exception('u broke it.')
-    V = Vraw - Voffset
     # sort by radius
     ii = np.argsort(R)
     R = R[ii]
     V = V[ii]
-    Vraw = Vraw[ii]
     sigma = sigma[ii]
     flux = flux[ii]
     dt = {'names':['R','Vavg','RVavg','m2avg','Rm2avg','lam',
-                   'V','Vraw','sigma','flux'],
-          'formats':10*[np.float64]}
+                   'V','sigma','flux'],
+          'formats':9*[np.float64]}
     output = np.zeros(nbins,dtype=dt)
     output['R'] = R
-    output['Vraw'] = Vraw
     output['V'] = V
     output['sigma'] = sigma
     output['flux'] = flux

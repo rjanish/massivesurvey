@@ -45,10 +45,13 @@ for paramfile_path in all_paramfile_paths:
     output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
     run_name = input_params['run_name']
+    v_choice = int(input_params['v_choice'])
     targets_path = '../all_my_input/target-positions.txt' # wanna get from bins
     bininfo_path = input_params['bininfo_path']
     binfit_path = input_params['binfit_path']
-    check = mpio.pathcheck([bininfo_path,binfit_path],['.txt','.fits'],gal_name)
+    fullfit_path = input_params['fullfit_path']
+    check = mpio.pathcheck([bininfo_path,binfit_path,fullfit_path],
+                           ['.txt','.fits','.fits'],gal_name)
     if not check:
         print 'Something is wrong with the input paths for {}'.format(gal_name)
         print 'Skipping to next galaxy.'
@@ -80,14 +83,14 @@ for paramfile_path in all_paramfile_paths:
 
     # ingest required data
     bindata, binetc = binning.read_bininfo(bininfo_path)
-    #bindata = np.genfromtxt(bininfo_path,names=True,skip_header=12)
-    fitdata = mpio.get_friendly_ppxf_output(binfit_path)
+    binfits = mpio.get_friendly_ppxf_output(binfit_path)
+    fullfits = mpio.get_friendly_ppxf_output(fullfit_path)
     gal_info = mpio.get_gal_info(targets_path, gal_name) # wanna get from bins
 
     # create a container for all of my radial profiles
     n_rsteps = len(bindata['r'])
     dt = {'names': ['lastbin','toplot','rbin','rencl','sig',
-                    'lam','lam_med','lam_fluxw'],
+                    'lam','lam_minv0','lam_maxv0'],
           'formats': ['i8'] + ['b'] + 6*['f8']}
     rprofiles = np.zeros(n_rsteps,dtype=dt)
 
@@ -104,19 +107,30 @@ for paramfile_path in all_paramfile_paths:
     rprofiles['toplot'][kk] = True
     rprofiles['toplot'][-1] = True
 
-    # here is the calculation of lambda
+    # here is the setup for the calculation of lambda
     r = bindata['r']
-    vel = fitdata['gh']['moment'][:,0]
-    sigma = fitdata['gh']['moment'][:,1]
+    vel = binfits['gh']['moment'][:,0]
+    sigma = binfits['gh']['moment'][:,1]
     flux = bindata['flux']
     luminosity = flux*bindata['nfibers'] # skipping fiber_area since it cancels
 
-    lamR = post.calc_lambda(r,vel,sigma,luminosity)
-    rprofiles['lam'] = lamR['lam']
-    lamR = post.calc_lambda(r,vel,sigma,luminosity,Vnorm='median')
-    rprofiles['lam_med'] = lamR['lam']
-    lamR = post.calc_lambda(r,vel,sigma,flux)
-    rprofiles['lam_fluxw'] = lamR['lam']
+    # get all the choices for V0 first
+    v0_all = {'full{}'.format(binid): v for (binid,v) 
+              in zip(fullfits['bins']['id'],fullfits['gh']['moment'][:,0])}
+    v_fullbin_index = np.where(v_choice==fullfits['bins']['id'])[0][0]
+    v0_all['fiducial'] = fullfits['gh']['moment'][v_fullbin_index,0]
+    v0_all['wbinavg'] = np.average(binfits['gh']['moment'][:,0],
+                                           weights=luminosity)
+    v0_all['binavg'] = np.average(binfits['gh']['moment'][:,0])
+    v0_all['wbinmed'] = utl.median(binfits['gh']['moment'][:,0],
+                                              weights=luminosity)
+    v0_all['binmed'] = utl.median(binfits['gh']['moment'][:,0])
+
+    # then calculate lambda
+    for label,v0 in zip(['lam','lam_minv0','lam_maxv0'],
+                [v0_all['fiducial'],min(v0_all.values()),max(v0_all.values())]):
+        lamR = post.calc_lambda(r,vel-v0,sigma,luminosity)
+        rprofiles[label] = lamR['lam']
     
     # do sigma thing
     sig_fluxavg = post.calc_sigma(r,sigma,luminosity)
@@ -137,6 +151,7 @@ for paramfile_path in all_paramfile_paths:
                 'ba': gal_info['ba'],
                 'isslow': int(lam_re<slowfast_cutoff),
                 'sf_cutoff': slowfast_cutoff}
+    metadata.update({'v0_{}'.format(k):v for k,v in v0_all.iteritems()})
 
     # save the radial profiles
     comments = ['For now, lam uses the flux-weighted average V as V0',
@@ -144,9 +159,6 @@ for paramfile_path in all_paramfile_paths:
                 'sig is luminosity weighted average sigma within R']
     post.write_rprofiles(rprofiles_path,rprofiles,metadata,comments)
 
-    # testing only, delete this part
-    etc = post.read_rprofiles_header(rprofiles_path)
-    print etc
 
 for plot_info in things_to_plot:
     print '\n\n====================================='

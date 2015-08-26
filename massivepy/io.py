@@ -146,6 +146,46 @@ def get_gal_center_pa(targets_path,gal_name):
         raise Exception('Invalid targets path.')
     return gal_center, gal_pa, gal_re
 
+def get_gal_info(targets_path,gal_name):
+    """
+    Returns galaxy information from Jenny's target file.
+    File name should match one of the choices in the if/elif block below.
+    This returns center, pa, Re, and B/A in a more convenient form than
+     get_gal_center_pa (which only did center and pa, obviously) and will
+     eventually replace it.
+    """
+    target_positions = pd.read_csv(targets_path,
+                                   comment='#', sep="[ \t]+",
+                                   engine='python')
+    gal_position = target_positions[target_positions.Name == gal_name]
+    gal_info = {}
+    if os.path.basename(targets_path)=='target-positions-pre20150731.txt':
+        print 'Using old targets file:\n  {}'.format(targets_path)
+        raise Exception('You have not fixed this code yet')
+        #gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
+        #gal_pa = gal_position.PA_best.iat[0]
+        #gal_re = np.nan
+    elif os.path.basename(targets_path)=='target-positions.txt':
+        gal_info['ra'] = gal_position.RA.iat[0]
+        gal_info['dec'] = gal_position.Dec.iat[0]
+        gal_info['pa'] = gal_position.PA_NSA.iat[0]
+        gal_info['re'] = gal_position.Re_NSA.iat[0]
+        gal_info['ba'] = gal_position.ba_NSA.iat[0]
+        if gal_info['pa']==-99.0:
+            print 'NSA PA not available, using 2MASS'
+            gal_info['pa'] = gal_position.PA_2MASS.iat[0]
+        if gal_info['pa'] < 0:
+            gal_info['pa'] += 180
+        if gal_info['re']==-99.0:
+            print 'NSA Re not available, using 2MASS (not converted)'
+            gal_info['re'] = gal_position.Re_2MASS.iat[0]
+        if gal_info['ba']==-99.0:
+            print 'NSA B/A not available, using 2MASS (not converted)'
+            gal_info['ba'] = gal_position.ba_2MASS.iat[0]
+    else:
+        raise Exception('Invalid targets path.')
+    return gal_info
+
 def get_friendly_ppxf_output(path):
     """
     Returns a friendly dict- and recarray-based set of ppxf output.

@@ -45,6 +45,7 @@ for paramfile_path in all_paramfile_paths:
     output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
     run_name = input_params['run_name']
+    targets_path = '../all_my_input/target-positions.txt' # wanna get from bins
     bininfo_path = input_params['bininfo_path']
     binfit_path = input_params['binfit_path']
     check = mpio.pathcheck([bininfo_path,binfit_path],['.txt','.fits'],gal_name)
@@ -81,6 +82,7 @@ for paramfile_path in all_paramfile_paths:
     bindata, binetc = binning.read_bininfo(bininfo_path)
     #bindata = np.genfromtxt(bininfo_path,names=True,skip_header=12)
     fitdata = mpio.get_friendly_ppxf_output(binfit_path)
+    gal_info = mpio.get_gal_info(targets_path, gal_name) # wanna get from bins
 
     # create a container for all of my radial profiles
     n_rsteps = len(bindata['r'])
@@ -91,6 +93,7 @@ for paramfile_path in all_paramfile_paths:
 
     # populate the radius information
     ii = np.argsort(bindata['r'])
+    rprofiles['lastbin'] = bindata['binid'][ii]
     rprofiles['rbin'] = bindata['r'][ii]
     rencl = bindata['rmax'][ii]
     jj = np.isnan(rencl)
@@ -116,15 +119,34 @@ for paramfile_path in all_paramfile_paths:
     rprofiles['lam_fluxw'] = lamR['lam']
     
     # do sigma thing
-    sig_fluxavg = post.calc_sigma(r,sigma,flux)
+    sig_fluxavg = post.calc_sigma(r,sigma,luminosity)
     rprofiles['sig'] = sig_fluxavg['sig']
 
+    # obtain some useful single-number metadata
+    plotprof = rprofiles[rprofiles['toplot'].astype(bool)]
+    lam_re = np.interp(gal_info['re'],plotprof['rencl'],plotprof['lam'])
+    lam_re2 = np.interp(0.5*gal_info['re'],plotprof['rencl'],plotprof['lam'])
+    sig_re = np.interp(gal_info['re'],plotprof['rencl'],plotprof['sig'])
+    sig_re2 = np.interp(0.5*gal_info['re'],plotprof['rencl'],plotprof['sig'])
+    slowfast_cutoff = 0.31*np.sqrt(1-gal_info['ba'])
+    metadata = {'lambda_re': lam_re,
+                'lambda_halfre' : lam_re2,
+                'sigma_re': sig_re,
+                'sigma_halfre' : sig_re2,
+                're': gal_info['re'],
+                'ba': gal_info['ba'],
+                'isslow': int(lam_re<slowfast_cutoff),
+                'sf_cutoff': slowfast_cutoff}
+
     # save the radial profiles
-    metadata = {'fullbin_index': -1,'test_thing': 15.6}
     comments = ['For now, lam uses the flux-weighted average V as V0',
                 'lam is luminosity weighted except lam_fluxw',
-                'sig is flux-weighted average sigma within R']
-    post.save_rprofiles(rprofiles_path,rprofiles,metadata,comments)
+                'sig is luminosity weighted average sigma within R']
+    post.write_rprofiles(rprofiles_path,rprofiles,metadata,comments)
+
+    # testing only, delete this part
+    etc = post.read_rprofiles_header(rprofiles_path)
+    print etc
 
 for plot_info in things_to_plot:
     print '\n\n====================================='

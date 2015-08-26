@@ -55,7 +55,7 @@ def calc_sigma(R,sigma,flux):
     output['sig'] = np.cumsum(sigma[ii]*flux[ii])/np.cumsum(flux[ii])
     return output
 
-def save_rprofiles(path,data,metadata,comments):
+def write_rprofiles(path,data,metadata,comments):
     """
     Save radial profiles to file. Arguments are:
     -path: path to save file to
@@ -82,3 +82,30 @@ def save_rprofiles(path,data,metadata,comments):
     fmt = 2*['%2i'] + (len(data.dtype.names)-2)*['%9.5f']
     np.savetxt(path,data,header=header,fmt=fmt)
     return
+
+def read_rprofiles_header(path):
+    """
+    Get radial profile metadata from file. See write_rprofiles for details.
+    Returns a dictionary with one float per key, except "comments" which
+     contains a list of strings.
+    """
+    metadata = {'comments':[]}
+    header = open(path,'r')
+    isheader = True
+    ismeta = False
+    iscomments = False
+    while isheader:
+        line = header.next()
+        if not line[0]=='#':
+            isheader=False
+        elif line=='# Metadata is as follows:\n':
+            ismeta = True
+        elif line=='# Additional comments:\n':
+            iscomments = True
+            ismeta = False
+        elif ismeta:
+            key, value = line[1:].strip().split(':')
+            metadata[key.strip()] = float(value)
+        elif iscomments:
+            metadata['comments'].append(line[3:-1])
+    return metadata

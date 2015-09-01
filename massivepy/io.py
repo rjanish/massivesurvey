@@ -115,44 +115,11 @@ def pathcheck(paths,extensions,gal_name):
             pass
     return True
 
-def get_gal_center_pa(targets_path,gal_name):
-    """
-    Returns galaxy center and pa from Jenny's target file.
-    File name should match one of the choices in the if/elif block below.
-    """
-    target_positions = pd.read_csv(targets_path,
-                                   comment='#', sep="[ \t]+",
-                                   engine='python')
-    gal_position = target_positions[target_positions.Name == gal_name]
-    if os.path.basename(targets_path)=='target-positions-pre20150731.txt':
-        print 'Using old targets file:\n  {}'.format(targets_path)
-        gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
-        gal_pa = gal_position.PA_best.iat[0]
-        gal_re = np.nan
-    elif os.path.basename(targets_path)=='target-positions.txt':
-        gal_center = gal_position.RA.iat[0], gal_position.Dec.iat[0]
-        gal_pa = gal_position.PA_NSA.iat[0]
-        gal_re = gal_position.Re_NSA.iat[0]
-        if gal_pa==-99.0:
-            print 'NSA PA not available, using 2MASS'
-            gal_pa = gal_position.PA_2MASS.iat[0]
-        if gal_pa < 0:
-            gal_pa += 180
-        if gal_re==-99.0:
-            print 'NSA Re not available, 2MASS conversion not functional.'
-            print 'Giving you a NaN, sorry.'
-            gal_re = np.nan
-    else:
-        raise Exception('Invalid targets path.')
-    return gal_center, gal_pa, gal_re
-
 def get_gal_info(targets_path,gal_name):
     """
     Returns galaxy information from Jenny's target file.
     File name should match one of the choices in the if/elif block below.
-    This returns center, pa, Re, and B/A in a more convenient form than
-     get_gal_center_pa (which only did center and pa, obviously) and will
-     eventually replace it.
+    This returns center, pa, Re, and B/A in a convenient dict.
     """
     target_positions = pd.read_csv(targets_path,
                                    comment='#', sep="[ \t]+",

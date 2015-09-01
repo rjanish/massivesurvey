@@ -16,13 +16,15 @@ import massivepy.constants as const
 import massivepy.spectralresolution as res
 import massivepy.IFUspectrum as ifu
 import massivepy.gausshermite as gh
+import massivepy.io as mpio
 import massivepy.plot_massive as mplt
 
 
 def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
                              targets_path=None,ir_path=None,plot_path=None):
     # read data, with the goal of not referencing ifuset after this section
-    ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,targets_path,gal_name,
+    gal_info = mpio.get_gal_info(targets_path,gal_name)
+    ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,gal_info,gal_name,
                                          ir_path=ir_path,return_arcs=True)
     ir = res.read_specres(ir_path)
 

@@ -106,7 +106,10 @@ for paramfile_path in all_paramfile_paths:
 
     # get bin layout...
     print "  binning..."
-    ifuset_all = ifu.read_raw_datacube(raw_cube_path, targets_path, gal_name,
+    gal_info = mpio.get_gal_info(targets_path,gal_name)
+    ma_bin = np.pi/2 - np.deg2rad(gal_info['pa']) #theta=0 at +x (east), ccwise
+    fiber_radius = const.mitchell_fiber_radius.value
+    ifuset_all = ifu.read_raw_datacube(raw_cube_path, gal_info, gal_name,
                                        ir_path=ir_path)
     # crop wavelength range and remove fibers
     ifuset_all.crop(crop_region)
@@ -118,9 +121,6 @@ for paramfile_path in all_paramfile_paths:
         try: goodfibers.remove(badfiber)
         except: print "Duplicate bad fiber number: {}".format(badfiber)
     ifuset = ifuset_all.get_subset(goodfibers)
-    gal_position, gal_pa, gal_re= mpio.get_gal_center_pa(targets_path, gal_name)
-    ma_bin = np.pi/2 - np.deg2rad(gal_pa) #theta=0 at +x (=east), ccwise
-    fiber_radius = const.mitchell_fiber_radius.value
     # do all the bins
     if bin_type=='unfolded':
         apf = functools.partial(binning.partition_quadparity,
@@ -163,7 +163,7 @@ for paramfile_path in all_paramfile_paths:
         fluxes = subset.spectrumset.compute_flux()
         #Final bin coords want +x=west (not east), so use -xs
         bin_coords[bin_iter,:] = binning.calc_bin_center(-xs,ys,fluxes,bin_type,
-                                        pa=gal_pa,rmin=np.min(radial_bounds))
+                                  pa=gal_info['pa'],rmin=np.min(radial_bounds))
         bin_fluxes[bin_iter] = np.average(fluxes)
     spec_unit = ifuset.spectrumset.spec_unit
     wave_unit = ifuset.spectrumset.wave_unit
@@ -199,17 +199,15 @@ for paramfile_path in all_paramfile_paths:
     mpio.save_textfile(fiberinfo_path,fiberinfo[isort],{},comments,fmt='%1i')
     # save bin number vs number of fibers, bin center coords, and bin boundaries
     metadata = {'coord unit': ifuset.coords_unit,
-                'ra': gal_position[0],
-                'dec': gal_position[1],
-                'pa': gal_pa,
                 'ifu file': os.path.basename(raw_cube_path),
                 'ifu file date': time.ctime(os.path.getmtime(raw_cube_path)),
                 'ir file': os.path.basename(ir_path),
                 'ir file date': time.ctime(os.path.getmtime(ir_path)),
-                'ar': aspect_ratio,
-                's2n': s2n_threshold,
-                'r_bestfull': fullbin_radius,
+                'threshold ar': aspect_ratio,
+                'threshold s2n': s2n_threshold,
+                'r best fullbin': fullbin_radius,
                 'bin type': bin_type}
+    metadata.update({'gal {}'.format(k): v for k,v in gal_info.iteritems()})
     binning.write_bininfo(bininfo_path,bin_ids,grouped_ids,bin_fluxes,
                           bin_coords,bin_bounds,**metadata)
     # do the full galaxy bins

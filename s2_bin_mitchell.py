@@ -189,26 +189,29 @@ for paramfile_path in all_paramfile_paths:
     # save binned spectrum
     binned_specset.write_to_fits(binspectra_path)
     # save fiber number vs bin number, sorted
-    fiberheader = "Fiber id vs bin id. "
-    fiberheader += "\n {} is for unused fibers".format(const.unusedfiber_bin_id)
-    fiberheader += "\n {} is for bad fibers".format(const.badfiber_bin_id)
-    fiberinfo = np.array([np.array(fiber_binnumbers.keys()),
-                          np.array(fiber_binnumbers.values())])
-    isort = np.argsort(fiberinfo[0,:])
-    np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t',
-               header=fiberheader)
+    dt = {'names':['fiberid','binid'],'formats':[int,int]}
+    fiberinfo = np.zeros(len(fiber_binnumbers),dtype=dt)
+    fiberinfo['fiberid'] = fiber_binnumbers.keys()
+    fiberinfo['binid'] = fiber_binnumbers.values()
+    isort = np.argsort(fiberinfo['fiberid'])
+    comments = ['{} is for unused fibers'.format(const.unusedfiber_bin_id),
+                '{} is for bad fibers'.format(const.badfiber_bin_id)]
+    mpio.save_textfile(fiberinfo_path,fiberinfo[isort],{},comments,fmt='%1i')
     # save bin number vs number of fibers, bin center coords, and bin boundaries
-    comments = {'coordunit':ifuset.coords_unit,
-                'ra':gal_position[0],'dec':gal_position[1],'pa':gal_pa,
-                'ifufile':ifuset.spectrumset.comments['rawfile'],
-                'ifufiledate':ifuset.spectrumset.comments['rawdate'],
-                'irfile':os.path.basename(ir_path),
-                'irfiledate':time.ctime(os.path.getmtime(ir_path)),
-                'ar':aspect_ratio,'s2n':s2n_threshold,
-                'r_bestfull':fullbin_radius,
-                'bin_type':bin_type}
+    metadata = {'coord unit': ifuset.coords_unit,
+                'ra': gal_position[0],
+                'dec': gal_position[1],
+                'pa': gal_pa,
+                'ifu file': os.path.basename(raw_cube_path),
+                'ifu file date': time.ctime(os.path.getmtime(raw_cube_path)),
+                'ir file': os.path.basename(ir_path),
+                'ir file date': time.ctime(os.path.getmtime(ir_path)),
+                'ar': aspect_ratio,
+                's2n': s2n_threshold,
+                'r_bestfull': fullbin_radius,
+                'bin type': bin_type}
     binning.write_bininfo(bininfo_path,bin_ids,grouped_ids,bin_fluxes,
-                          bin_coords,bin_bounds,**comments)
+                          bin_coords,bin_bounds,**metadata)
     # do the full galaxy bins
     fullids = [0,-1,-2]
     greatfibers = [f for f in goodfibers

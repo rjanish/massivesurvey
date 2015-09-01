@@ -9,6 +9,7 @@ np.seterr(under='warn')  # for all but underflow warnings (numpy
                          # version 1.8.2 raises spurious underflows
                          # on some masked array computations)
 
+import massivepy.io as mpio
 import utilities as utl
 
 
@@ -333,13 +334,12 @@ def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     return np.array([x_bin,y_bin,r_bin,th_bin])
 
 def write_bininfo(path,bin_ids,grouped_fiberids,bin_fluxes,
-                  bin_coords,bin_bounds,**comments):
-    number_bins = len(bin_ids)
+                  bin_coords,bin_bounds,**metadata):
     dt = {'names':['binid','nfibers','flux','x','y','r','th',
                    'rmin','rmax','thmin','thmax'],
           'formats':2*['i4']+9*['f32']}
-    fmt = 2*['%1i']+9*['%9.5f']
-    bininfo = np.zeros(number_bins,dtype=dt)
+    fmt = 2*['%4i']+9*['%9.5f']
+    bininfo = np.zeros(len(bin_ids),dtype=dt)
     bininfo['binid'] = bin_ids
     bininfo['nfibers'] = [len(fibers) for fibers in grouped_fiberids]
     bininfo['flux'] = bin_fluxes
@@ -352,32 +352,17 @@ def write_bininfo(path,bin_ids,grouped_fiberids,bin_fluxes,
         bininfo[bound] = bin_bounds[i,:]
     bininfo['thmin'] = np.rad2deg(np.pi/2 - bininfo['thmin'])
     bininfo['thmax'] = np.rad2deg(np.pi/2 - bininfo['thmax'])
-    binheader = 'Columns are as follows:'
-    binheader += '\n' + ' '.join(dt['names'])
-    binheader += '\nMetadata are as follows:'
-    binheader += '\n postitive x-direction: west'
-    binheader += '\n postitive y-direction: north'
-    binheader += '\n      coordinate units: {}'.format(comments['coordunit'])
-    binheader += '\n           theta units: degrees'
-    binheader += '\n             galaxy ra: {}'.format(comments['ra'])
-    binheader += '\n            galaxy dec: {}'.format(comments['dec'])
-    binheader += '\n             galaxy pa: {}'.format(comments['pa'])
-    binheader += "\n       source ifu file: {}".format(comments['ifufile'])
-    binheader += "\n         ifu file date: {}".format(comments['ifufiledate'])
-    binheader += "\n               ir file: {}".format(comments['irfile'])
-    binheader += "\n          ir file date: {}".format(comments['irfiledate'])
-    binheader += "\n          aspect ratio: {}".format(comments['ar'])
-    binheader += "\n         s2n threshold: {}".format(comments['s2n'])
-    binheader += "\n   best fullbin radius: {}".format(comments['r_bestfull'])
-    binheader += "\n          binning type: {}".format(comments['bin_type'])
-    binheader += '\nOther comments:'
-    binheader += '\n Theta=0 is defined at: +y (north)'
-    binheader += '\n Theta increases counterclockwise (towards east)'
-    binheader += '\n Galaxy PA is listed using the same definition of theta'
-    binheader += '\n Note that x,y are bin centers in cartesian coordinates,'
-    binheader += '\n  while r,th are bin centers in polar coordinates,'
-    binheader += '\n  and they do not represent the same points!'
-    np.savetxt(path,bininfo,delimiter='\t',fmt=fmt,header=binheader)
+    # add to the metadata
+    metadata['positive x axis'] = 'west'
+    metadata['positive y axis'] = 'north'
+    metadata['theta units'] = 'degrees'
+    comments = ['Theta=0 is defined at: +y (north)',
+                'Theta increases counterclockwise (towards east)',
+                'Galaxy PA is listed using the same definition of theta',
+                'Note that x,y are bin centers in cartesian coordinates,',
+                ' while r,th are bin centers in polar coordinates,',
+                ' and they do not represent the same points!']
+    mpio.save_textfile(path,bininfo,metadata,comments,fmt=fmt)
     return
 
 def read_bininfo(path,plotprep=True):
@@ -391,14 +376,7 @@ def read_bininfo(path,plotprep=True):
     Can turn off plotprep for testing purposes, but by default it is on.
     """
     bindata = np.genfromtxt(path,names=True,skip_header=1)
-    bincomments = {}
-    commentkeys = {7:'ra',8:'dec',9:'pa',14:'ar',15:'s2n',16:'r_bestfull'}
-        # lines where important metadata numbers are found
-    for i,line in enumerate(open(path,'r')):
-        if not line[0]=='#':
-            break
-        elif i in commentkeys:
-            bincomments[commentkeys[i]] = float(line.strip().split()[-1])
+    binmeta = mpio.read_friendly_header(path)
     if plotprep:
         names0 = list(bindata.dtype.names)
         formats0 = [bindata.dtype.fields[name][0] for name in names0]
@@ -413,8 +391,8 @@ def read_bininfo(path,plotprep=True):
         bindata['rx'] = -bindata['r']*np.sin(np.deg2rad(bindata['th']))
         bindata['ry'] = bindata['r']*np.cos(np.deg2rad(bindata['th']))
         rmax = np.nanmax(bindata['rmax'])
-        ma_theta = np.pi/2 + np.deg2rad(bincomments['pa'])
-        bincomments['ma_x'] = rmax*1.1*np.cos(ma_theta)
-        bincomments['ma_y'] = rmax*1.1*np.sin(ma_theta)
-        bincomments['rbinmax'] = rmax
-    return bindata, bincomments
+        ma_theta = np.pi/2 + np.deg2rad(binmeta['pa'])
+        binmeta['ma_x'] = rmax*1.1*np.cos(ma_theta)
+        binmeta['ma_y'] = rmax*1.1*np.sin(ma_theta)
+        binmeta['rbinmax'] = rmax
+    return bindata, binmeta

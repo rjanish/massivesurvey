@@ -267,15 +267,18 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     yspace = 1/float(nbins)
     ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
     for ibin in range(nbins):
-        spectrum = specset.spectra[ibin,:] 
+        norm = (specset.waves[-1] - specset.waves[0])/bindata['flux'][ibin]
+        spectrum = specset.spectra[ibin,:]*norm
         ax.plot(specset.waves,specset.ids[ibin]-spectrum+spectrum[0],c='k')
     # assuming all 3 full spectra are present, overplot with different colors
     # if the spectra are identical, you will see only the black one
     fullcolors = {0: 'k', -1: 'g', -2: 'r'}
     full_labels = {0: 'all good fibers', -1: 'binned fibers only',
             -2: 'binned fibers within r={}'.format(binmeta['r best fullbin'])}
+    fullnorms = (specset_full.waves[-1] - specset_full.waves[0])
+    fullnorms = fullnorms/specset_full.compute_flux()
     for ifull,fullid in reversed(list(enumerate(specset_full.ids))):
-        spectrum = specset_full.spectra[ifull,:]
+        spectrum = specset_full.spectra[ifull,:]*fullnorms[ifull]
         ax.plot(specset_full.waves,-spectrum+spectrum[0],c=fullcolors[fullid],
                 label=full_labels[fullid])
     legend = ax.legend(loc=(0,1-1.3/(nbins+3.0)),fontsize=8,

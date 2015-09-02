@@ -154,17 +154,18 @@ for paramfile_path in all_paramfile_paths:
     for bin_iter, fibers in enumerate(grouped_ids):
         fiber_binnumbers.update({f: bin_ids[bin_iter] for f in fibers})
         subset = ifuset.get_subset(fibers)
-        binned = subset.spectrumset.collapse(id='666') #dummy id
+        fluxes = subset.spectrumset.compute_flux()
+        flux = np.average(fluxes)
+        binned = subset.spectrumset.collapse(id='666',norm_value=flux) #dummy id
         binned_data["spectra"][bin_iter, :] = binned.spectra
         binned_data["bad_data"][bin_iter, :] = binned.metaspectra["bad_data"]
         binned_data["noise"][bin_iter, :] = binned.metaspectra["noise"]
         binned_data["ir"][bin_iter, :] = binned.metaspectra["ir"]
         xs, ys = subset.coords.T
-        fluxes = subset.spectrumset.compute_flux()
         #Final bin coords want +x=west (not east), so use -xs
         bin_coords[bin_iter,:] = binning.calc_bin_center(-xs,ys,fluxes,bin_type,
                                   pa=gal_info['pa'],rmin=np.min(radial_bounds))
-        bin_fluxes[bin_iter] = np.average(fluxes)
+        bin_fluxes[bin_iter] = flux
     spec_unit = ifuset.spectrumset.spec_unit
     wave_unit = ifuset.spectrumset.wave_unit
     binned_comments = ifuset.spectrumset.comments.copy()
@@ -230,7 +231,9 @@ for paramfile_path in all_paramfile_paths:
     for key in ['spectra','bad_data','noise','ir']:
         fullbin_data[key] = np.zeros(fullbin_shape)
     for i,f in enumerate([goodfibers,greatfibers,bestfibers]):
-        full_galaxy = ifuset.get_subset(f).spectrumset.collapse(id=fullids[i])
+        subset = ifuset.get_subset(f)
+        flux = np.average(subset.spectrumset.compute_flux())
+        full_galaxy = subset.spectrumset.collapse(id=fullids[i],norm_value=flux)
         fullbin_data['spectra'][i,:] = full_galaxy.spectra
         fullbin_data['bad_data'][i,:] = full_galaxy.metaspectra['bad_data']
         fullbin_data['noise'][i,:] = full_galaxy.metaspectra['noise']

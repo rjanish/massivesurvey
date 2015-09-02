@@ -82,10 +82,9 @@ for paramfile_path in all_paramfile_paths:
         print '\nRunning {}'.format(gal_name)
 
     # ingest required data
-    bindata, binetc = binning.read_bininfo(bininfo_path)
+    bindata, binmeta = binning.read_bininfo(bininfo_path)
     binfits = mpio.get_friendly_ppxf_output(binfit_path)
     fullfits = mpio.get_friendly_ppxf_output(fullfit_path)
-    gal_info = mpio.get_gal_info(targets_path, gal_name) # wanna get from bins
 
     # create a container for all of my radial profiles
     n_rsteps = len(bindata['r'])
@@ -138,26 +137,27 @@ for paramfile_path in all_paramfile_paths:
 
     # obtain some useful single-number metadata
     plotprof = rprofiles[rprofiles['toplot'].astype(bool)]
-    lam_re = np.interp(gal_info['re'],plotprof['rencl'],plotprof['lam'])
-    lam_re2 = np.interp(0.5*gal_info['re'],plotprof['rencl'],plotprof['lam'])
-    sig_re = np.interp(gal_info['re'],plotprof['rencl'],plotprof['sig'])
-    sig_re2 = np.interp(0.5*gal_info['re'],plotprof['rencl'],plotprof['sig'])
-    slowfast_cutoff = 0.31*np.sqrt(1-gal_info['ba'])
-    metadata = {'lambda_re': lam_re,
-                'lambda_halfre' : lam_re2,
-                'sigma_re': sig_re,
-                'sigma_halfre' : sig_re2,
-                're': gal_info['re'],
-                'ba': gal_info['ba'],
-                'isslow': int(lam_re<slowfast_cutoff),
-                'sf_cutoff': slowfast_cutoff}
+    lam_re = np.interp(binmeta['gal re'],plotprof['rencl'],plotprof['lam'])
+    lam_re2 = np.interp(0.5*binmeta['gal re'],plotprof['rencl'],plotprof['lam'])
+    sig_re = np.interp(binmeta['gal re'],plotprof['rencl'],plotprof['sig'])
+    sig_re2 = np.interp(0.5*binmeta['gal re'],plotprof['rencl'],plotprof['sig'])
+    slowfast_cutoff = 0.31*np.sqrt(1-binmeta['gal ba'])
+    metadata = {'lambda re': lam_re,
+                'lambda half re' : lam_re2,
+                'sigma re': sig_re,
+                'sigma half re' : sig_re2,
+                'gal re': binmeta['gal re'],
+                'gal ba': binmeta['gal ba'],
+                'is slow': int(lam_re<slowfast_cutoff),
+                'slow/fast cutoff': slowfast_cutoff}
     metadata.update({'v0_{}'.format(k):v for k,v in v0_all.iteritems()})
 
     # save the radial profiles
     comments = ['For now, lam uses the flux-weighted average V as V0',
                 'lam is luminosity weighted except lam_fluxw',
                 'sig is luminosity weighted average sigma within R']
-    post.write_rprofiles(rprofiles_path,rprofiles,metadata,comments)
+    mpio.save_textfile(rprofiles_path,rprofiles,metadata,comments,
+                       fmt=2*['%2i']+(len(rprofiles.dtype.names)-2)*['%9.5f'])
 
 
 for plot_info in things_to_plot:

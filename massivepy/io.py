@@ -115,44 +115,11 @@ def pathcheck(paths,extensions,gal_name):
             pass
     return True
 
-def get_gal_center_pa(targets_path,gal_name):
-    """
-    Returns galaxy center and pa from Jenny's target file.
-    File name should match one of the choices in the if/elif block below.
-    """
-    target_positions = pd.read_csv(targets_path,
-                                   comment='#', sep="[ \t]+",
-                                   engine='python')
-    gal_position = target_positions[target_positions.Name == gal_name]
-    if os.path.basename(targets_path)=='target-positions-pre20150731.txt':
-        print 'Using old targets file:\n  {}'.format(targets_path)
-        gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
-        gal_pa = gal_position.PA_best.iat[0]
-        gal_re = np.nan
-    elif os.path.basename(targets_path)=='target-positions.txt':
-        gal_center = gal_position.RA.iat[0], gal_position.Dec.iat[0]
-        gal_pa = gal_position.PA_NSA.iat[0]
-        gal_re = gal_position.Re_NSA.iat[0]
-        if gal_pa==-99.0:
-            print 'NSA PA not available, using 2MASS'
-            gal_pa = gal_position.PA_2MASS.iat[0]
-        if gal_pa < 0:
-            gal_pa += 180
-        if gal_re==-99.0:
-            print 'NSA Re not available, 2MASS conversion not functional.'
-            print 'Giving you a NaN, sorry.'
-            gal_re = np.nan
-    else:
-        raise Exception('Invalid targets path.')
-    return gal_center, gal_pa, gal_re
-
 def get_gal_info(targets_path,gal_name):
     """
     Returns galaxy information from Jenny's target file.
     File name should match one of the choices in the if/elif block below.
-    This returns center, pa, Re, and B/A in a more convenient form than
-     get_gal_center_pa (which only did center and pa, obviously) and will
-     eventually replace it.
+    This returns center, pa, Re, and B/A in a convenient dict.
     """
     target_positions = pd.read_csv(targets_path,
                                    comment='#', sep="[ \t]+",
@@ -371,3 +338,62 @@ def friendly_moments(fits_path,mc_fits_path,moments_path,mc_moments_dir):
     fmt = ['%i'] + 2*nmoments*['%-6f']
     np.savetxt(moments_path,textdata,fmt=fmt,delimiter='\t',header=header)
     return
+
+def save_textfile(path,data,metadata,comments,fmt=None):
+    """
+    Save data to a text file, including metadata in a friendly format.
+    Arguments:
+       -path: the path to save the file to. will overwrite.
+       -data: a numpy array with column names
+       -metadata: a dictionary with the metadata
+       -comments: a list of strings to be added to the bottom of the header
+    """
+    header = ('Columns are as follows...'
+              '\n {colnames}'
+              '\nMetadata is as follows...'
+              '\n {headermeta}'
+              '\nAdditional comments...'
+              '\n {headercomments}'
+              ''.format)
+    for key in metadata:
+        if len(key) > 20:
+            raise Exception('Overly long metadata key: {}'.format(key))
+    metalist = ['{spacing}{k}: {v}'.format(spacing=(21-len(k))*' ',k=k,v=v)
+                for k,v in sorted(metadata.iteritems())]
+    header = header(colnames=' '.join(data.dtype.names),
+                    headermeta='\n '.join(metalist),
+                    headercomments='\n '.join(comments))
+    if fmt==None:
+        fmt = len(data.dtype.names)*['%9.5f']
+    np.savetxt(path,data,header=header,fmt=fmt,delimiter='\t')
+    return
+
+def read_friendly_header(path):
+    """
+    Read data from the header of a text file formatted as above.
+    Returns a dictionary with all metadata found.
+    """
+    metadata = {'other header lines':[]}
+    header = open(path,'r')
+    while True:
+        line = header.next()
+        if not line[0]=='#':
+            break
+        contents = line[1:].strip().split(':')
+        if len(contents)==1:
+            metadata['other header lines'].append(contents[0])
+        elif len(contents)==2:
+            key = contents[0].strip()
+            value = contents[1].strip()
+            try:
+                metadata[key] = float(value)
+            except ValueError:
+                if len(value)>0:
+                    metadata[key] = value
+                else:
+                    metadata['other header lines'].append(key)
+        else:
+            key = contents[0].strip()
+            value = ':'.join([c.strip() for c in contents[1:]])
+            metadata[key] = value
+    return metadata

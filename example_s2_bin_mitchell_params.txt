@@ -33,3 +33,4 @@ s2n_threshold		20
 bin_type		folded
 crop_min		3650
 crop_max		5650
+fullbin_radius		30

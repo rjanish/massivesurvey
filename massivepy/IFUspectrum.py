@@ -257,7 +257,7 @@ def center_coordinates(coords, center):
     comments['y-direction'] = 'North'
     return new_coords, comments
 
-def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
+def read_raw_datacube(cube_path, gal_info , gal_name, ir_path=None,
                       return_arcs=False):
     """
     This is intended to replace read_mitchell_rawdatacube, since we no longer
@@ -290,7 +290,7 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
         gal_waves = all_waves[0, :]  # assume uniform samples; gal rest frame
         redshift = waves_h['z']  # assumed redshift of galaxy
         inst_waves = gal_waves*(1 + redshift)  # instrument rest frame, not used
-    comments['rawdate'] = spectra_h['date']
+    comments['rawdate'] = time.ctime(os.path.getmtime(cube_path))
     comments['redshift'] = redshift
     nfibers, npixels = spectra.shape
     wavelengths = gal_waves
@@ -305,9 +305,9 @@ def read_raw_datacube(cube_path, targets_path, gal_name, ir_path=None,
     if not coords_h['bunit'] == 'Deg':
         raise Exception("Unexpected coordinate units in datacube!")
     # convert coordinates and stuff
-    gal_center, gal_pa, gal_re = mpio.get_gal_center_pa(targets_path,gal_name)
-    coord_comments['galaxy pa'] = gal_pa
+    coord_comments['galaxy pa'] = gal_info['pa']
     coord_comments['galaxy pa units'] = 'degrees E of N'
+    gal_center = (gal_info['ra'],gal_info['dec'])
     cart_coords, cart_comments = center_coordinates(coords, gal_center)
     coord_comments.update(cart_comments)
     linear_scale = const.mitchell_fiber_radius.value # assuming units match!

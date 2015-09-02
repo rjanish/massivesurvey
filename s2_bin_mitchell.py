@@ -106,7 +106,10 @@ for paramfile_path in all_paramfile_paths:
 
     # get bin layout...
     print "  binning..."
-    ifuset_all = ifu.read_raw_datacube(raw_cube_path, targets_path, gal_name,
+    gal_info = mpio.get_gal_info(targets_path,gal_name)
+    ma_bin = np.pi/2 - np.deg2rad(gal_info['pa']) #theta=0 at +x (east), ccwise
+    fiber_radius = const.mitchell_fiber_radius.value
+    ifuset_all = ifu.read_raw_datacube(raw_cube_path, gal_info, gal_name,
                                        ir_path=ir_path)
     # crop wavelength range and remove fibers
     ifuset_all.crop(crop_region)
@@ -118,9 +121,6 @@ for paramfile_path in all_paramfile_paths:
         try: goodfibers.remove(badfiber)
         except: print "Duplicate bad fiber number: {}".format(badfiber)
     ifuset = ifuset_all.get_subset(goodfibers)
-    gal_position, gal_pa, gal_re= mpio.get_gal_center_pa(targets_path, gal_name)
-    ma_bin = np.pi/2 - np.deg2rad(gal_pa) #theta=0 at +x (=east), ccwise
-    fiber_radius = const.mitchell_fiber_radius.value
     # do all the bins
     if bin_type=='unfolded':
         apf = functools.partial(binning.partition_quadparity,
@@ -154,17 +154,18 @@ for paramfile_path in all_paramfile_paths:
     for bin_iter, fibers in enumerate(grouped_ids):
         fiber_binnumbers.update({f: bin_ids[bin_iter] for f in fibers})
         subset = ifuset.get_subset(fibers)
-        binned = subset.spectrumset.collapse(id='666') #dummy id
+        fluxes = subset.spectrumset.compute_flux()
+        flux = np.average(fluxes)
+        binned = subset.spectrumset.collapse(id='666',norm_value=flux) #dummy id
         binned_data["spectra"][bin_iter, :] = binned.spectra
         binned_data["bad_data"][bin_iter, :] = binned.metaspectra["bad_data"]
         binned_data["noise"][bin_iter, :] = binned.metaspectra["noise"]
         binned_data["ir"][bin_iter, :] = binned.metaspectra["ir"]
         xs, ys = subset.coords.T
-        fluxes = subset.spectrumset.compute_flux()
         #Final bin coords want +x=west (not east), so use -xs
         bin_coords[bin_iter,:] = binning.calc_bin_center(-xs,ys,fluxes,bin_type,
-                                        pa=gal_pa,rmin=np.min(radial_bounds))
-        bin_fluxes[bin_iter] = np.average(fluxes)
+                                  pa=gal_info['pa'],rmin=np.min(radial_bounds))
+        bin_fluxes[bin_iter] = flux
     spec_unit = ifuset.spectrumset.spec_unit
     wave_unit = ifuset.spectrumset.wave_unit
     binned_comments = ifuset.spectrumset.comments.copy()
@@ -189,26 +190,27 @@ for paramfile_path in all_paramfile_paths:
     # save binned spectrum
     binned_specset.write_to_fits(binspectra_path)
     # save fiber number vs bin number, sorted
-    fiberheader = "Fiber id vs bin id. "
-    fiberheader += "\n {} is for unused fibers".format(const.unusedfiber_bin_id)
-    fiberheader += "\n {} is for bad fibers".format(const.badfiber_bin_id)
-    fiberinfo = np.array([np.array(fiber_binnumbers.keys()),
-                          np.array(fiber_binnumbers.values())])
-    isort = np.argsort(fiberinfo[0,:])
-    np.savetxt(fiberinfo_path,fiberinfo[:,isort].T,fmt='%1i',delimiter='\t',
-               header=fiberheader)
+    dt = {'names':['fiberid','binid'],'formats':[int,int]}
+    fiberinfo = np.zeros(len(fiber_binnumbers),dtype=dt)
+    fiberinfo['fiberid'] = fiber_binnumbers.keys()
+    fiberinfo['binid'] = fiber_binnumbers.values()
+    isort = np.argsort(fiberinfo['fiberid'])
+    comments = ['{} is for unused fibers'.format(const.unusedfiber_bin_id),
+                '{} is for bad fibers'.format(const.badfiber_bin_id)]
+    mpio.save_textfile(fiberinfo_path,fiberinfo[isort],{},comments,fmt='%1i')
     # save bin number vs number of fibers, bin center coords, and bin boundaries
-    comments = {'coordunit':ifuset.coords_unit,
-                'ra':gal_position[0],'dec':gal_position[1],'pa':gal_pa,
-                'ifufile':ifuset.spectrumset.comments['rawfile'],
-                'ifufiledate':ifuset.spectrumset.comments['rawdate'],
-                'irfile':os.path.basename(ir_path),
-                'irfiledate':time.ctime(os.path.getmtime(ir_path)),
-                'ar':aspect_ratio,'s2n':s2n_threshold,
-                'r_bestfull':fullbin_radius,
-                'bin_type':bin_type}
+    metadata = {'coord unit': ifuset.coords_unit,
+                'ifu file': os.path.basename(raw_cube_path),
+                'ifu file date': time.ctime(os.path.getmtime(raw_cube_path)),
+                'ir file': os.path.basename(ir_path),
+                'ir file date': time.ctime(os.path.getmtime(ir_path)),
+                'threshold ar': aspect_ratio,
+                'threshold s2n': s2n_threshold,
+                'r best fullbin': fullbin_radius,
+                'bin type': bin_type}
+    metadata.update({'gal {}'.format(k): v for k,v in gal_info.iteritems()})
     binning.write_bininfo(bininfo_path,bin_ids,grouped_ids,bin_fluxes,
-                          bin_coords,bin_bounds,**comments)
+                          bin_coords,bin_bounds,**metadata)
     # do the full galaxy bins
     fullids = [0,-1,-2]
     greatfibers = [f for f in goodfibers
@@ -229,7 +231,9 @@ for paramfile_path in all_paramfile_paths:
     for key in ['spectra','bad_data','noise','ir']:
         fullbin_data[key] = np.zeros(fullbin_shape)
     for i,f in enumerate([goodfibers,greatfibers,bestfibers]):
-        full_galaxy = ifuset.get_subset(f).spectrumset.collapse(id=fullids[i])
+        subset = ifuset.get_subset(f)
+        flux = np.average(subset.spectrumset.compute_flux())
+        full_galaxy = subset.spectrumset.collapse(id=fullids[i],norm_value=flux)
         fullbin_data['spectra'][i,:] = full_galaxy.spectra
         fullbin_data['bad_data'][i,:] = full_galaxy.metaspectra['bad_data']
         fullbin_data['noise'][i,:] = full_galaxy.metaspectra['noise']

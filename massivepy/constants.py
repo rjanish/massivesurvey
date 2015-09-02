@@ -85,8 +85,8 @@ gaussian_fwhm_over_sigma = 2*np.sqrt(2*np.log(2))
 #Should not be needed anymore!
 
 # bin number conventions
-badfiber_bin_id = -99  #For fibers removed before binning step
-unusedfiber_bin_id = -1  #For fibers not used in binning step
+badfiber_bin_id = -666  #For fibers removed before binning step
+unusedfiber_bin_id = -100  #For fibers not used in binning step
 
 #fullgal_allfib_bin_id = 0
 #fullgal_binfib_bin_id = -1

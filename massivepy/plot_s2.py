@@ -18,6 +18,7 @@ import massivepy.IFUspectrum as ifu
 import massivepy.spectrum as spec
 import massivepy.binning as binning
 import massivepy.plot_massive as mplt
+import massivepy.io as mpio
 from plotting.geo_utils import polar_box
 
 
@@ -28,7 +29,15 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # read fiber and bin info
     fiberids, binids = np.genfromtxt(fiberinfo_path,
                                      dtype=int,unpack=True)
-    bindata, binetc = binning.read_bininfo(bininfo_path)
+    gal_info = mpio.get_gal_info(targets_path,gal_name)
+    bindata, binmeta = binning.read_bininfo(bininfo_path)
+    # double check that the gal info matches...
+    for key,value in gal_info.iteritems():
+        value2 = binmeta['gal {}'.format(key)]
+        if not value==value2:
+            print ('\n\nWARNING: THE GAL INFO DOES NOT MATCH:\n'
+                   '{}: {} from bininfo, {} from targets\n\n'
+                   ''.format(key,value,value2))
     nbins = len(bindata)
     # set up bin colors
     mycolors = ['b','g','c','m','r','y']
@@ -47,7 +56,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
     # read spectra fits files
     # (can probably ditch reading the ir, won't actually use it)
-    ifuset = ifu.read_raw_datacube(raw_cube_path,targets_path,gal_name,
+    ifuset = ifu.read_raw_datacube(raw_cube_path,gal_info,gal_name,
                                    ir_path=ir_path)
     ifuset.crop(crop_region) # everything plotted here is the cropped version!
     ifuset2 = ifuset.get_subset(goodfibers)
@@ -100,7 +109,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
     # plot bin maps, bin fluxes/s2n, bin centers comparison
     fig_keys = ['map','flux','s2n','cent','fmap','fmap2','smap','smap2']
-    titles = ['Bin map (s2n {}, ar {})'.format(binetc['s2n'],binetc['ar']),
+    titles = ['Bin map (s2n {}, ar {})'.format(binmeta['threshold s2n'],
+                                               binmeta['threshold ar']),
               'Bin flux map','Bin s2n map','Bin centers (cartesian v polar)',
               'Fiber flux map (with cropping)',
               'Fiber flux map (with cropping and fiber removal)',
@@ -163,10 +173,10 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
             axs['s2n'].add_patch(patch(fc=bins2ncolors['c'][ibin]))
     # draw ma, set axis bounds, save and close
     for k in fig_keys:
-        axs[k].add_patch(patches.Circle((0,0),binetc['r_bestfull'],
+        axs[k].add_patch(patches.Circle((0,0),binmeta['r best fullbin'],
                                         ls='dashed',fc='none'))
-        axs[k].plot([-binetc['ma_x'],binetc['ma_x']],
-                    [-binetc['ma_y'],binetc['ma_y']],
+        axs[k].plot([-binmeta['ma_x'],binmeta['ma_x']],
+                    [-binmeta['ma_y'],binmeta['ma_y']],
                     linewidth=1.5,color='r')
         axs[k].axis([-squaremax,squaremax,-squaremax,squaremax])
         pdf.savefig(figs[k])
@@ -207,7 +217,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     ax2s.axis([rmin,rmax,smin,smax])
     for ax in [ax1f,ax2f,ax1s,ax2s]:
         ax.set_yscale('log')
-        ax.axvline(binetc['rbinmax'],c='g')
+        ax.axvline(binmeta['rbinmax'],c='g')
         ax.set_title('(max bin radius marked in green)')
     for fig in [fig1f,fig2f,fig1s,fig2s]:
         pdf.savefig(fig)
@@ -257,15 +267,18 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     yspace = 1/float(nbins)
     ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
     for ibin in range(nbins):
-        spectrum = specset.spectra[ibin,:] 
+        norm = (specset.waves[-1] - specset.waves[0])/bindata['flux'][ibin]
+        spectrum = specset.spectra[ibin,:]*norm
         ax.plot(specset.waves,specset.ids[ibin]-spectrum+spectrum[0],c='k')
     # assuming all 3 full spectra are present, overplot with different colors
     # if the spectra are identical, you will see only the black one
     fullcolors = {0: 'k', -1: 'g', -2: 'r'}
     full_labels = {0: 'all good fibers', -1: 'binned fibers only',
-                   -2: 'binned fibers within r={}'.format(binetc['r_bestfull'])}
+            -2: 'binned fibers within r={}'.format(binmeta['r best fullbin'])}
+    fullnorms = (specset_full.waves[-1] - specset_full.waves[0])
+    fullnorms = fullnorms/specset_full.compute_flux()
     for ifull,fullid in reversed(list(enumerate(specset_full.ids))):
-        spectrum = specset_full.spectra[ifull,:]
+        spectrum = specset_full.spectra[ifull,:]*fullnorms[ifull]
         ax.plot(specset_full.waves,-spectrum+spectrum[0],c=fullcolors[fullid],
                 label=full_labels[fullid])
     legend = ax.legend(loc=(0,1-1.3/(nbins+3.0)),fontsize=8,

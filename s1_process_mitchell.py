@@ -90,8 +90,9 @@ for paramfile_path in all_paramfile_paths:
         print '\nRunning {}'.format(gal_name)
 
     # start processing
+    gal_info = mpio.get_gal_info(input_params['target_positions'],gal_name)
     ifuset, arcs = ifu.read_raw_datacube(raw_cube_path,
-                                         input_params['target_positions'],
+                                         gal_info,
                                          gal_name,
                                          return_arcs=True)
     gal_center_ra = ifuset.coord_comments['galaxy center RA']

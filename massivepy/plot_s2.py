@@ -49,7 +49,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # this is not super elegant, but oh well
     goodfibers = []
     for fiberid,binid in zip(fiberids,binids):
-        if not binid==-99:
+        if not binid==const.badfiber_bin_id:
             goodfibers.append(fiberid)
     ircolors = mplt.lin_colormap_setup(bindata['binid'],cmap='cool')
     label_ir = 'fwhm in wavelength units'

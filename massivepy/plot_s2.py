@@ -65,7 +65,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     label_waves = r'wavelength (angstroms assumed)'
 
     # set up fiber coordinate information
-    if not all(fiberids==ifuset.spectrumset.ids):
+    if not len(fiberids)==len(ifuset.spectrumset.ids):
         raise Exception("Fiber ids from raw cube don't match ids in fiberinfo")
     fibersize = ifuset.linear_scale
     fiber_coords = ifuset.coords.copy()

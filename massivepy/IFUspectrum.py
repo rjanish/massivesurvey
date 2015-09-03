@@ -334,6 +334,9 @@ def read_raw_datacube(cube_path, gal_info , gal_name, ir_path=None,
         print 'Entire fiber is bad for the following, skipping them entirely!'
         print bad_fibers
     good_fibers = np.where(~np.all(bad_data,axis=1))[0]
+    if gal_name=='NGC4874': # toss first fiber of 4874, is a special case
+        print 'Also tossing fiber 0 because of weird coordinate thing'
+        good_fibers = good_fibers[1:]
     ifuset = ifuset.get_subset(good_fibers)
     arcs = arcs[good_fibers,:]
     if not ir_path is None:

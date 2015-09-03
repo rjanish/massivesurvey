@@ -31,6 +31,7 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
               'sigma':r'$\sigma$',
               'flux':'flux'}
     ii = rprofiles['toplot'].astype(bool)
+    jj = rprofiles['diff_toplot'].astype(bool)
 
     ### Plotting Begins! ###
 
@@ -40,12 +41,14 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
     fig = plt.figure(figsize=(6,6))
     fig.suptitle(labels['lam'])
     ax = fig.add_axes([0.15,0.1,0.8,0.7])
-    ax.plot(rprofiles['rencl'][ii],rprofiles['lam'][ii],c='k',label='fiducial')
-    ax.axhline(rmeta['slow/fast cutoff'],c='k',ls='--',label='slow/fast cutoff')
-    ax.plot(rprofiles['rencl'][ii],rprofiles['lam_minv0'][ii],c='b',
-            label='min V0')
-    ax.plot(rprofiles['rencl'][ii],rprofiles['lam_maxv0'][ii],c='g',
-            label='max V0')
+    lam_keys = ['lam','lam_minv0','lam_maxv0']
+    lam_colors = ['k','b','g']
+    lam_labels = ['fiducial','min V0','max V0']
+    for k,c,l in zip(lam_keys,lam_colors,lam_labels):
+        ax.plot(rprofiles['rencl'][ii],rprofiles[k][ii],c=c,label=l)
+        ax.plot(rprofiles['rencl'][jj],rprofiles['diff_'+k][jj],c=c,ls='-.')
+    ax.plot(0,0,c='k',ls='-.',label='differential')
+    ax.axhline(rmeta['slow/fast cutoff'],c='k',ls='--',label='slow/fast')
     ax.axvline(rmeta['gal re'],c='k',ls=':',label=r'$R_e$')
     ax.plot(rmeta['gal re'],rmeta['lambda re'],ls='',marker='o',mfc='k')
     ax.plot(.5*rmeta['gal re'],rmeta['lambda half re'],ls='',marker='o',mfc='k')
@@ -88,6 +91,7 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
     fig, ax = mplt.scalarmap(figtitle=labels['sigma'],
                              xlabel='radius',ylabel=labels['sigma'])
     ax.plot(rprofiles['rencl'][ii],rprofiles['sig'][ii],c='b')
+    ax.plot(rprofiles['rencl'][jj],rprofiles['diff_sig'][jj],c='b',ls='-.')
     pdf.savefig(fig)
     plt.close(fig)
 

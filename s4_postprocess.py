@@ -88,9 +88,11 @@ for paramfile_path in all_paramfile_paths:
 
     # create a container for all of my radial profiles
     n_rsteps = len(bindata['r'])
-    dt = {'names': ['lastbin','toplot','rbin','rencl','sig',
-                    'lam','lam_minv0','lam_maxv0'],
-          'formats': ['i8'] + ['b'] + 6*['f8']}
+    dt = {'names': ['lastbin','toplot','diff_toplot','rbin','rencl',
+                    'sig','diff_sig',
+                    'lam','lam_minv0','lam_maxv0',
+                    'diff_lam','diff_lam_minv0','diff_lam_maxv0'],
+          'formats': ['i8'] + 2*['b'] + 10*['f8']}
     rprofiles = np.zeros(n_rsteps,dtype=dt)
 
     # populate the radius information
@@ -107,11 +109,15 @@ for paramfile_path in all_paramfile_paths:
     rprofiles['toplot'][-1] = True
 
     # here is the setup for the calculation of lambda
-    r = bindata['r']
-    vel = binfits['gh']['moment'][:,0]
-    sigma = binfits['gh']['moment'][:,1]
-    flux = bindata['flux']
-    luminosity = flux*bindata['nfibers'] # skipping fiber_area since it cancels
+    r = bindata['r'][ii]
+    vel = binfits['gh']['moment'][:,0][ii]
+    sigma = binfits['gh']['moment'][:,1][ii]
+    flux = bindata['flux'][ii]
+    luminosity = flux*bindata['nfibers'][ii] # skipping fiber_area
+    itoplot = np.where(rprofiles['toplot'])[0]
+    idiff = [i for i in itoplot if not i+1 in itoplot]
+    rprofiles['diff_toplot'] = False
+    rprofiles['diff_toplot'][idiff] = True
 
     # get all the choices for V0 first
     v0_all = {'full{}'.format(binid): v for (binid,v) 
@@ -128,12 +134,14 @@ for paramfile_path in all_paramfile_paths:
     # then calculate lambda
     for label,v0 in zip(['lam','lam_minv0','lam_maxv0'],
                 [v0_all['fiducial'],min(v0_all.values()),max(v0_all.values())]):
-        lamR = post.calc_lambda(r,vel-v0,sigma,luminosity)
+        lamR = post.calc_lambda(r,vel-v0,sigma,luminosity,idiff)
         rprofiles[label] = lamR['lam']
+        rprofiles['diff_{}'.format(label)] = lamR['diff_lam']
     
     # do sigma thing
-    sig_fluxavg = post.calc_sigma(r,sigma,luminosity)
+    sig_fluxavg = post.calc_sigma(r,sigma,luminosity,idiff)
     rprofiles['sig'] = sig_fluxavg['sig']
+    rprofiles['diff_sig'] = sig_fluxavg['diff_sig']
 
     # obtain some useful single-number metadata
     plotprof = rprofiles[rprofiles['toplot'].astype(bool)]

@@ -307,7 +307,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     fig = plt.figure(figsize=(6,fig_ar*6))
     fig.suptitle('Template weights for each bin (raw weights)')
     for ibin in range(nbins):
-        temps = fitdata['temps'][i,:]
+        temps = fitdata['temps'][ibin,:]
         spectype = np.array(catalog['spt'][temps['id']])
         ii = np.argsort(spectype,kind='mergesort') # sort by spectype
         temps, spectype = temps[ii], spectype[ii]

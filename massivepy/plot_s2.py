@@ -71,7 +71,6 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fiber_coords[:,0] *= -1 # flip from +x = east to +x = west
     rcoords = np.sqrt(fiber_coords[:,0]**2 + fiber_coords[:,1]**2)
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
-    #squaremax = 300 ##J##
     coordunit = ifuset.coords_unit
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
@@ -140,10 +139,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         axs['map'].add_patch(patch(fc=bincolors[bin_id],alpha=0.8,ec='none'))
         axs['fmap'].add_patch(patch(fc=fiberfluxcolors['c'][ifiber]))
         axs['smap'].add_patch(patch(fc=fibers2ncolors['c'][ifiber]))
-        ''' ##J##
         for k in ['fmap','fmap2','smap','smap2']:
             axs[k].text(x,y,str(fiber_id),**txtkw)
-        ''' ##J##
         if fiber_id in goodfibers:
             axs['fmap2'].add_patch(patch(fc=fiberfluxcolors2['c'][i2]))
             axs['smap2'].add_patch(patch(fc=fibers2ncolors2['c'][i2]))
@@ -270,7 +267,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for ibin in range(nbins):
         norm = (specset.waves[-1] - specset.waves[0])/bindata['flux'][ibin]
         spectrum = specset.spectra[ibin,:]*norm
-        ax.plot(specset.waves,ibin-spectrum+spectrum[0],c='k')
+        ax.plot(specset.waves,1+ibin-spectrum+spectrum[0],c='k')
     # assuming all 3 full spectra are present, overplot with different colors
     # if the spectra are identical, you will see only the black one
     fullcolors = {0: 'k', -1: 'g', -2: 'r'}

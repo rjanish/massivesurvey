@@ -56,17 +56,13 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
     # read spectra fits files
     # (can probably ditch reading the ir, won't actually use it)
-    ''' ##J##
-    ifuset = ifu.read_raw_datacube(raw_cube_path,gal_info,gal_name,
-                                   ir_path=ir_path)
+    ifuset = ifu.read_raw_datacube(raw_cube_path,gal_info,gal_name) ##J##
     ifuset.crop(crop_region) # everything plotted here is the cropped version!
     ifuset2 = ifuset.get_subset(goodfibers)
-    ''' ##J##
     specset = spec.read_datacube(binspectra_path)
     specset_full = spec.read_datacube(fullbin_path)
     label_waves = r'wavelength (angstroms assumed)'
 
-    ''' ##J##
     # set up fiber coordinate information
     if not len(fiberids)==len(ifuset.spectrumset.ids):
         raise Exception("Fiber ids from raw cube don't match ids in fiberinfo")
@@ -75,10 +71,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fiber_coords[:,0] *= -1 # flip from +x = east to +x = west
     rcoords = np.sqrt(fiber_coords[:,0]**2 + fiber_coords[:,1]**2)
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
-    coordunit = ifuset.coords_unit 
-    ''' ##J##
-    coordunit = 'angstrom' ##J##
-    squaremax = 150 ##J##
+    #squaremax = 300 ##J##
+    coordunit = ifuset.coords_unit
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
     label_r = r'radius ({})'.format(coordunit)
@@ -88,7 +82,6 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     #  the spectra in binspectra.fits are still normalized arbitrarily
     binfluxcolors = mplt.colormap_setup(bindata['flux'],cmap='Reds')
     bins2ncolors = mplt.colormap_setup(specset.compute_mean_s2n(),cmap='Greens')
-    ''' ##J##
     fiberfluxcolors = mplt.colormap_setup(ifuset.spectrumset.compute_flux(),
                                           cmap='Reds',logsafe='max')
     fiberfluxcolors2 = mplt.colormap_setup(ifuset2.spectrumset.compute_flux(),
@@ -97,18 +90,15 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
                                          cmap='Greens',logsafe='max')
     fibers2ncolors2 =mplt.colormap_setup(ifuset2.spectrumset.compute_mean_s2n(),
                                          cmap='Greens',logsafe='max')
-    ''' ##J##
     label_flux = r'flux [{}]'.format(specset.integratedflux_unit)
     label_s2n = r's2n'
 
-    ''' ##J##
     # set up fiber spectra to plot, optionally skipping some for speed
-    skipnumber = 1
+    skipnumber = 1000
     plotfibers = ifuset.spectrumset.ids[::skipnumber]
     fiberwaves = ifuset.spectrumset.waves
     fiberspectra = ifuset.spectrumset.spectra[::skipnumber]
     fiberspectra[ifuset.spectrumset.metaspectra['bad_data'][::skipnumber]]=-1000
-    ''' ##J##
 
 
 
@@ -126,11 +116,9 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
               'Fiber flux map (with cropping and fiber removal)',
               'Fiber s2n map (with cropping)',
               'Fiber s2n map (with cropping and fiber removal)']
-    ##J##mappables = [None,binfluxcolors['mappable'],bins2ncolors['mappable'],None,
-    #             fiberfluxcolors['mappable'],fiberfluxcolors2['mappable'],
-    #             fibers2ncolors['mappable'],fibers2ncolors2['mappable']]
     mappables = [None,binfluxcolors['mappable'],bins2ncolors['mappable'],None,
-                 None,None,None,None]
+                 fiberfluxcolors['mappable'],fiberfluxcolors2['mappable'],
+                 fibers2ncolors['mappable'],fibers2ncolors2['mappable']]
     mlabels = [None,label_flux,label_s2n,None] + 2*[label_flux] + 2*[label_s2n]
     figs,axs = {}, {}
     # create figures and axes
@@ -146,20 +134,20 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     txtkw = {'horizontalalignment':'center','verticalalignment':'center',
              'fontsize':5}
     i2 = 0 # a hacky way to access only the fluxes for good fibers
-    ''' ##J##
     for ifiber, (fiber_id,bin_id) in enumerate(zip(fiberids,binids)):
         x, y = fiber_coords[ifiber,:]
         patch = functools.partial(patches.Circle,(x,y),fibersize,lw=0.25)
         axs['map'].add_patch(patch(fc=bincolors[bin_id],alpha=0.8,ec='none'))
         axs['fmap'].add_patch(patch(fc=fiberfluxcolors['c'][ifiber]))
         axs['smap'].add_patch(patch(fc=fibers2ncolors['c'][ifiber]))
+        ''' ##J##
         for k in ['fmap','fmap2','smap','smap2']:
             axs[k].text(x,y,str(fiber_id),**txtkw)
+        ''' ##J##
         if fiber_id in goodfibers:
             axs['fmap2'].add_patch(patch(fc=fiberfluxcolors2['c'][i2]))
             axs['smap2'].add_patch(patch(fc=fibers2ncolors2['c'][i2]))
             i2 += 1
-    ''' ##J##
     # loop over bins
     for ibin,bin_id in enumerate(bindata['binid']):
         bincolor = bincolors[int(bin_id)]
@@ -197,7 +185,6 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         plt.close(figs[k])
 
 
-    ''' ##J##
     # plot flux and s2n vs radius
     t1f = 'Fiber flux vs radius (with cropping)'
     t2f = 'Fiber flux vs radius (with cropping and fiber removal)'
@@ -259,7 +246,6 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for fig in [fig1,fig2]:
         pdf.savefig(fig)
         plt.close(fig)
-    ''' ##J##
 
 
 

@@ -93,7 +93,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     label_s2n = r's2n'
 
     # set up fiber spectra to plot, optionally skipping some for speed
-    skipnumber = 1000
+    skipnumber = 1
     plotfibers = ifuset.spectrumset.ids[::skipnumber]
     fiberwaves = ifuset.spectrumset.waves
     fiberspectra = ifuset.spectrumset.spectra[::skipnumber]

@@ -270,7 +270,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for ibin in range(nbins):
         norm = (specset.waves[-1] - specset.waves[0])/bindata['flux'][ibin]
         spectrum = specset.spectra[ibin,:]*norm
-        ax.plot(specset.waves,specset.ids[ibin]-spectrum+spectrum[0],c='k')
+        ax.plot(specset.waves,ibin-spectrum+spectrum[0],c='k')
     # assuming all 3 full spectra are present, overplot with different colors
     # if the spectra are identical, you will see only the black one
     fullcolors = {0: 'k', -1: 'g', -2: 'r'}
@@ -296,6 +296,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     ax.autoscale(tight=True)
     ax.set_ylim(ymin=-2,ymax=nbins+1)
     ax.set_yticks(range(nbins+1))
+    ax.set_yticklabels([''] + list(specset.ids))
     ax.yaxis.set_tick_params(color=[0,0,0,0])
     ax.invert_yaxis()
     ax.tick_params(labeltop='on',top='on')

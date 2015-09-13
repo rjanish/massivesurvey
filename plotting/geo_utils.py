@@ -21,7 +21,7 @@ def string_to_tuple(string):
 def approxArc(center, radius, thmin, thmax, resolution=24):
     # returns a shapely LineString approximating an arc
     total_delta_angle = thmax - thmin
-    number_of_samples = int(sp.ceil(resolution*4*abs(total_delta_angle)/360))
+    number_of_samples = int(sp.ceil(resolution*4*abs(total_delta_angle)/360))+1
     sample_angles = sp.linspace(thmin, thmax, number_of_samples)
     x = center[0] + radius*cosdg(sample_angles)
     y = center[1] + radius*sindg(sample_angles)

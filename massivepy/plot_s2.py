@@ -56,8 +56,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
     # read spectra fits files
     # (can probably ditch reading the ir, won't actually use it)
-    ifuset = ifu.read_raw_datacube(raw_cube_path,gal_info,gal_name,
-                                   ir_path=ir_path)
+    ifuset = ifu.read_raw_datacube(raw_cube_path,gal_info,gal_name) ##J##
     ifuset.crop(crop_region) # everything plotted here is the cropped version!
     ifuset2 = ifuset.get_subset(goodfibers)
     specset = spec.read_datacube(binspectra_path)
@@ -72,7 +71,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fiber_coords[:,0] *= -1 # flip from +x = east to +x = west
     rcoords = np.sqrt(fiber_coords[:,0]**2 + fiber_coords[:,1]**2)
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
-    coordunit = ifuset.coords_unit 
+    coordunit = ifuset.coords_unit
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
     label_r = r'radius ({})'.format(coordunit)
@@ -183,7 +182,6 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         plt.close(figs[k])
 
 
-
     # plot flux and s2n vs radius
     t1f = 'Fiber flux vs radius (with cropping)'
     t2f = 'Fiber flux vs radius (with cropping and fiber removal)'
@@ -269,7 +267,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for ibin in range(nbins):
         norm = (specset.waves[-1] - specset.waves[0])/bindata['flux'][ibin]
         spectrum = specset.spectra[ibin,:]*norm
-        ax.plot(specset.waves,specset.ids[ibin]-spectrum+spectrum[0],c='k')
+        ax.plot(specset.waves,1+ibin-spectrum+spectrum[0],c='k')
     # assuming all 3 full spectra are present, overplot with different colors
     # if the spectra are identical, you will see only the black one
     fullcolors = {0: 'k', -1: 'g', -2: 'r'}
@@ -295,6 +293,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     ax.autoscale(tight=True)
     ax.set_ylim(ymin=-2,ymax=nbins+1)
     ax.set_yticks(range(nbins+1))
+    ax.set_yticklabels([''] + list(specset.ids))
     ax.yaxis.set_tick_params(color=[0,0,0,0])
     ax.invert_yaxis()
     ax.tick_params(labeltop='on',top='on')

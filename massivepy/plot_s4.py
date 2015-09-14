@@ -63,6 +63,8 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
                              xlabel=r'choice of $V_0$',ylabel=r'$V_0$')
     v0_keys = ['v0_full0','v0_full-1','v0_full-2',
                'v0_binavg','v0_wbinavg','v0_binmed','v0_wbinmed','v0_fiducial']
+    for k in v0_keys:
+        if k not in rmeta: rmeta[k] = np.nan
     v0_labels = ['all fibers fullbin','binned fibers fullbin',
                  'symmetrical fullbin','bins average','weighted bins avg',
                  'bins median','weighted bins med','fiducial']

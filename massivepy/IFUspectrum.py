@@ -275,6 +275,19 @@ def read_raw_datacube(cube_path, gal_info , gal_name, ir_path=None,
     comments['rawfile'] = os.path.basename(cube_path)
     # read and parse ifu file
     data, headers = utl.fits_quickread(cube_path)
+    if gal_name=='NGC3842':  # hard code an ugly exception for 3842
+        print '\n==================\nUSING DONATED ARCS\n==================\n'
+        arcdonor = ('/Users/melanieveale/Box Sync/MASSIVE/Reduced-Data'
+                    '/NGC4874/RnovfibNGC4874ALL_log.fits')
+        donordata, donorheaders = utl.fits_quickread(arcdonor)
+        donorarcs = np.vstack(3*[donordata[4][:246,:]]) # from 2 dithers to 3
+        donorinstwaves = donordata[2][0]*(1 + donorheaders[2]['z'])
+        recipientinstwaves = data[2][0]*(1 + headers[2]['z'])
+        rarcs = np.zeros(data[0].shape) # different wavelength samples, ugh
+        for i,eachfiber in enumerate(rarcs):
+            rarcs[i] = np.interp(recipientinstwaves,donorinstwaves,donorarcs[i])
+        data = data + (rarcs,) # pretend they were there all along!
+        headers = headers + (donorheaders[4],) # and the header too
     try:
         # wavelengths of arc spectra are specifically included
         spectra, noise, all_waves, coords, arcs, all_inst_waves = data
@@ -337,6 +350,12 @@ def read_raw_datacube(cube_path, gal_info , gal_name, ir_path=None,
     if gal_name=='NGC4874': # toss first fiber of 4874, is a special case
         print 'Also tossing fiber 0 because of weird coordinate thing'
         good_fibers = good_fibers[1:]
+    elif gal_name=='NGC3842':
+        good_fibers = list(good_fibers)
+        good_fibers.remove(125)
+        good_fibers.remove(371)
+        good_fibers.remove(617)
+        #good_fibers = np.array(good_fibers)
     ifuset = ifuset.get_subset(good_fibers)
     arcs = arcs[good_fibers,:]
     if not ir_path is None:

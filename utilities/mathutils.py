@@ -417,6 +417,8 @@ def median(x,weights=None):
     sums = np.cumsum(weights[ii])
     center = 0.5*sums[-1]
     icenter = np.searchsorted(sums,center)
-    median = 0.5*(x[ii][icenter]+x[ii][icenter+1])
-    return median
+    if icenter+1==len(x):
+        return x[ii][icenter]
+    else:
+        return 0.5*(x[ii][icenter]+x[ii][icenter+1])
 

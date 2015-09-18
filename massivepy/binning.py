@@ -365,7 +365,7 @@ def write_bininfo(path,bin_ids,grouped_fiberids,bin_fluxes,
     mpio.save_textfile(path,bininfo,metadata,comments,fmt=fmt)
     return
 
-def read_bininfo(path,plotprep=True):
+def read_bininfo(path,plotprep=True,alignpa=False):
     """
     Read bininfo.txt file into convenient form.
     If plotprep = True, does the following:
@@ -395,4 +395,19 @@ def read_bininfo(path,plotprep=True):
         binmeta['ma_x'] = rmax*1.1*np.cos(ma_theta)
         binmeta['ma_y'] = rmax*1.1*np.sin(ma_theta)
         binmeta['rbinmax'] = rmax
+    if alignpa:
+        names0 = list(bindata.dtype.names)
+        formats0 = [bindata.dtype.fields[name][0] for name in names0]
+        dt = {'names': names0 + ['xpa','ypa'],
+              'formats': formats0 + formats0[-2:]}
+        bindata0 = bindata.copy()
+        bindata = np.zeros(bindata0.shape,dtype=dt)
+        for key in names0:
+            bindata[key] = bindata0[key]
+        pa = binmeta['gal pa']
+        bindata['xpa'] =  bindata['r']*np.cos(np.deg2rad(bindata['th']-pa))
+        bindata['ypa'] =  bindata['r']*np.sin(np.deg2rad(bindata['th']-pa))
+        bindata['th'] -= pa + 90
+        bindata['thmin'] -= pa + 90
+        bindata['thmax'] -= pa + 90
     return bindata, binmeta

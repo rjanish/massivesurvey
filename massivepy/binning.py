@@ -39,9 +39,7 @@ def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
     mid_r = 0.5*(outer_radius + inner_radius)
     target_bin_arclength = delta_r*aspect_ratio
     available_arclength = 0.5*np.pi*mid_r  # one quadrant
-    num_in_quad = int(available_arclength/target_bin_arclength)
-    if num_in_quad == 0:
-        raise ValueError # invalid annulus - too thin for given aspect_ratio
+    num_in_quad = np.ceil(available_arclength/target_bin_arclength)
     num_in_half = 2*num_in_quad
     angular_bounds_n = np.linspace(0.0, np.pi, num_in_half + 1)
         # angular boundaries on the positive side of the y axis, ordered
@@ -205,9 +203,12 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
     else:
         supremum = radii[~passed].min()
             # maximum radius below which no object require binning
-        infimum = radii[radii < supremum].max()
+        if not radii.min() == supremum:
+            infimum = radii[radii < supremum].max()
             # minimum radius below which no object require binning - the
             # next-inward object to that identified in supremum
+        else:
+            infimum = 0
         nobin_radius = 0.5*(supremum + infimum)
             # average hopefully makes footprint inclusion robust to roundoff
     is_solitary = radii < nobin_radius

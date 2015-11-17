@@ -7,6 +7,7 @@ This file contains the main plotting fuction for s2_bin_mitchell.
 import functools
 
 import numpy as np
+from scipy.integrate import simps
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -221,6 +222,40 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         pdf.savefig(fig)
         plt.close(fig)
 
+    # plot fiber flux vs noise
+    fig,ax = mplt.scalarmap(figtitle='All fibers total noise vs flux',
+                            xlabel=label_flux,ylabel='noise')
+    fiberflux = ifuset.spectrumset.compute_flux()
+    fiberflux[fiberflux<=0] = max(fiberflux)
+    fibernoise = simps(ifuset.spectrumset.metaspectra['noise'],
+                        ifuset.spectrumset.waves)
+    fibernoise[fibernoise<=0] = max(fibernoise)
+    for ifiber, fiberid in enumerate(fiberids):
+        f, n = fiberflux[ifiber], fibernoise[ifiber]
+        if fiberid in goodfibers:
+            ax.text(f,n,str(fiberid),alpha=0.3,**txtkw)
+        else:
+            ax.text(f,n,str(fiberid),**txtkw)
+            ax.plot(f,n,ls='',marker='o',mec='r',mfc='none',ms=10)
+    testfluxes = specset.compute_flux()
+    testnoises = simps(specset.metaspectra['noise'],specset.waves)
+    for ibin,bin_id in enumerate(bindata['binid']):
+        f = testfluxes[ibin]
+        n = testnoises[ibin]
+        f2 = bindata['flux'][ibin]
+        n2 = f2/bins2ncolors['x'][ibin]
+        A = bindata['nfibers'][ibin]
+        f, n, f2, n2 = f*A, n*A, f2*A, n2*A
+        ax.text(f,n,bin_id,color='g',zorder=-1,**txtkw)
+        ax.text(f2,n2,bin_id,color='b',zorder=-1,**txtkw)
+    ax.plot(fiberflux,fiberflux/binmeta['threshold s2n'],c='g')
+    ax.text(0.05,0.95,'bins (total)',transform=ax.transAxes,color='g')
+    ax.text(0.05,0.9,'bins (mean s2n)',transform=ax.transAxes,color='b')
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.axis([min(fiberflux),max(fiberflux),min(fibernoise),max(fibernoise)])
+    pdf.savefig(fig)
+    plt.close(fig)
 
 
     # plot all fiber spectra

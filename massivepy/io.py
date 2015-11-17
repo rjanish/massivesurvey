@@ -16,7 +16,9 @@ import massivepy.constants as const
 
 # regex patterns for extracting galaxy number from file paths
 re_gals = {'NGC': r"(?:NGC|ngc|N|n)(?P<num>\d{4})",
-           'UGC': r"(?:UGC|ugc|U|u)(?P<num>\d{5})"}
+           'UGC': r"(?:UGC|ugc|U|u)(?P<num>\d{5})",
+           'IC': r"(?:IC|ic|I|i)(?P<num>\d{4})",
+           'PGC': r"(?:PGC|pgc|P|p)(?P<num>\d{5})"}
 
 # regex patterns for extracting galaxy name/number from parameter file path
 # this one is stricter, because the resulting galaxy name must fit the format

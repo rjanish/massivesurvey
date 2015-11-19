@@ -109,3 +109,89 @@ def scalarmap(figtitle='default figure title',
         ticklabels[::skipticks] = ticks[::skipticks]
         cb.set_ticklabels(ticklabels)
     return fig, ax
+
+def tick_magic(xmin=0,xmax=1,nmin=3,nmax=6):
+    """
+    Home-brewed tick logic, because pyplot frustrates me.
+    Optimal placement of ticks is determined by shortness of label; e.g. ticks
+     will never be something like 1, 2.5, 4, 5.5, 7. Instead, they will be
+     something like 1, 3, 5, 7.
+    INPUT:
+      -xmin, xmax: the beginning and end of the axis range
+      -nmin, nmax: are the min and max allowed numbers of ticks
+    OUTPUT (packaged as one dict containing the following):
+      -ticks: locations of major ticks
+      -ticklabels: tick labels, making smartest use of scientific notation
+       (smarter ticklabels not implemented yet!)
+      -minorticks: optional minor ticks, always at some power of 10.
+    """
+    xdiff = abs(xmax-xmin) # size of axis range
+    xscale = 10**np.floor(np.log10(xdiff)) # basic tick interval
+    nstart = np.ceil(xmin/xscale) # first tick is at nstart*xscale
+    nstop = np.floor(xmax/xscale) # last tick is at nstop*xscale
+    nticks = nstop-nstart+1 # number of ticks will need to be made sensible
+    if nticks < nmin: # go down one power of 10 if needed
+        xscale = xscale/10.0
+        nstart = np.ceil(xmin/xscale)
+        nstop = np.floor(xmax/xscale)
+        nticks = nstop-nstart+1
+    ticks = np.linspace(xscale*nstart,xscale*nstop,num=nticks)
+    minorticks = ticks.copy() # minorticks is now set
+    if nticks > nmax: # pick out subset of ticks if needed
+        nnew, nskip = nticks, 1 # nnew is what nticks will become
+        while nnew > nmax: # find smallest nskip that gives nnew <= nmax
+            nskip += 1
+            nnew = np.ceil(nticks/float(nskip))
+        nextra = (nticks-1) % nskip # number of ticks taken off the end
+        istart = nextra/2 # remove half the extra ticks from the front
+        if (nextra%2==1) and ((xscale*nstart-xmin) < (xmax-xscale*nstop)):
+            istart += 1 # be smart about where to take "odd" extra tick from
+        ticks = ticks[istart::nskip] # length of new ticks equals nnew
+    ticklabels = [str(t) for t in ticks] # make this smarter someday
+    magic = {'ticks':ticks,'minorticks':minorticks,'ticklabels':ticklabels}
+    return magic
+
+def log_tick_magic(xmin,xmax,nmin=1,nmax=6):
+    """
+    Home-brewed tick logic, because pyplot frustrates me.
+    Log axes become awkward in pyplot when the dynamic range is small, and
+      the tick labeling is not optimal.
+    INPUT:
+      -xmin, xmax: the beginning and end of the axis range
+      -nmin, nmax: are the min and max allowed numbers of ticks
+    OUTPUT (packaged as one dict containing the following):
+      -ticks: locations of major ticks
+      -ticklabels: tick labels with smarter labels at 1, 10, 100
+      -minorticks: either the usual log scale minor ticks or the "skipped"
+       major ticks in cases where the dynamic range is large
+    """
+    nstart = int(np.ceil(np.log10(xmin))) # first tick is at 10^nstart
+    nstop = int(np.floor(np.log10(xmax))) # last tick is at 10^nstop
+    nticks = nstop-nstart+1 # number of ticks will need to be made sensible
+    ticks = 10**np.linspace(nstart,nstop,num=nticks)
+    minorticksections = []
+    for i in range(nstart-1,nstop+1):
+        section = np.array([2,3,4,5,6,7,8,9])*10**i
+        section = section[(section>xmin)&(section<xmax)]
+        minorticksections.append(section)
+    minorticks = np.concatenate(minorticksections)
+    if nticks < nmin: # if no power of 10 is in the range, use the minor ticks
+        ticks = minorticks.copy()
+        minorticks = []
+        # now need to cleverly pick subset if some are too crowded
+        # because the standard method below ignores log "squishing"
+        # probably want to return in this section since labels will also change
+    if nticks > nmax: # pick out subset of ticks if needed
+        nnew, nskip = nticks, 1 # nnew is what nticks will become
+        while nnew > nmax: # find smallest nskip that gives nnew <= nmax
+            nskip += 1
+            nnew = np.ceil(nticks/float(nskip))
+        nextra = (nticks-1) % nskip # number of ticks taken off the end
+        istart = nextra/2 # remove half the extra ticks from the front
+        if (nextra%2==1) and ((xscale*nstart-xmin) < (xmax-xscale*nstop)):
+            istart += 1 # be smart about where to take "odd" extra tick from
+        minorticks = ticks.copy()
+        ticks = ticks[istart::nskip] # length of new ticks equals nnew
+    ticklabels = [r'$10^{:d}$'.format(n) for n in np.log10(ticks)]
+    magic = {'ticks':ticks,'minorticks':minorticks,'ticklabels':ticklabels}
+    return magic

@@ -22,6 +22,7 @@ import time
 import pickle
 
 import numpy as np
+from scipy.optimize import curve_fit
 import pandas as pd
 import shapely.geometry as geo
 import matplotlib as mpl
@@ -195,9 +196,17 @@ for paramfile_path in all_paramfile_paths:
     fiberinfo['fiberid'] = fiber_binnumbers.keys()
     fiberinfo['binid'] = fiber_binnumbers.values()
     isort = np.argsort(fiberinfo['fiberid'])
+    goodflux = ifuset.spectrumset.compute_flux()
+    goodnoise = ifuset.spectrumset.compute_noiseflux()
+    ii_good = (goodflux > 0)
+    if not sum(ii_good)==len(ii_good):
+        print 'warning, some negative flux fibers are still listed as good'
+        goodflux, goodnoise = goodflux[ii_good], goodnoise[ii_good]
+    [param1,param2],cov = curve_fit(const.flat_plus_poisson,goodflux,goodnoise)
+    meta = {'flatnoise': param1, 'fluxscale': param2}
     comments = ['{} is for unused fibers'.format(const.unusedfiber_bin_id),
                 '{} is for bad fibers'.format(const.badfiber_bin_id)]
-    mpio.save_textfile(fiberinfo_path,fiberinfo[isort],{},comments,fmt='%1i')
+    mpio.save_textfile(fiberinfo_path,fiberinfo[isort],meta,comments,fmt='%1i')
     # save bin number vs number of fibers, bin center coords, and bin boundaries
     metadata = {'coord unit': ifuset.coords_unit,
                 'ifu file': os.path.basename(raw_cube_path),

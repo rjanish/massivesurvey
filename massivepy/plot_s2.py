@@ -7,7 +7,6 @@ This file contains the main plotting fuction for s2_bin_mitchell.
 import functools
 
 import numpy as np
-from scipy.integrate import simps
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -30,6 +29,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # read fiber and bin info
     fiberids, binids = np.genfromtxt(fiberinfo_path,
                                      dtype=int,unpack=True)
+    fibermeta = mpio.read_friendly_header(fiberinfo_path)
     gal_info = mpio.get_gal_info(targets_path,gal_name)
     bindata, binmeta = binning.read_bininfo(bininfo_path)
     # double check that the gal info matches...
@@ -225,35 +225,38 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # plot fiber flux vs noise
     fig,ax = mplt.scalarmap(figtitle='All fibers total noise vs flux',
                             xlabel=label_flux,ylabel='noise')
-    fiberflux = ifuset.spectrumset.compute_flux()
-    fiberflux[fiberflux<=0] = max(fiberflux)
-    fibernoise = simps(ifuset.spectrumset.metaspectra['noise'],
-                        ifuset.spectrumset.waves)
-    fibernoise[fibernoise<=0] = max(fibernoise)
+    fibernoise = ifuset.spectrumset.compute_noiseflux()
     for ifiber, fiberid in enumerate(fiberids):
-        f, n = fiberflux[ifiber], fibernoise[ifiber]
+        f, n = fiberfluxcolors['x'][ifiber], fibernoise[ifiber]
         if fiberid in goodfibers:
             ax.text(f,n,str(fiberid),alpha=0.3,**txtkw)
         else:
             ax.text(f,n,str(fiberid),**txtkw)
             ax.plot(f,n,ls='',marker='o',mec='r',mfc='none',ms=10)
-    testfluxes = specset.compute_flux()
-    testnoises = simps(specset.metaspectra['noise'],specset.waves)
+    binnoise = specset.compute_noiseflux()
     for ibin,bin_id in enumerate(bindata['binid']):
-        f = testfluxes[ibin]
-        n = testnoises[ibin]
-        f2 = bindata['flux'][ibin]
-        n2 = f2/bins2ncolors['x'][ibin]
-        A = bindata['nfibers'][ibin]
-        f, n, f2, n2 = f*A, n*A, f2*A, n2*A
+        f, n = bindata['flux'][ibin], binnoise[ibin]
+        n2 = f/bins2ncolors['x'][ibin]
         ax.text(f,n,bin_id,color='g',zorder=-1,**txtkw)
-        ax.text(f2,n2,bin_id,color='b',zorder=-1,**txtkw)
-    ax.plot(fiberflux,fiberflux/binmeta['threshold s2n'],c='g')
-    ax.text(0.05,0.95,'bins (total)',transform=ax.transAxes,color='g')
-    ax.text(0.05,0.9,'bins (mean s2n)',transform=ax.transAxes,color='b')
+        ax.text(f,n2,bin_id,color='b',zorder=-1,**txtkw)
+    bintext1 = 'bins (total flux, total noise)'
+    bintext2 = 'bins (total flux, total flux/mean s2n)'
+    bintext3 = '(bin values scaled by area)'
+    ax.text(0.05,0.95,bintext1,transform=ax.transAxes,color='g')
+    ax.text(0.05,0.90,bintext2,transform=ax.transAxes,color='b')
+    ax.text(0.05,0.85,bintext3,transform=ax.transAxes,color='k')
     ax.set_xscale('log')
     ax.set_yscale('log')
-    ax.axis([min(fiberflux),max(fiberflux),min(fibernoise),max(fibernoise)])
+    fmin = min([min(fiberfluxcolors['x']),min(bindata['flux'])])
+    fmax = max([max(fiberfluxcolors['x']),max(bindata['flux'])])
+    nmin = min([min(fibernoise),min(binnoise)])
+    nmax = max([max(fibernoise),max(binnoise)])
+    fakeflux = np.linspace(fmin,fmax,num=100)
+    fakenoise = const.flat_plus_poisson(fakeflux,
+                                fibermeta['flatnoise'],fibermeta['fluxscale'])
+    ax.plot(fakeflux,fakenoise,c='m')
+    ax.plot(fakeflux,fakeflux/binmeta['threshold s2n'],c='r')
+    ax.axis([fmin,fmax,nmin,nmax])
     pdf.savefig(fig)
     plt.close(fig)
 

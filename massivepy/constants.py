@@ -1,5 +1,7 @@
 """
 Miscellaneous constants and unit definitions.
+
+Some simple functions with no other obvious home are here too.
 """
 
 
@@ -97,3 +99,8 @@ unusedfiber_bin_id = -100  #For fibers not used in binning step
 spectype_colors = {'A':'aqua','B':'blue','G':'green','F':'lime','I':'indigo',
                    'M':'magenta','K':'crimson','-':'black','S':'orange',
                    '0':'gray','s':'tan','R':'yellow','H':'gold'}
+
+
+# misc functions
+def flat_plus_poisson(flux, flatnoise, fluxscale):
+    return np.sqrt(flatnoise**2 + fluxscale*flux)

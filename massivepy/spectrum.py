@@ -425,6 +425,27 @@ class SpectrumSet(object):
             fluxes[result_index] = flux
         return fluxes
 
+    def compute_noiseflux(self, ids=None):
+        """
+        Compute the noise flux of spectrum over the given interval. Similar
+        to compute_flux above, but simplified slightly. Note that dividing
+        compute_flux results by these results will NOT give exactly the
+        same numbers as compute_mean_s2n, although one would hope the two
+        methods are fairly close. (In practice they usually are.)
+        """
+        if ids is None:
+            ids = self.ids
+        else:
+            ids = np.asarray(ids, dtype=int)
+        noisefluxes = np.zeros(ids.size)
+        for result_index, id in enumerate(ids):
+            spec_index = list(self.ids).index(id)
+            noisearray = self.metaspectra["noise"][spec_index]
+            masked = self.metaspectra["bad_data"][spec_index]
+            noiseflux = integ.simps(noisearray[~masked],self.waves[~masked])
+            noisefluxes[result_index] = noiseflux
+        return noisefluxes
+
     def compute_mean_s2n(self, ids=None):
         """
         Return the mean S/N over wavelength for the spectra with the

@@ -135,7 +135,8 @@ for paramfile_path in all_paramfile_paths:
                                      angle_partition_func=apf)
     binned = ifuset.s2n_fluxweighted_binning(get_bins=binning_func,
                                              threshold=s2n_threshold)
-    grouped_ids, radial_bounds, angular_bounds, bin_bounds = binned
+    grouped_ids, bin_bounds = binned
+    r_singlebins = np.nanmin(bin_bounds[0])
     # results
     number_bins = len(grouped_ids)
     bin_ids = np.arange(number_bins, dtype=int) + 1  # bin 0 is full galaxy
@@ -165,7 +166,7 @@ for paramfile_path in all_paramfile_paths:
         xs, ys = subset.coords.T
         #Final bin coords want +x=west (not east), so use -xs
         bin_coords[bin_iter,:] = binning.calc_bin_center(-xs,ys,fluxes,bin_type,
-                                  pa=gal_info['pa'],rmin=np.min(radial_bounds))
+                                            pa=gal_info['pa'],rmin=r_singlebins)
         bin_fluxes[bin_iter] = flux
     spec_unit = ifuset.spectrumset.spec_unit
     wave_unit = ifuset.spectrumset.wave_unit
@@ -183,11 +184,6 @@ for paramfile_path in all_paramfile_paths:
     print "  {} total number of bins".format(len(grouped_ids))
     print "  {} single-fiber bins".format(len(single_fiber_bins))
     print "  {} un-binned outer fibers".format(len(unbinned_fibers))
-    print "  multi-fiber layout:"
-    for iter, [(rin, rout), angles] in enumerate(zip(radial_bounds,
-                                                     angular_bounds)):
-        print ("   {:2d}: radius {:4.1f} to {:4.1f}, {} angular bins"
-               "".format(iter + 1, rin, rout, len(angles)))
     # save binned spectrum
     binned_specset.write_to_fits(binspectra_path)
     # save fiber number vs bin number, sorted

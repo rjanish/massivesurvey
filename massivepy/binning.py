@@ -213,6 +213,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             # average hopefully makes footprint inclusion robust to roundoff
     is_solitary = radii < nobin_radius
     solitary_ids = ids[is_solitary]
+    solitary_ids = solitary_ids[np.argsort(radii[is_solitary])] # sort by r
     # compute multi-object bins
     if step_size is None:
         # partition between every single spectrum to be binned
@@ -238,16 +239,10 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
         possible_upper_rads = radial_partition[(starting_index + 1):]
         for upper_iter, trial_upper_rad in enumerate(possible_upper_rads):
             rad_interval = [lower_rad, trial_upper_rad]
-            try:
-                angle_parition = angle_partition_func(rad_interval)
-            except ValueError:
-                print ("I'm pretty sure you are stuck. While {}<{}"
-                       .format(starting_index, final_index))
-                print "Try messing with the aspect ratio."
-                break # invalid annulus - increase outer radius
+            angle_partition = angle_partition_func(rad_interval)
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             grouped_annular_ids = []
-            for ang_intervals in angle_parition:
+            for ang_intervals in angle_partition:
                 in_arc_func = functools.partial(utl.in_periodic_interval,
                                                 period=2*np.pi)
                 in_arcs = utl.in_union_of_intervals(angles, ang_intervals,
@@ -269,15 +264,35 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
                 # i.e., all bins valid and pass
                 binned_ids += grouped_annular_ids
                 radial_bounds.append(rad_interval)
-                angular_bounds.append(angle_parition)
+                angular_bounds.append(angle_partition)
                 starting_index += upper_iter + 1 # ~ num radial steps taken
                 break  # start new annulus
         else:
             # final annulus does not pass threshold - process outer objects
-            # for now, discard outer objects
+            # use one bin per quadrant regardless of aspect ratio
+            # accept bins regardless of passing threshold
+            # decision of whether to use these final bins can be postponed
+            fake_interval = list(rad_interval) # make a copy
+            fake_interval[1] = 10*fake_interval[0] # guarantees quadrants
+            angle_partition = angle_partition_func(fake_interval)
+            in_annulus = utl.in_linear_interval(radii, rad_interval)
+            grouped_annular_ids = []
+            for ang_intervals in angle_partition:
+                in_arc_func = functools.partial(utl.in_periodic_interval,
+                                                period=2*np.pi)
+                in_arcs = utl.in_union_of_intervals(angles, ang_intervals,
+                                                    inclusion=in_arc_func)
+                in_bin = in_arcs & in_annulus
+                ids_in_bin = ids[in_bin]
+                grouped_annular_ids.append(ids_in_bin)
+            # don't save the final annulus if either bin is empty
+            if any([len(l)==0 for l in grouped_annular_ids]): break
+            binned_ids += grouped_annular_ids
+            radial_bounds.append(rad_interval)
+            angular_bounds.append(angle_partition)
             break
     grouped_ids = [[id] for id in solitary_ids] + binned_ids
-    #Adding an output to give bin bounds arranged by bin
+    # "flatten out" radial bounds, angular bounds to return grouped by bin
     binned_bounds = []
     for (rmin,rmax),apartition in zip(radial_bounds,angular_bounds):
         for abin in apartition:
@@ -288,7 +303,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
     grouped_bounds = np.zeros((4,len(grouped_ids)))
     grouped_bounds[:,-len(binned_bounds):] = np.array(binned_bounds).T
     grouped_bounds[:,:-len(binned_bounds)] = np.nan
-    return grouped_ids, radial_bounds, angular_bounds, grouped_bounds
+    return grouped_ids, grouped_bounds
 
 def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     """

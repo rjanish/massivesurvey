@@ -104,3 +104,23 @@ spectype_colors = {'A':'aqua','B':'blue','G':'green','F':'lime','I':'indigo',
 # misc functions
 def flat_plus_poisson(flux, flatnoise, fluxscale):
     return np.sqrt(flatnoise**2 + fluxscale*flux)
+
+def arcsec_to_kpc(x, D):
+    """convert x to kpc from arcsec, given D (distance along LOS)"""
+    return D*np.pi*x/(3600*180)
+
+def kpc_to_arcsec(x, D):
+    """convert x to arcsec from kpc, given D (distance along LOS)"""
+    return x*180*3600/(D*np.pi)
+
+def re_conversion(re,d,mode='toNSA'):
+    """converts Re between NSA and 2MASS; assumes arcsec as units.
+    uses equation 2 from survey paper"""
+    re_kpc = arcsec_to_kpc(re,d)
+    if mode=='toNSA':
+        re_new = 10**( (np.log10(re_kpc)+0.076) / 0.8 )
+    elif mode=='fromNSA':
+        re_new = 10**( 0.8*np.log10(re_kpc) - 0.076 )
+    else:
+        raise Exception('You broke it.')
+    return kpc_to_arcsec(re_new,d)

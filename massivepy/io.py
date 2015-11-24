@@ -134,7 +134,7 @@ def get_gal_info(targets_path,gal_name):
         #gal_center = gal_position.Ra.iat[0], gal_position.Dec.iat[0]
         #gal_pa = gal_position.PA_best.iat[0]
         #gal_re = np.nan
-    elif os.path.basename(targets_path)=='target-positions.txt':
+    elif os.path.basename(targets_path)=='target-positions-pre20151124.txt':
         gal_info['ra'] = gal_position.RA.iat[0]
         gal_info['dec'] = gal_position.Dec.iat[0]
         gal_info['pa'] = gal_position.PA_NSA.iat[0]
@@ -151,6 +151,40 @@ def get_gal_info(targets_path,gal_name):
         if gal_info['ba']==-99.0:
             print 'NSA B/A not available, using 2MASS (not converted)'
             gal_info['ba'] = gal_position.ba_2MASS.iat[0]
+    elif os.path.basename(targets_path)=='target-positions.txt':
+        gal_info['ra'] = gal_position.ra.iat[0]
+        gal_info['dec'] = gal_position.dec.iat[0]
+        gal_info['re'] = gal_position.re_nsa.iat[0]
+        gal_info['pa'] = gal_position.pa_nsa.iat[0]
+        gal_info['ba'] = gal_position.ba_nsa.iat[0]
+        gal_info['d'] = gal_position.d.iat[0]
+        gal_info['mk'] = gal_position.mk.iat[0]
+        gal_info['env'] = gal_position.env.iat[0]
+        gal_info['hdc'] = gal_position.hdc.iat[0]
+        gal_info['ldc'] = gal_position.ldc.iat[0]
+        gal_info['twompp'] = gal_position.twompp.iat[0]
+        gal_info['mhalo'] = gal_position.mhalo.iat[0]
+        if gal_info['pa']==-99.0:
+            print 'NSA PA not available, using 2MASS'
+            gal_info['pa'] = gal_position.pa2mass.iat[0]
+        if gal_info['pa'] < 0:
+            gal_info['pa'] += 180
+        if gal_info['ba']==-99.0:
+            print 'NSA B/A not available, using 2MASS'
+            gal_info['ba'] = gal_position.ba2mass.iat[0]
+        if gal_info['re']==-99.0:
+            # convert Re from 2mass to NSA using eq 2 of survey paper
+            # needs distance along LOS; assume this is in Mpc
+            re2mass = gal_position.re2mass.iat[0]
+            gal_info['re'] = const.re_conversion(re2mass,gal_info['d']*1000)
+            print ('Converted 2MASS Re ({}) to '
+                   'NSA Re({})'.format(re2mass,gal_info['re']))
+        if gal_info['env'][-1]=='B':
+            gal_info['bgg'] = True
+            gal_info['env'] = int(gal_info['env'][:-1])
+        else:
+            gal_info['bgg'] = False
+            gal_info['env'] = int(gal_info['env'])
     else:
         raise Exception('Invalid targets path.')
     return gal_info

@@ -7,6 +7,7 @@ This file contains the main plotting fuction for s1_process_mitchell.
 import functools
 
 import numpy as np
+np.seterr(under='ignore') # ignore the frequent spurious underflow warnings
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -65,6 +66,7 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     nskipfibers, nlines = ir.shape
     label_waves = 'wavelength (angstroms assumed)'
     label_ir = 'fwhm in wavelength units'
+
 
     ### plotting begins ###
     pdf = PdfPages(plot_path)

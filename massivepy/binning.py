@@ -4,11 +4,7 @@
 import functools
 
 import numpy as np
-np.seterr(all='raise')   # force numpy warnings to raise exceptions
-np.seterr(under='warn')  # for all but underflow warnings (numpy
-                         # version 1.8.2 raises spurious underflows
-                         # on some masked array computations)
-
+np.seterr(under='ignore') # ignore the frequent spurious underflow warnings
 import massivepy.io as mpio
 import utilities as utl
 

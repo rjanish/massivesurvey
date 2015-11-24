@@ -217,7 +217,7 @@ for paramfile_path in all_paramfile_paths:
     binning.write_bininfo(bininfo_path,bin_ids,grouped_ids,bin_fluxes,
                           bin_coords,bin_bounds,**metadata)
     # do the full galaxy bins
-    fullids = [0,-1,-2]
+    fullids = [-1,-2]
     greatfibers = [f for f in goodfibers
                    if not fiber_binnumbers[f]==const.unusedfiber_bin_id]
     bestfibers = [] # this is where I will make a symmetrical one
@@ -225,8 +225,7 @@ for paramfile_path in all_paramfile_paths:
         x,y = ifuset.get_subset(fiber).coords[0]
         if np.sqrt(x**2 + y**2) < fullbin_radius:
             bestfibers.append(fiber)
-    binned_comments["binning"] = ("bin 0 contains all good fibers, "
-                                  "bin -1 contains all binned fibers, "
+    binned_comments["binning"] = ("bin -1 contains all binned fibers, "
                                   "bin -2 contains all binned fibers within "
                                   "radius {}.".format(fullbin_radius))
     fullbin_data = {}
@@ -235,7 +234,7 @@ for paramfile_path in all_paramfile_paths:
     fullbin_data['spectra_ids'] = fullids
     for key in ['spectra','bad_data','noise','ir']:
         fullbin_data[key] = np.zeros(fullbin_shape)
-    for i,f in enumerate([goodfibers,greatfibers,bestfibers]):
+    for i,f in enumerate([greatfibers,bestfibers]):
         subset = ifuset.get_subset(f)
         flux = np.average(subset.spectrumset.compute_flux())
         full_galaxy = subset.spectrumset.collapse(id=fullids[i],norm_value=flux)

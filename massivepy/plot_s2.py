@@ -32,13 +32,6 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fibermeta = mpio.read_friendly_header(fiberinfo_path)
     gal_info = mpio.get_gal_info(targets_path,gal_name)
     bindata, binmeta = binning.read_bininfo(bininfo_path)
-    # double check that the gal info matches...
-    for key,value in gal_info.iteritems():
-        value2 = binmeta['gal {}'.format(key)]
-        if not value==value2:
-            print ('\n\nWARNING: THE GAL INFO DOES NOT MATCH:\n'
-                   '{}: {} from bininfo, {} from targets\n\n'
-                   ''.format(key,value,value2))
     nbins = len(bindata)
     # set up bin colors
     mycolors = ['b','g','c','m','r','y']

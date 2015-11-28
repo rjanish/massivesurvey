@@ -72,11 +72,11 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     pdf = PdfPages(plot_path)
 
     # do flux and s2n fiber maps
-    fig1, ax1 = mplt.scalarmap(figtitle='flux map',
+    fig1, ax1 = mplt.scalarmap(figtitle='{} flux map'.format(gal_name),
                                xlabel=label_x, ylabel=label_y,
                                axC_mappable=fluxcolors['mappable'],
                                axC_label=label_flux)
-    fig2, ax2 = mplt.scalarmap(figtitle='s2n map',
+    fig2, ax2 = mplt.scalarmap(figtitle='{} s2n map'.format(gal_name),
                                xlabel=label_x, ylabel=label_y,
                                axC_mappable=s2ncolors['mappable'],
                                axC_label=label_s2n)
@@ -97,9 +97,9 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
         plt.close(fig)
 
     # do flux and s2n vs radius
-    fig1, ax1 = mplt.scalarmap(figtitle='Flux vs radius',
+    fig1, ax1 = mplt.scalarmap(figtitle='{} Flux vs radius'.format(gal_name),
                                xlabel=label_r, ylabel = label_flux)
-    fig2, ax2 = mplt.scalarmap(figtitle='s2n vs radius',
+    fig2, ax2 = mplt.scalarmap(figtitle='{} s2n vs radius'.format(gal_name),
                                xlabel=label_r, ylabel = label_s2n)
     for ifiber,fiberid in enumerate(fiberids):
         r = rcoords[ifiber]
@@ -119,7 +119,7 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
         plt.close(fig)
 
     # plot all fiber spectra
-    fig, ax = mplt.scalarmap(figtitle='Fiber spectra',
+    fig, ax = mplt.scalarmap(figtitle='{} Fiber spectra'.format(gal_name),
                              xlabel=label_waves, ylabel=label_flux)
     for i in range(nskipfibers):
         ax.semilogy(waves,np.abs(spectra[i]),c='r',alpha=0.3)
@@ -132,7 +132,7 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     plt.close(fig)
 
     # plot the ir vs wavelength for each fiber
-    fig, ax = mplt.scalarmap(figtitle='IR for each fiber',
+    fig, ax = mplt.scalarmap(figtitle='{} IR for each fiber'.format(gal_name),
                              xlabel=label_waves, ylabel=label_ir,
                              axC_mappable=ircolors['mappable'],
                              axC_label='fiber number')
@@ -143,7 +143,7 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
     plt.close(fig)
 
     # plot the arc lines
-    fig, ax = mplt.scalarmap(figtitle='Arc lines',
+    fig, ax = mplt.scalarmap(figtitle='{} Arc lines'.format(gal_name),
                              xlabel=label_waves,
                              ylabel='flux (normalized to max=1)')
     for i in range(nskipfibers):
@@ -158,7 +158,8 @@ def plot_s1_process_mitchell(gal_name=None,raw_cube_path=None,
 
     # do a zoom-in of each arc line to check that it fits
     fig = plt.figure(figsize=(6,nlines+2))
-    fig.suptitle('zoom in of each arc line fit (units same as above)')
+    fig.suptitle('{} zoom in of each arc line fit (units same as above)'
+                 ''.format(gal_name))
     ax = fig.add_axes([0.05,0.05,0.9,0.9])
     ir_avg = np.average(ir['fwhm'])
     for i in range(nlines):

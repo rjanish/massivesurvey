@@ -51,13 +51,13 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
         ii = np.nonzero(temps['weight']) # use only nonzero templates
         temps = temps[ii]
         spectype = np.array(catalog['spt'][temps['id']])
-        ii = np.argsort(spectype,kind='mergesort') # sort by spectype
+        ii = np.argsort([s[0] for s in spectype],kind='mergesort')
         temps, spectype = temps[ii], spectype[ii]
         pielabels = ["{} ({})".format(s,t) for s,t in zip(spectype,temps['id'])]
         piecolors = [const.spectype_colors[s[0]] for s in spectype]
         # plot raw weights
         fig = plt.figure(figsize=(6,5))
-        fig.suptitle('Templates (raw weights) bin {}'.format(binid))
+        fig.suptitle('{} Templates (raw weights) bin {}'.format(gal_name,binid))
         ax = fig.add_axes([0.17,0.05,0.7,0.7*1.2])
         piepatches, labels, txt = ax.pie(temps['weight'],labels=pielabels,
                                          colors=piecolors,labeldistance=1.1,
@@ -67,7 +67,8 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
         plt.close(fig)
         # plot flux-normalized weights
         fig = plt.figure(figsize=(6,5))
-        fig.suptitle('Templates (flux-normalized weights) bin {}'.format(binid))
+        fig.suptitle('{} Templates (flux-normalized weights) bin {}'
+                     ''.format(gal_name,binid))
         ax = fig.add_axes([0.15,0.05,0.7,0.7*1.2])
         piepatches, labels, txt = ax.pie(temps['fluxweight'],labels=pielabels,
                                          colors=piecolors,labeldistance=1.1,
@@ -78,7 +79,7 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     
     # plot the fit spectrum
     fig = plt.figure(figsize=(6, nbins+3))
-    fig.suptitle('bin spectra by bin number')
+    fig.suptitle('{} Full galaxy spectra by bin number'.format(gal_name))
     yspace = 1/float(nbins+3)
     ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
     target_specset = specset.crop(fit_range)
@@ -165,7 +166,8 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     # moments plots
     for i in range(nmoments):
         fig = plt.figure(figsize=(6,6))
-        fig.suptitle('Moment vs radius ({})'.format(moment_names[i]))
+        fig.suptitle('{} Moment vs radius ({})'
+                     ''.format(gal_name,moment_names[i]))
         ax = fig.add_axes([0.15,0.1,0.8,0.7])
         moments = fitdata['gh']['moment'][:,i]
         moments_r = bindata['r'][ibins]
@@ -208,13 +210,13 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     Vdata = fitdata['gh']['moment'][:,0]
     V0 = [np.average(Vdata,weights=bindata['flux'][ibins]),np.average(Vdata),
           utl.median(Vdata,weights=bindata['flux'][ibins]),np.median(Vdata)]
-    Vtitles = ['2D map of centered V (flux weighted average, V0={:.2f})'.format,
-               '2D map of centered V (average, V0={:.2f})'.format,
-               '2D map of centered V (flux weighted median, V0={:.2f})'.format,
-               '2D map of centered V (median, V0={:.2f})'.format]
+    Vtitles = ['{} 2D map of centered V (flux weighted avg, V0={:.2f})'.format,
+               '{} 2D map of centered V (average, V0={:.2f})'.format,
+               '{} 2D map of centered V (flux weighted med., V0={:.2f})'.format,
+               '{} 2D map of centered V (median, V0={:.2f})'.format]
     for i in range(4):
         Vcolors = mplt.lin_colormap_setup(Vdata-V0[i],cmap='BrBG',center=True)
-        fig, ax = mplt.scalarmap(figtitle=Vtitles[i](V0[i]),
+        fig, ax = mplt.scalarmap(figtitle=Vtitles[i](gal_name,V0[i]),
                                  xlabel=label_x,ylabel=label_y,
                                  axC_mappable=Vcolors['mappable'],axC_label='V')
         for ibin in range(nbins):
@@ -239,7 +241,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         momentdata = fitdata['gh']['moment'][:,i]
         momentcolors = mplt.lin_colormap_setup(momentdata,cmap=momentcmaps[i],
                                                center=center[i])
-        title = '2D map of {}'.format(moment_names[i])
+        title = '{} 2D map of {}'.format(gal_name,moment_names[i])
         fig, ax = mplt.scalarmap(figtitle=title,xlabel=label_x,ylabel=label_y,
                                  axC_mappable=momentcolors['mappable'],
                                  axC_label=moment_names[i])
@@ -260,7 +262,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
 
     # plot each spectrum, y-axis also represents bin number
     fig = plt.figure(figsize=(6, nbins+3))
-    fig.suptitle('bin spectra by bin number')
+    fig.suptitle('{} bin spectra by bin number'.format(gal_name))
     yspace = 1/float(nbins+3)
     ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
     target_specset = specset.crop(fit_range)
@@ -305,11 +307,12 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     catalog = pd.read_csv(catalogfile,index_col='miles_id')
     fig_ar = ((nbins-1)/5 + 2)/5.0
     fig = plt.figure(figsize=(6,fig_ar*6))
-    fig.suptitle('Template weights for each bin (raw weights)')
+    fig.suptitle('{} Template weights for each bin (raw weights)'
+                 ''.format(gal_name))
     for ibin in range(nbins):
         temps = fitdata['temps'][ibin,:]
         spectype = np.array(catalog['spt'][temps['id']])
-        ii = np.argsort(spectype,kind='mergesort') # sort by spectype
+        ii = np.argsort([s[0] for s in spectype],kind='mergesort')
         temps, spectype = temps[ii], spectype[ii]
         piecolors = [const.spectype_colors[s[0]] for s in spectype]
         irow, icol = ibin/5, ibin%5

@@ -39,7 +39,7 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
 
     # plot the actual lambda first
     fig = plt.figure(figsize=(6,6))
-    fig.suptitle(labels['lam'])
+    fig.suptitle('{} {}'.format(gal_name,labels['lam']))
     ax = fig.add_axes([0.15,0.1,0.8,0.7])
     lam_keys = ['lam','lam_minv0','lam_maxv0']
     lam_colors = ['k','b','g']
@@ -59,7 +59,7 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
     plt.close(fig)
 
 
-    fig, ax = mplt.scalarmap(figtitle=r'$V_0$ comparisons',
+    fig, ax = mplt.scalarmap(figtitle=r'{} $V_0$ comparisons'.format(gal_name),
                              xlabel=r'choice of $V_0$',ylabel=r'$V_0$')
     v0_keys = ['v0_full0','v0_full-1','v0_full-2',
                'v0_binavg','v0_wbinavg','v0_binmed','v0_wbinmed','v0_fiducial']
@@ -77,7 +77,7 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
     plt.close(fig)
 
     fig = plt.figure(figsize=(6,6))
-    fig.suptitle(labels['lam'])
+    fig.suptitle('{} {}'.format(gal_name,labels['lam']))
     ax = fig.add_axes([0.15,0.1,0.8,0.7])
     ax.plot(rprofiles['rencl'],rprofiles['lam'],
             c='b',marker='s',ms=3,label='all points')
@@ -90,7 +90,7 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
     plt.close(fig)
 
 
-    fig, ax = mplt.scalarmap(figtitle=labels['sigma'],
+    fig, ax = mplt.scalarmap(figtitle='{} {}'.format(gal_name,labels['sigma']),
                              xlabel='radius',ylabel=labels['sigma'])
     ax.plot(rprofiles['rencl'][ii],rprofiles['sig'][ii],c='b')
     ax.plot(rprofiles['rencl'][jj],rprofiles['diff_sig'][jj],c='b',ls='-.')

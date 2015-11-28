@@ -102,13 +102,17 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
     # plot bin maps, bin fluxes/s2n, bin centers comparison
     fig_keys = ['map','flux','s2n','cent','fmap','fmap2','smap','smap2']
-    titles = ['Bin map (s2n {}, ar {})'.format(binmeta['threshold s2n'],
-                                               binmeta['threshold ar']),
-              'Bin flux map','Bin s2n map','Bin centers (cartesian v polar)',
-              'Fiber flux map (with cropping)',
-              'Fiber flux map (with cropping and fiber removal)',
-              'Fiber s2n map (with cropping)',
-              'Fiber s2n map (with cropping and fiber removal)']
+    titles = [('{} Bin map (s2n {}, ar {})'.format(gal_name,
+                            binmeta['threshold s2n'],binmeta['threshold ar'])),
+              '{} Bin flux map'.format(gal_name),
+              '{} Bin s2n map'.format(gal_name),
+              '{} Bin centers (cartesian v polar)'.format(gal_name),
+              '{} Fiber flux map (with cropping)'.format(gal_name),
+              ('{} Fiber flux map (with cropping and fiber removal)'
+               ''.format(gal_name)),
+              '{} Fiber s2n map (with cropping)'.format(gal_name),
+              ('{} Fiber s2n map (with cropping and fiber removal)'
+               ''.format(gal_name))]
     mappables = [None,binfluxcolors['mappable'],bins2ncolors['mappable'],None,
                  fiberfluxcolors['mappable'],fiberfluxcolors2['mappable'],
                  fibers2ncolors['mappable'],fibers2ncolors2['mappable']]
@@ -177,10 +181,12 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
 
     # plot flux and s2n vs radius
-    t1f = 'Fiber flux vs radius (with cropping)'
-    t2f = 'Fiber flux vs radius (with cropping and fiber removal)'
-    t1s = 'Fiber s2n vs radius (with cropping)'
-    t2s = 'Fiber s2n vs radius (with cropping and fiber removal)'
+    t1f = '{} Fiber flux vs radius (with cropping)'.format(gal_name)
+    t2f = ('{} Fiber flux vs radius (with cropping and fiber removal)'
+           ''.format(gal_name))
+    t1s = '{} Fiber s2n vs radius (with cropping)'.format(gal_name)
+    t2s = ('{} Fiber s2n vs radius (with cropping and fiber removal)'
+           ''.format(gal_name))
     fig1f,ax1f = mplt.scalarmap(figtitle=t1f,xlabel=label_r,ylabel=label_flux)
     fig2f,ax2f = mplt.scalarmap(figtitle=t2f,xlabel=label_r,ylabel=label_flux)
     fig1s,ax1s = mplt.scalarmap(figtitle=t1s,xlabel=label_r,ylabel=label_s2n)
@@ -216,8 +222,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         plt.close(fig)
 
     # plot fiber flux vs noise
-    fig,ax = mplt.scalarmap(figtitle='All fibers total noise vs flux',
-                            xlabel=label_flux,ylabel='noise')
+    title = '{} All fibers total noise vs flux'.format(gal_name)
+    fig,ax = mplt.scalarmap(figtitle=title,xlabel=label_flux,ylabel='noise')
     fibernoise = ifuset.spectrumset.compute_noiseflux()
     for ifiber, fiberid in enumerate(fiberids):
         f, n = fiberfluxcolors['x'][ifiber], fibernoise[ifiber]
@@ -255,8 +261,9 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
 
     # plot all fiber spectra
-    t1 = 'All fiber spectra (with cropping)'
-    t2 = 'All fiber spectra (with cropping and fiber removal)'
+    t1 = '{} All fiber spectra (with cropping)'.format(gal_name)
+    t2 = ('{} All fiber spectra (with cropping and fiber removal)'
+          ''.format(gal_name))
     fig1,ax1 = mplt.scalarmap(figtitle=t1,xlabel=label_waves,ylabel=label_flux)
     fig2,ax2 = mplt.scalarmap(figtitle=t2,xlabel=label_waves,ylabel=label_flux)
     for ifiber,fiber_id in enumerate(plotfibers):
@@ -278,7 +285,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
 
     # plot ir for each bin
-    fig, ax = mplt.scalarmap(figtitle='IR for each bin',
+    fig, ax = mplt.scalarmap(figtitle='{} IR for each bin'.format(gal_name),
                              xlabel=label_waves, ylabel=label_ir,
                              axC_mappable=ircolors['mappable'],
                              axC_label='bin number')
@@ -292,7 +299,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
 
     # plot each spectrum, y-axis also represents bin number
     fig = plt.figure(figsize=(6,nbins))
-    fig.suptitle('bin spectra by bin number')
+    fig.suptitle('{} bin spectra by bin number'.format(gal_name))
     yspace = 1/float(nbins)
     ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
     for ibin in range(nbins):

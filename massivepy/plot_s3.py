@@ -93,7 +93,7 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
         ax.plot(waves,i-spectrum+spectrum[0],c='k')
         ax.plot(modelwaves,i-model+spectrum[0],c='r',lw=0.7)
         ax.text(waves[0],i-0.4,
-                r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][0]))
+                r'$\chi^2={:4.2f}$'.format(fitdata['bins']['chisq'][i]))
     # find regions to mask
     # should add masking of bad_data as well!
     for m in mask:

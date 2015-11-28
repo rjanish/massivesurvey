@@ -125,8 +125,8 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
 def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
                    bininfo_path=None,main_output=None,mc_output=None,
                    moments_output=None,mcmoments_output=None,fit_range=None,
-                   mask=None,compare_moments=None,compare_bins=None,
-                   templates_dir=None):
+                   mask=None,compare_labels=None,compare_moments=None,
+                   compare_bins=None,templates_dir=None):
     # get data from fits files of ppxf fit output
     fitdata = mpio.get_friendly_ppxf_output(main_output)
     nbins = fitdata['metadata']['nbins']
@@ -184,8 +184,8 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
             moments2 = fitdata2['gh']['moment'][:,i]
             moments_r2 = bindata2['r'][ibins2]
             ax.plot(moments_r2,moments2,ls='',marker='s',mfc='g',ms=5.0,
-                    alpha=0.8,label='comparison run')
-            mainlabel = 'this run'
+                    alpha=0.8,label=compare_labels[0])
+            mainlabel = compare_labels[1]
         # plot moments
         ax.plot(moments_r,moments,ls='',marker='o',mfc='c',ms=7.0,alpha=0.8,
                 label=mainlabel)

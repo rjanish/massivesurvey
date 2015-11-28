@@ -61,6 +61,7 @@ for paramfile_path in all_paramfile_paths:
         print 'Something is wrong with the input paths for {}'.format(gal_name)
         print 'Skipping to next galaxy.'
         continue
+    compare_labels = eval(input_params['compare_labels'])
     compare_moments = input_params['compare_moments'] #only for plotting
     compare_bins = input_params['compare_bins'] #only for plotting
 
@@ -103,6 +104,7 @@ for paramfile_path in all_paramfile_paths:
                  'templates_dir': templates_dir,
                  'bininfo_path': input_params['bin_info_path'],
                  'gal_name': gal_name,
+                 'compare_labels': compare_labels,
                  'compare_moments': compare_moments,
                  'compare_bins': compare_bins,
                  'fit_range': fit_range,
@@ -171,6 +173,7 @@ for plot_info in things_to_plot:
     run_type = plot_info.pop('run_type')
     if run_type=='full':
         mpio.friendly_temps(plot_info['main_output'],plot_info['temps_output'])
+        del plot_info['compare_labels']
         del plot_info['compare_moments']
         del plot_info['compare_bins']
         del plot_info['mc_output']

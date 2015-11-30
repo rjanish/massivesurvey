@@ -23,15 +23,15 @@ import massivepy.postprocess as post
 from plotting.geo_utils import polar_box
 
 
-def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
+def plot_s4_postprocess(gal_name=None,binfit_path=None,plot_path=None,
+                        rdata_path=None):
     # get data
-    rprofiles = np.genfromtxt(rprofiles_path, names=True, skip_header=1)
-    rmeta = mpio.read_friendly_header(rprofiles_path)
+    rdata = np.genfromtxt(rdata_path, names=True, skip_header=1)
+    rmeta = mpio.read_friendly_header(rdata_path)
+    binfits = mpio.get_friendly_ppxf_output(binfit_path)
     labels = {'lam': r'$\lambda_R$',
               'sigma':r'$\sigma$',
               'flux':'flux'}
-    ii = rprofiles['toplot'].astype(bool)
-    jj = rprofiles['diff_toplot'].astype(bool)
 
     ### Plotting Begins! ###
 
@@ -41,13 +41,13 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
     fig = plt.figure(figsize=(6,6))
     fig.suptitle('{} {}'.format(gal_name,labels['lam']))
     ax = fig.add_axes([0.15,0.1,0.8,0.7])
-    lam_keys = ['lam','lam_minv0','lam_maxv0']
+    lam_keys = ['','_vmin','_vmax']
     lam_colors = ['k','b','g']
     lam_labels = ['fiducial','min V0','max V0']
     for k,c,l in zip(lam_keys,lam_colors,lam_labels):
-        ax.plot(rprofiles['rencl'][ii],rprofiles[k][ii],c=c,label=l)
-        ax.plot(rprofiles['rencl'][jj],rprofiles['diff_'+k][jj],c=c,ls='-.')
-    ax.plot(0,0,c='k',ls='-.',label='differential')
+        ax.plot(rdata['r'],rdata['lam_loc'+k],c=c,ls='-.')
+        ax.plot(rdata['r_en'],rdata['lam_en'+k],c=c,ls='-',label=l)
+    ax.plot(0,0,c='k',ls='-.',label='local')
     ax.axhline(rmeta['slow/fast cutoff'],c='k',ls='--',label='slow/fast')
     ax.axvline(rmeta['gal re'],c='k',ls=':',label=r'$R_e$')
     ax.plot(rmeta['gal re'],rmeta['lambda re'],ls='',marker='o',mfc='k')
@@ -59,43 +59,51 @@ def plot_s4_postprocess(gal_name=None,plot_path=None,rprofiles_path=None):
     plt.close(fig)
 
 
-    fig, ax = mplt.scalarmap(figtitle=r'{} $V_0$ comparisons'.format(gal_name),
-                             xlabel=r'choice of $V_0$',ylabel=r'$V_0$')
-    v0_keys = ['v0_full0','v0_full-1','v0_full-2',
-               'v0_binavg','v0_wbinavg','v0_binmed','v0_wbinmed','v0_fiducial']
-    for k in v0_keys:
-        if k not in rmeta: rmeta[k] = np.nan
-    v0_labels = ['all fibers fullbin','binned fibers fullbin',
-                 'symmetrical fullbin','bins average','weighted bins avg',
-                 'bins median','weighted bins med','fiducial']
-    ax.plot([rmeta[k] for k in v0_keys],marker='o')
-    ax.set_xlim(xmin=-0.2,xmax=len(v0_keys)-0.8)
-    ax.set_xticks(range(len(v0_keys)))
-    ax.tick_params(labeltop='on',top='on',labelbottom='off')
-    ax.set_xticklabels(v0_labels,rotation=20, ha='left')
-    pdf.savefig(fig)
-    plt.close(fig)
-
-    fig = plt.figure(figsize=(6,6))
-    fig.suptitle('{} {}'.format(gal_name,labels['lam']))
-    ax = fig.add_axes([0.15,0.1,0.8,0.7])
-    ax.plot(rprofiles['rencl'],rprofiles['lam'],
-            c='b',marker='s',ms=3,label='all points')
-    ax.plot(rprofiles['rencl'][ii],rprofiles['lam'][ii],
-            c='c',marker='o',ms=3,label='one per annulus')
-    ax.set_xlabel('radius')
-    ax.set_ylabel(labels['lam'])
-    ax.legend(loc='lower center',bbox_to_anchor=(0.5,1),ncol=2)
-    pdf.savefig(fig)
-    plt.close(fig)
-
-
     fig, ax = mplt.scalarmap(figtitle='{} {}'.format(gal_name,labels['sigma']),
                              xlabel='radius',ylabel=labels['sigma'])
-    ax.plot(rprofiles['rencl'][ii],rprofiles['sig'][ii],c='b')
-    ax.plot(rprofiles['rencl'][jj],rprofiles['diff_sig'][jj],c='b',ls='-.')
+    ax.plot(rdata['r'],rdata['sig_loc'],c='b',ls='-.')
+    ax.fill_between(rdata['r'],rdata['sig_loc']-rdata['sig_loc_err'],
+                    rdata['sig_loc']+rdata['sig_loc_err'],alpha=0.2)
+    ax.plot(rdata['r_en'],rdata['sig_en'],c='b')
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+    fig, ax = mplt.scalarmap(figtitle='{} h3 correlation'.format(gal_name),
+                             xlabel='V (scaled)',ylabel='h3')
+    voversigma = ((binfits['gh']['moment'][:,0]-rmeta['v0_fiducial'])
+                  /binfits['gh']['moment'][:,1])
+    ax.plot(voversigma,binfits['gh']['moment'][:,2],ls='',marker='.')
+    fakeV = np.array([np.min(voversigma),np.max(voversigma)])
+    ax.plot(fakeV,rmeta['h3 intercept']+fakeV*rmeta['h3 slope'])
+    ax.fill_between(fakeV,
+        rmeta['h3 intercept']+fakeV*(rmeta['h3 slope']-rmeta['h3 slope err']),
+        rmeta['h3 intercept']+fakeV*(rmeta['h3 slope']+rmeta['h3 slope err']),
+                    alpha=0.1)
+    ax.axhline(0,c='k',lw=2)
+    ax.axhline(rmeta['h3 average'],c='r',label='h3 average')
+    ax.axhline(rmeta['h5 average'],c='m',label='h5 average')
+    ax.legend(loc='lower center',bbox_to_anchor=(0.5,1),ncol=3)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+    fig, ax = mplt.scalarmap(figtitle='{} h4 correlation'.format(gal_name),
+                             xlabel='sigma (scaled)',ylabel='h4')
+    sigma0 = np.average(binfits['gh']['moment'][:,1])
+    sigmaoversigma = (binfits['gh']['moment'][:,1]-sigma0)/sigma0
+    ax.plot(sigmaoversigma,binfits['gh']['moment'][:,3],ls='',marker='.')
+    fakeS = np.array([np.min(sigmaoversigma),np.max(sigmaoversigma)])
+    ax.plot(fakeS,rmeta['h4 intercept']+fakeS*rmeta['h4 slope'])
+    ax.fill_between(fakeS,
+        rmeta['h4 intercept']+fakeS*(rmeta['h4 slope']-rmeta['h4 slope err']),
+        rmeta['h4 intercept']+fakeS*(rmeta['h4 slope']+rmeta['h4 slope err']),
+                    alpha=0.1)
+    ax.axhline(0,c='k',lw=2)
+    ax.axhline(rmeta['h4 average'],c='r',label='h4 average')
+    ax.axhline(rmeta['h6 average'],c='m',label='h6 average')
+    ax.legend(loc='lower center',bbox_to_anchor=(0.5,1),ncol=3)
     pdf.savefig(fig)
     plt.close(fig)
 
     pdf.close()
-    return

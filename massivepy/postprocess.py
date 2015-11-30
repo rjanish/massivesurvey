@@ -6,39 +6,50 @@ import functools
 
 import numpy as np
 
-def calc_lambda(R,V,sigma,flux,idiff):
+def lam(R,V,sigma,lum):
     """
-    Calculate lambda at each R.
-    Requires input to be sorted.
-    Gives both differential and cumulative lambda.
+    Calculates single lambda value for the input provided.
     """
-    nbins = len(R)
-    if not len(V)==nbins and len(sigma)==nbins and len(flux)==nbins:
-        raise Exception('u broke it.')
-    dt = {'names':['R','num','denom','lam','diff_lam'],
-          'formats':5*[np.float64]}
-    output = np.zeros(nbins,dtype=dt)
-    for i in range(nbins):
-        avg = functools.partial(np.average,weights=flux[:i+1])
-        output['num'][i] = avg(R[:i+1]*np.abs(V[:i+1]))
-        output['denom'][i] = avg(R[:i+1]*np.sqrt(V[:i+1]**2+sigma[:i+1]**2))
-        output['lam'][i] = output['num'][i]/output['denom'][i]
-    for i1,i2 in zip([0]+idiff[:-1],idiff):
-        avg = functools.partial(np.average,weights=flux[i1:i2+1])
-        num = avg(R[i1:i2+1]*np.abs(V[i1:i2+1]))
-        denom = avg(R[i1:i2+1]*np.sqrt(V[i1:i2+1]**2+sigma[i1:i2+1]**2))
-        output['diff_lam'][i2] = num/denom
-    return output
+    num = np.average(R*np.abs(V),weights=lum)
+    denom = np.average(R*np.sqrt(V**2 + sigma**2),weights=lum)
+    return num/denom
 
-def calc_sigma(R,sigma,flux,idiff):
+def group_bins(bindata,n0=3):
     """
-    Calculate flux-weighted average sigma within R
+    Group bins into annuli. Does the obvious thing for outer annuli.
+    Also groups the center single-fiber bins into annuli of approximately
+    equal radius, based on having n0 as the number of bins in the "first"
+    (center) annulus, and having the total number of bins enclosed in the nth
+    annulus scale like n^2.
+    E.g. for n0=3 the total number of bins enclosed goes 3, 12, 27, 48 etc, 
+    so the number in each annulus goes 3, 9, 15, 21, etc.
+    Note that the final annulus in the center region will have slightly more
+    or fewer bins/fibers than this.
+    Returns a list of arrays, each containing the bin indexes for one annulus.
+    NOTE, this requires the center bins to be sorted!!
     """
-    output = np.zeros(R.shape,dtype={'names':['R','sig','diff_sig'],
-                                     'formats':3*['f8']})
-    ii = np.argsort(R)
-    output['R'] = R[ii]
-    output['sig'] = np.cumsum(sigma[ii]*flux[ii])/np.cumsum(flux[ii])
-    for i1,i2 in zip([0]+idiff[:-1],idiff):
-        output['diff_sig'][i2]=np.average(sigma[i1:i2+1],weights=flux[i1:i2+1])
-    return output
+    n_singlebins = np.sum(np.isnan(bindata['rmin']))
+    n_centerannuli = int(np.rint(np.sqrt(n_singlebins/float(n0))))
+    ii_splits = list(np.array(range(1,n_centerannuli))**2 * n0)
+    ii_splits.append(n_singlebins)
+    jj_annuli = np.nonzero(np.diff(bindata['rmin'][n_singlebins:]))[0]
+    ii_splits.extend(n_singlebins+jj_annuli+1)
+    return np.split(range(len(bindata)),ii_splits)
+
+def bootstrap(x,y,N=10000):
+    """
+    Find linear slope of x,y correlation and bootstrap error bars.
+    """
+    slopes, intercepts = [], []
+    M = len(x)
+    ii_all = np.arange(M)
+    for i in range(N):
+        ii = np.random.choice(ii_all,size=M)
+        slope, intercept = np.polyfit(x[ii],y[ii],1)
+        slopes.append(slope)
+        intercepts.append(intercept)
+    results = {'slope': np.average(slopes),
+               'intercept': np.average(intercepts),
+               'slope_err': np.std(slopes),
+               'intercept_err': np.std(intercepts)}
+    return results

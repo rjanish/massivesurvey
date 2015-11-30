@@ -61,16 +61,17 @@ for paramfile_path in all_paramfile_paths:
                 "{}-s4-{}-{}.{}".format(gal_name,run_name,f,ext))
     # fits_path = output_path_maker('public','fits')
     plot_path = output_path_maker('lambda','pdf')
-    rprofiles_path = output_path_maker('rprofiles','txt')
+    rdata_path = output_path_maker('rprofiles','txt')
     # save relevant info for plotting to a dict
-    plot_info = {'rprofiles_path': rprofiles_path,
+    plot_info = {'rdata_path': rdata_path,
+                 'binfit_path': binfit_path,
                  'plot_path': plot_path,
                  'gal_name': gal_name}
     things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
     # only checks for "main" fits file, not whether params have changed
-    if os.path.isfile(rprofiles_path):
+    if os.path.isfile(rdata_path):
         if input_params['skip_rerun']=='yes':
             print '\nSkipping re-run of {}, plotting only'.format(gal_name)
             continue
@@ -86,40 +87,10 @@ for paramfile_path in all_paramfile_paths:
     binfits = mpio.get_friendly_ppxf_output(binfit_path)
     fullfits = mpio.get_friendly_ppxf_output(fullfit_path)
 
-    # create a container for all of my radial profiles
-    n_rsteps = len(bindata['r'])
-    dt = {'names': ['lastbin','toplot','diff_toplot','rbin','rencl',
-                    'sig','diff_sig',
-                    'lam','lam_minv0','lam_maxv0',
-                    'diff_lam','diff_lam_minv0','diff_lam_maxv0'],
-          'formats': ['i8'] + 2*['b'] + 10*['f8']}
-    rprofiles = np.zeros(n_rsteps,dtype=dt)
 
-    # populate the radius information
-    ii = np.argsort(bindata['r'])
-    rprofiles['lastbin'] = bindata['binid'][ii]
-    rprofiles['rbin'] = bindata['r'][ii]
-    rencl = bindata['rmax'][ii]
-    jj = np.isnan(rencl)
-    rencl[jj] = bindata['r'][ii][jj]
-    rprofiles['rencl'] = rencl
-    kk = np.nonzero(np.diff(rencl))
-    rprofiles['toplot'] = False
-    rprofiles['toplot'][kk] = True
-    rprofiles['toplot'][-1] = True
+    # get all the choices for V0 packaged up first
+    luminosity = bindata['flux']*bindata['nfibers'] # skipping fiber_area
 
-    # here is the setup for the calculation of lambda
-    r = bindata['r'][ii]
-    vel = binfits['gh']['moment'][:,0][ii]
-    sigma = binfits['gh']['moment'][:,1][ii]
-    flux = bindata['flux'][ii]
-    luminosity = flux*bindata['nfibers'][ii] # skipping fiber_area
-    itoplot = np.where(rprofiles['toplot'])[0]
-    idiff = [i for i in itoplot if not i+1 in itoplot]
-    rprofiles['diff_toplot'] = False
-    rprofiles['diff_toplot'][idiff] = True
-
-    # get all the choices for V0 first
     v0_all = {'full{}'.format(binid): v for (binid,v) 
               in zip(fullfits['bins']['id'],fullfits['gh']['moment'][:,0])}
     v_fullbin_index = np.where(v_choice==fullfits['bins']['id'])[0][0]
@@ -130,42 +101,101 @@ for paramfile_path in all_paramfile_paths:
     v0_all['wbinmed'] = utl.median(binfits['gh']['moment'][:,0],
                                               weights=luminosity)
     v0_all['binmed'] = utl.median(binfits['gh']['moment'][:,0])
+    v0_min, v0_max = min(v0_all.values()), max(v0_all.values())
 
-    # then calculate lambda
-    for label,v0 in zip(['lam','lam_minv0','lam_maxv0'],
-                [v0_all['fiducial'],min(v0_all.values()),max(v0_all.values())]):
-        lamR = post.calc_lambda(r,vel-v0,sigma,luminosity,idiff)
-        rprofiles[label] = lamR['lam']
-        rprofiles['diff_{}'.format(label)] = lamR['diff_lam']
-    
-    # do sigma thing
-    sig_fluxavg = post.calc_sigma(r,sigma,luminosity,idiff)
-    rprofiles['sig'] = sig_fluxavg['sig']
-    rprofiles['diff_sig'] = sig_fluxavg['diff_sig']
+
+    # group annular bins and create the radial profiles
+    bin_groups = post.group_bins(bindata)
+    dt = {'names':['r','r_en','sig_loc','sig_en','sig_loc_err',
+                   'lam_loc','lam_loc_vmin','lam_loc_vmax',
+                   'lam_en','lam_en_vmin','lam_en_vmax'],
+          'formats':11*['f8']}
+    rdata = np.zeros(len(bin_groups),dtype=dt)
+    group_en = []
+    for i,group in enumerate(bin_groups):
+        bd = bindata[group]
+        bm = binfits['gh']['moment'][group,:]
+        if all(np.isnan(bd['rmax'])):
+            rdata[i]['r_en'] = np.max(bd['r'])
+        elif all(~np.isnan(bd['rmax'])):
+            rdata[i]['r_en'] = bd['rmax'][0]
+        else:
+            raise Exception('Help, ur annulus is broke.')
+        lum = bd['flux']*bd['nfibers']
+        rdata[i]['r'] = np.average(bd['r'],weights=lum)
+        rdata[i]['sig_loc'] = np.average(bm[:,1],weights=lum)
+        rdata[i]['sig_loc_err'] = np.std(bm[:,1])
+        for v0, label in zip([v0_all['fiducial'],v0_min,v0_max],
+                             ['lam_loc','lam_loc_vmin','lam_loc_vmax']):
+            rdata[i][label] = post.lam(bd['r'],bm[:,0]-v0,bm[:,1],lum)
+        # now do the cumulative things
+        group_en.extend(group)
+        bd = bindata[np.array(group_en)]
+        bm = binfits['gh']['moment'][np.array(group_en),:]
+        lum = bd['flux']*bd['nfibers']
+        rdata[i]['sig_en'] = np.average(bm[:,1],weights=lum)
+        for v0, label in zip([v0_all['fiducial'],v0_min,v0_max],
+                             ['lam_en','lam_en_vmin','lam_en_vmax']):
+            rdata[i][label] = post.lam(bd['r'],bm[:,0]-v0,bm[:,1],lum)
+
+
+    # get the correlations and bootstrap error bars for h3/V
+    voversigma = ((binfits['gh']['moment'][:,0]-v0_all['fiducial'])
+                  /binfits['gh']['moment'][:,1])
+    h3boots = post.bootstrap(voversigma,binfits['gh']['moment'][:,2])
+    sigma0 = np.average(binfits['gh']['moment'][:,1])
+    sigmaoversigma = (binfits['gh']['moment'][:,1]-sigma0)/sigma0
+    h4boots = post.bootstrap(sigmaoversigma,binfits['gh']['moment'][:,3])
+
 
     # obtain some useful single-number metadata
-    plotprof = rprofiles[rprofiles['toplot'].astype(bool)]
-    lam_re = np.interp(binmeta['gal re'],plotprof['rencl'],plotprof['lam'])
-    lam_re2 = np.interp(0.5*binmeta['gal re'],plotprof['rencl'],plotprof['lam'])
-    sig_re = np.interp(binmeta['gal re'],plotprof['rencl'],plotprof['sig'])
-    sig_re2 = np.interp(0.5*binmeta['gal re'],plotprof['rencl'],plotprof['sig'])
+    lam_re = np.interp(binmeta['gal re'],rdata['r_en'],rdata['lam_en'])
+    lam_re2 = np.interp(0.5*binmeta['gal re'],rdata['r_en'],rdata['lam_en'])
+    sig_c = binfits['gh']['moment'][0,1]
+    sig_re = np.interp(binmeta['gal re'],rdata['r_en'],rdata['sig_en'])
+    sig_re2 = np.interp(0.5*binmeta['gal re'],rdata['r_en'],rdata['sig_en'])
+    sig_err = np.max(rdata['sig_loc_err']/rdata['sig_loc'])
     slowfast_cutoff = 0.31*np.sqrt(1-binmeta['gal ba'])
     metadata = {'lambda re': lam_re,
                 'lambda half re' : lam_re2,
+                'sigma center': sig_c,
                 'sigma re': sig_re,
                 'sigma half re' : sig_re2,
+                'sigma anisotropy' : sig_err,
                 'gal re': binmeta['gal re'],
                 'gal ba': binmeta['gal ba'],
                 'is slow': int(lam_re<slowfast_cutoff),
-                'slow/fast cutoff': slowfast_cutoff}
+                'slow/fast cutoff': slowfast_cutoff,
+                'h3 slope': h3boots['slope'],
+                'h3 slope err': h3boots['slope_err'],
+                'h3 intercept': h3boots['intercept'],
+                'h3 intercept err': h3boots['intercept_err'],
+                'h4 slope': h4boots['slope'],
+                'h4 slope err': h4boots['slope_err'],
+                'h4 intercept': h4boots['intercept'],
+                'h4 intercept err': h4boots['intercept_err'],
+                'h3 average': np.average(binfits['gh']['moment'][:,2]),
+                'h3 err': np.std(binfits['gh']['moment'][:,2]),
+                'h4 average': np.average(binfits['gh']['moment'][:,3]),
+                'h4 err': np.std(binfits['gh']['moment'][:,3]),
+                'h5 average': np.average(binfits['gh']['moment'][:,4]),
+                'h5 err': np.std(binfits['gh']['moment'][:,4]),
+                'h6 average': np.average(binfits['gh']['moment'][:,5]),
+                'h6 err': np.std(binfits['gh']['moment'][:,5])}
     metadata.update({'v0_{}'.format(k):v for k,v in v0_all.iteritems()})
 
     # save the radial profiles
-    comments = ['For now, lam uses the flux-weighted average V as V0',
-                'lam is luminosity weighted except lam_fluxw',
-                'sig is luminosity weighted average sigma within R']
-    mpio.save_textfile(rprofiles_path,rprofiles,metadata,comments,
-                       fmt=2*['%2i']+(len(rprofiles.dtype.names)-2)*['%9.5f'])
+    comments = [('Radial profiles have both local ("loc") and '
+                 'cumulative/enclosed ("en") versions'),
+                ('Lambda profiles are also calculated with min and '
+                 'max V0 to verify that no major differences'),
+                ('Included in metadata are (unweighted) averages '
+                 'and standard deviations of h3-h6'),
+                ('H3 and h4 slopes and intercepts are from bootstrapped '
+                 'linear fits of h3/V and h4/sigma correlations'),
+                ('Sigma anisotropy is the maximum relative deviation '
+                 'of sigma within an annulus')]
+    mpio.save_textfile(rdata_path,rdata,metadata,comments)
 
 
 for plot_info in things_to_plot:

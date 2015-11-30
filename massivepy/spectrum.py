@@ -297,17 +297,17 @@ class SpectrumSet(object):
         """
         if self.is_log_sampled():
             if target_logscale is None:
-                warnings.warn("spectra is already log-spaced - aborting "
-                              "log_resample since no target logscale given",
-                               RuntimeWarning)
+                #warnings.warn("spectra is already log-spaced - aborting "
+                #              "log_resample since no target logscale given",
+                #               RuntimeWarning)
                 return
             current_logscale = self.get_logscale()
             logscale_match = np.absolute(target_logscale -
                                         current_logscale) < const.float_tol
             if logscale_match:
-                warnings.warn("spectra already has desired "
-                              "logscale, aborting log_resample",
-                               RuntimeWarning)
+                #warnings.warn("spectra already has desired "
+                #              "logscale, aborting log_resample",
+                #               RuntimeWarning)
                 return
         # re-sampling is required
         inward_scaling = 1 + np.array([1, -1])*const.float_tol
@@ -579,8 +579,8 @@ class SpectrumSet(object):
             msg += " Convolution cannot propagate noise, will set to NaN."
             warnings.warn(msg)
         # cropping
-        warnings.warn("The full convolution will be returned with no "
-                      "cropping - edge effects are likely present!")
+        #warnings.warn("The full convolution will be returned with no "
+        #              "cropping - edge effects are likely present!")
         # record smoothing
         extened_comments = self.comments.copy()
         extened_comments["smoothing"] = "Spectra have been Gaussian-smoothed"

@@ -28,7 +28,9 @@ def plot_s4_postprocess(gal_name=None,binfit_path=None,plot_path=None,
     # get data
     rdata = np.genfromtxt(rdata_path, names=True, skip_header=1)
     rmeta = mpio.read_friendly_header(rdata_path)
-    binfits = mpio.get_friendly_ppxf_output(binfit_path)
+    binmoments = np.genfromtxt(binfit_path,names=True,skip_header=1)
+    if not rmeta['junk bins']==0:
+        binmoments = binmoments[:-rmeta['junk bins']]
     labels = {'lam': r'$\lambda_R$',
               'sigma':r'$\sigma$',
               'flux':'flux'}
@@ -71,9 +73,12 @@ def plot_s4_postprocess(gal_name=None,binfit_path=None,plot_path=None,
 
     fig, ax = mplt.scalarmap(figtitle='{} h3 correlation'.format(gal_name),
                              xlabel='V (scaled)',ylabel='h3')
-    voversigma = ((binfits['gh']['moment'][:,0]-rmeta['v0_fiducial'])
-                  /binfits['gh']['moment'][:,1])
-    ax.plot(voversigma,binfits['gh']['moment'][:,2],ls='',marker='.')
+    voversigma = (binmoments['V']-rmeta['v0_fiducial'])/binmoments['sigma']
+    ax.plot(voversigma,binmoments['h3'],ls='',
+            marker='o',mfc='c',ms=7,zorder=-1)
+    for i in range(len(voversigma)):
+        ax.text(voversigma[i],binmoments['h3'][i],str(i+1),fontsize=5,
+                horizontalalignment='center',verticalalignment='center')
     fakeV = np.array([np.min(voversigma),np.max(voversigma)])
     ax.plot(fakeV,rmeta['h3 intercept']+fakeV*rmeta['h3 slope'])
     ax.fill_between(fakeV,
@@ -90,9 +95,13 @@ def plot_s4_postprocess(gal_name=None,binfit_path=None,plot_path=None,
 
     fig, ax = mplt.scalarmap(figtitle='{} h4 correlation'.format(gal_name),
                              xlabel='sigma (scaled)',ylabel='h4')
-    sigma0 = np.average(binfits['gh']['moment'][:,1])
-    sigmaoversigma = (binfits['gh']['moment'][:,1]-sigma0)/sigma0
-    ax.plot(sigmaoversigma,binfits['gh']['moment'][:,3],ls='',marker='.')
+    sigma0 = np.average(binmoments['sigma'])
+    sigmaoversigma = (binmoments['sigma']-sigma0)/sigma0
+    ax.plot(sigmaoversigma,binmoments['h4'],ls='',
+            marker='o',mfc='c',ms=7,zorder=-1)
+    for i in range(len(sigmaoversigma)):
+        ax.text(sigmaoversigma[i],binmoments['h4'][i],str(i+1),fontsize=5,
+                horizontalalignment='center',verticalalignment='center')
     fakeS = np.array([np.min(sigmaoversigma),np.max(sigmaoversigma)])
     ax.plot(fakeS,rmeta['h4 intercept']+fakeS*rmeta['h4 slope'])
     ax.fill_between(fakeS,

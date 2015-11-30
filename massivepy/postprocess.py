@@ -29,9 +29,12 @@ def group_bins(bindata,n0=3):
     NOTE, this requires the center bins to be sorted!!
     """
     n_singlebins = np.sum(np.isnan(bindata['rmin']))
-    n_centerannuli = int(np.rint(np.sqrt(n_singlebins/float(n0))))
-    ii_splits = list(np.array(range(1,n_centerannuli))**2 * n0)
-    ii_splits.append(n_singlebins)
+    if n_singlebins==0:
+        ii_splits = []
+    else:
+        n_centerannuli = int(np.rint(np.sqrt(n_singlebins/float(n0))))
+        ii_splits = list(np.array(range(1,n_centerannuli))**2 * n0)
+        ii_splits.append(n_singlebins)
     jj_annuli = np.nonzero(np.diff(bindata['rmin'][n_singlebins:]))[0]
     ii_splits.extend(n_singlebins+jj_annuli+1)
     return np.split(range(len(bindata)),ii_splits)

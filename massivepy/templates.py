@@ -41,7 +41,7 @@ class TemplateLibrary(object):
             self.spectrumset = spec.SpectrumSet(**kwargs)
         self.catalog = pd.DataFrame(catalog)
         index_array = self.catalog.index.values
-        index_matches = np.all(index_array == self.spectrumset.ids)
+        index_matches = np.all([i in index_array for i in self.spectrumset.ids])
         if not index_matches:
             raise ValueError("Invalid catalog index - does "
                              "not match the given spectral ids")
@@ -111,7 +111,7 @@ def miles_filename_to_number(filename):
     return int(filename[1:-1])
 
 
-def read_miles_library(dirname):
+def read_miles_library(dirname,miles_ids='all'):
     """
     Read the template library located at the passed dirname into a new
     TemplateLibrary object.
@@ -135,6 +135,9 @@ def read_miles_library(dirname):
     spectra, all_waves, ids = [], [], []
     for path in spectra_paths:
         id = miles_filename_to_number(os.path.basename(path))
+        if not miles_ids=='all':
+            if not id in miles_ids:
+                continue
         w, s = np.loadtxt(path).T
         spectra.append(s)
         all_waves.append(w)
@@ -155,6 +158,9 @@ def read_miles_library(dirname):
         # assume uniform, wavelength-independent template resolution
     catalog_path = os.path.join(dirname, "catalog.txt")
     catalog = pd.read_csv(catalog_path, index_col='miles_id')
+    if not miles_ids=='all':
+        index_used = [i in ids for i in catalog.index.values]
+        catalog = catalog[index_used]
         # indexing by miles id will sort DataFrame by miles id
     no_noise = np.zeros(spectra.shape, dtype=float)
     all_good = np.zeros(spectra.shape, dtype=bool)

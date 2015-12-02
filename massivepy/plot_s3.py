@@ -20,6 +20,7 @@ import massivepy.spectrum as spec
 import massivepy.io as mpio
 import massivepy.plot_massive as mplt
 import massivepy.binning as binning
+import massivepy.templates as temps
 import utilities as utl
 from plotting.geo_utils import polar_box
 
@@ -47,19 +48,19 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     catalog = pd.read_csv(catalogfile,index_col='miles_id')
     for i in range(nbins):
         binid = fitdata['bins']['id'][i]
-        temps = fitdata['temps'][i,:]
-        ii = np.nonzero(temps['weight']) # use only nonzero templates
-        temps = temps[ii]
-        spectype = np.array(catalog['spt'][temps['id']])
+        tlist = fitdata['temps'][i,:]
+        ii = np.nonzero(tlist['weight']) # use only nonzero templates
+        tlist = tlist[ii]
+        spectype = np.array(catalog['spt'][tlist['id']])
         ii = np.argsort([s[0] for s in spectype],kind='mergesort')
-        temps, spectype = temps[ii], spectype[ii]
-        pielabels = ["{} ({})".format(s,t) for s,t in zip(spectype,temps['id'])]
+        tlist, spectype = tlist[ii], spectype[ii]
+        pielabels = ["{} ({})".format(s,t) for s,t in zip(spectype,tlist['id'])]
         piecolors = [const.spectype_colors[s[0]] for s in spectype]
         # plot raw weights
         fig = plt.figure(figsize=(6,5))
         fig.suptitle('{} Templates (raw weights) bin {}'.format(gal_name,binid))
         ax = fig.add_axes([0.17,0.05,0.7,0.7*1.2])
-        piepatches, labels, txt = ax.pie(temps['weight'],labels=pielabels,
+        piepatches, labels, txt = ax.pie(tlist['weight'],labels=pielabels,
                                          colors=piecolors,labeldistance=1.1,
                                         autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
@@ -70,10 +71,33 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
         fig.suptitle('{} Templates (flux-normalized weights) bin {}'
                      ''.format(gal_name,binid))
         ax = fig.add_axes([0.15,0.05,0.7,0.7*1.2])
-        piepatches, labels, txt = ax.pie(temps['fluxweight'],labels=pielabels,
+        piepatches, labels, txt = ax.pie(tlist['fluxweight'],labels=pielabels,
                                          colors=piecolors,labeldistance=1.1,
                                         autopct='%1.1f%%',wedgeprops={'lw':0.2})
         for label in labels: label.set_fontsize(7)
+        pdf.savefig(fig)
+        plt.close(fig)
+        # plot the template spectra, wooo!
+        fig = plt.figure(figsize=(6, len(tlist)+3))
+        fig.suptitle('{} Template spectra (bin {})'.format(gal_name,binid))
+        yspace = 1/float(len(tlist)+3)
+        ax = fig.add_axes([0.05,0.5*yspace,0.9,1-1.5*yspace])
+        templib = temps.read_miles_library(templates_dir,miles_ids=tlist['id'])
+        for j in range(len(tlist)):
+            temp_specset = templib.spectrumset.get_subset(tlist['id'][j])
+            temp_specset = temp_specset.crop(fit_range)
+            temp_spec = temp_specset.spectra[0]
+            temp_spec = (temp_spec-temp_spec[0])/np.median(temp_spec)
+            c = const.spectype_colors[spectype[j][0]]
+            a = (tlist['fluxweight'][j]/max(tlist['fluxweight']))*0.8 + 0.2
+            ax.plot(temp_specset.waves,j-temp_spec,c=c,alpha=a)
+        ax.set_xlabel('wavelength ({})'.format("units"))
+        ax.autoscale(tight=True)
+        ax.set_yticks(range(len(tlist)))
+        ax.set_yticklabels(tlist['id'],rotation='vertical')
+        ax.set_ylim(ymin=-2,ymax=len(tlist))
+        ax.invert_yaxis()
+        ax.tick_params(labeltop='on',top='on')
         pdf.savefig(fig)
         plt.close(fig)
     
@@ -310,15 +334,15 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     fig.suptitle('{} Template weights for each bin (raw weights)'
                  ''.format(gal_name))
     for ibin in range(nbins):
-        temps = fitdata['temps'][ibin,:]
-        spectype = np.array(catalog['spt'][temps['id']])
+        tlist = fitdata['temps'][ibin,:]
+        spectype = np.array(catalog['spt'][tlist['id']])
         ii = np.argsort([s[0] for s in spectype],kind='mergesort')
-        temps, spectype = temps[ii], spectype[ii]
+        tlist, spectype = tlist[ii], spectype[ii]
         piecolors = [const.spectype_colors[s[0]] for s in spectype]
         irow, icol = ibin/5, ibin%5
         width, height = 0.2, 0.2/fig_ar
         ax = fig.add_axes([icol*width,1-(irow+2)*height,width,height])
-        ax.pie(temps['weight'],colors=piecolors,wedgeprops={'lw':0},radius=1.2)
+        ax.pie(tlist['weight'],colors=piecolors,wedgeprops={'lw':0},radius=1.2)
         ax.plot(0,0,marker='o',mfc='w',ms=12.0)
         ax.text(-0.02,-0.01,fitdata['bins']['id'][ibin],fontsize=8.0,
                 horizontalalignment='center',verticalalignment='center')

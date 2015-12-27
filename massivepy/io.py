@@ -157,6 +157,12 @@ def get_gal_info(targets_path,gal_name):
         gal_info['re'] = gal_position.re_nsa.iat[0]
         gal_info['pa'] = gal_position.pa_nsa.iat[0]
         gal_info['ba'] = gal_position.ba_nsa.iat[0]
+        gal_info['rensa'] = gal_position.re_nsa.iat[0]
+        gal_info['pansa'] = gal_position.pa_nsa.iat[0]
+        gal_info['bansa'] = gal_position.ba_nsa.iat[0]
+        gal_info['retwomass'] = gal_position.re2mass.iat[0]
+        gal_info['patwomass'] = gal_position.pa2mass.iat[0]
+        gal_info['batwomass'] = gal_position.ba2mass.iat[0]
         gal_info['d'] = gal_position.d.iat[0]
         gal_info['mk'] = gal_position.mk.iat[0]
         gal_info['env'] = gal_position.env.iat[0]
@@ -166,16 +172,16 @@ def get_gal_info(targets_path,gal_name):
         gal_info['mhalo'] = gal_position.mhalo.iat[0]
         if gal_info['pa']==-99.0:
             print 'NSA PA not available, using 2MASS'
-            gal_info['pa'] = gal_position.pa2mass.iat[0]
+            gal_info['pa'] = gal_info['patwomass']
         if gal_info['pa'] < 0:
             gal_info['pa'] += 180
         if gal_info['ba']==-99.0:
             print 'NSA B/A not available, using 2MASS'
-            gal_info['ba'] = gal_position.ba2mass.iat[0]
+            gal_info['ba'] = gal_info['batwomass']
         if gal_info['re']==-99.0:
             # convert Re from 2mass to NSA using eq 2 of survey paper
             # needs distance along LOS; assume this is in Mpc
-            re2mass = gal_position.re2mass.iat[0]
+            re2mass = gal_info['retwomass']
             gal_info['re'] = const.re_conversion(re2mass,gal_info['d']*1000)
             print ('Converted 2MASS Re ({}) to '
                    'NSA Re({})'.format(re2mass,gal_info['re']))

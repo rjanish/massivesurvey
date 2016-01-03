@@ -610,6 +610,65 @@ class SpectrumSet(object):
                            wavelength_unit=self.wave_unit,
                            comments=updated_comments)
 
+    def shift_subset(self, ids, wshift, ishift, mode='interpolate'):
+        """
+        Modify self in place with a subset (given by ids) shifted by
+        velocity vshift. By default, new spectra for subset will be found by
+        interpolation, resulting in a slight loss of accuracy (resulting in
+        a higher velocity dispersion if the grid before interpolation is too
+        coarse). If interpolate=False, the spectra are not shifted by exactly
+        vshift, and are instead shifted by the integer number of pixels that
+        gives the closest shift to vshift. This results in no loss of
+        information in the spectra.
+        Expects vshift in units of km/s. Prints a warning if vshift will
+        exceed a factor of 1.01 because this method is designed for shifts of
+        only a few pixels or less.
+        """
+        (nspec, npix) = self.spectra.shape
+        w = self.waves*wshift # use these wavelengths if interpolating
+        if mode=='pixelshift' and ishift==0:
+            print "Less than 1 pixel shift requested, not shifting."
+            return None
+        if np.abs(ishift) > 0.1*npix:
+            print "WARNING WARNING YOU ARE TRYING TO SHIFT TOO MUCH."
+            print "SHIFT OF {} KM/S is {} PIXELS, MORE THAN 1/10 of RANGE."
+            print "CODE WILL RUN BUT YOUR STUFF WILL PROBABLY BE JUNK"
+        for i in range(nspec):
+            if not self.ids[i] in ids:
+                continue
+            # either interpolate or shift spectra
+            if mode=='interpolate':
+                spec_func = inter.interp1d(self.waves,self.spectra[i,:].copy(),
+                                           bounds_error=False)
+                self.spectra[i,:] = spec_func(w)
+            elif mode=='pixelshift':
+                self.spectra[i,:] = np.roll(self.spectra[i],ishift)
+            else:
+                raise Exception('Mode must be interpolate or pixelshift, fool')
+            # always shift metaspectra, don't bother interpolating
+            self.metaspectra['noise'][i,:] \
+                = np.roll(self.metaspectra['noise'][i,:],ishift)
+            self.metaspectra['ir'][i,:] \
+                = np.roll(self.metaspectra['ir'][i,:],ishift)
+            self.metaspectra['bad_data'][i,:] \
+                = np.roll(self.metaspectra['bad_data'][i,:],ishift)
+            if ishift<0:
+                self.spectra[i,ishift:] = np.nan
+                self.metaspectra['noise'][i,ishift:] = np.nan
+                self.metaspectra['ir'][i,ishift:] = np.nan
+                self.metaspectra['bad_data'][i,ishift:] = True
+            else:
+                self.spectra[i,:ishift] = np.nan
+                self.metaspectra['noise'][i,:ishift] = np.nan
+                self.metaspectra['ir'][i,:ishift] = np.nan
+                self.metaspectra['bad_data'][i,:ishift] = True
+            if mode=='interpolate': # pad bad_data one pixel to either side
+                newmask = self.metaspectra['bad_data'][i,:].copy()
+                newmask[1:] = newmask[1:] | newmask[:-1]
+                newmask[:-1] = newmask[1:] | newmask[:-1]
+                self.metaspectra['bad_data'][i,:] = newmask
+        return None
+
 
     def to_fits_hdulist(self):
         """

@@ -96,6 +96,36 @@ class IFUspectrum(object):
         self.spectrumset = self.spectrumset.crop(region_to_keep)
         return
 
+    def align_dithers(self, vlist, mode='interpolate'):
+        """
+        Modify the spectrumset object by aligning the radial velocities
+        of each dither. Accepts a list of radial velocities in km/s and
+        shifts the spectra to match these velocities. Will match all other
+        dithers to the one with the median velocity.
+        See SpectrumSet.shift_subset for details.
+        """
+        ndithers = len(vlist)
+        if ndithers == 1:
+            print "Only one dither, nothing to align."
+            return
+        elif ndithers%2 == 0:
+            vfid = np.median(vlist[:-1])
+        else:
+            vfid = np.median(vlist)
+        for i,v in enumerate(vlist):
+            if v==vfid:
+                continue
+            vshift = v - vfid
+            wshift = np.sqrt((1+vshift/3.0e5)/(1-vshift/3.0e5))
+            ishift_exact = -np.log(wshift)/self.spectrumset.get_logscale()
+            # would like to make this round more intelligently
+            # e.g. if D1 rounds 1.45 pixels to 1, D2 should round 1.55 pixels
+            #  to 1 pixel instead of to 2, so the overall spread is minimized
+            ishift = int(np.round(ishift_exact))
+            ditherids = 245*i + np.arange(245)
+            self.spectrumset.shift_subset(ditherids,wshift,ishift,mode=mode)
+        return
+
     def s2n_fluxweighted_binning(self, threshold=None, get_bins=None):
         """
         Construct a spacial partition of the spectra into bins,

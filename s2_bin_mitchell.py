@@ -69,6 +69,17 @@ for paramfile_path in all_paramfile_paths:
         print 'Something is wrong with the input paths for {}'.format(gal_name)
         print 'Skipping to next galaxy.'
         continue
+    if 'dither_shift_path' in input_params:
+        dither_shift_path = input_params['dither_shift_path']
+        dither_shift_mode = input_params['dither_shift_mode']
+        checkdithers = mpio.pathcheck([dither_shift_path],['.txt'],gal_name)
+        if checkdithers:
+            do_shift = True
+        else:
+            do_shift = False
+            print "DITHER V SHIFT FILE INVALID, BINNING WITH NO ALIGNMENT."
+    else:
+        do_shift = False
     run_name = input_params['run_name']
     aspect_ratio = input_params['aspect_ratio']
     s2n_threshold = input_params['s2n_threshold']
@@ -112,8 +123,11 @@ for paramfile_path in all_paramfile_paths:
     fiber_radius = const.mitchell_fiber_radius.value
     ifuset_all = ifu.read_raw_datacube(raw_cube_path, gal_info, gal_name,
                                        ir_path=ir_path)
-    # crop wavelength range and remove fibers
+    # crop wavelength range, align dithers, and remove fibers
     ifuset_all.crop(crop_region)
+    if do_shift:
+        vshifts = np.genfromtxt(dither_shift_path)
+        ifuset_all.align_dithers(vshifts,mode=dither_shift_mode)
     badfibers = np.genfromtxt(bad_fibers_path,dtype=int)
     badfibers.sort()
     goodfibers = list(ifuset_all.spectrumset.ids)

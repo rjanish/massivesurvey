@@ -80,6 +80,11 @@ for paramfile_path in all_paramfile_paths:
             print "DITHER V SHIFT FILE INVALID, BINNING WITH NO ALIGNMENT."
     else:
         do_shift = False
+    if 'downsample' in input_params:
+        do_downsample = True
+        downsample_factor = input_params['downsample']
+    else:
+        do_downsample = False
     run_name = input_params['run_name']
     aspect_ratio = input_params['aspect_ratio']
     s2n_threshold = input_params['s2n_threshold']
@@ -199,6 +204,8 @@ for paramfile_path in all_paramfile_paths:
     print "  {} single-fiber bins".format(len(single_fiber_bins))
     print "  {} un-binned outer fibers".format(len(unbinned_fibers))
     # save binned spectrum
+    if do_downsample:
+        binned_specset.downsample(downsample_factor)
     binned_specset.write_to_fits(binspectra_path)
     # save fiber number vs bin number, sorted
     dt = {'names':['fiberid','binid'],'formats':[int,int]}
@@ -261,6 +268,8 @@ for paramfile_path in all_paramfile_paths:
                                    comments=binned_comments,
                                    name="fullgalaxybins",
                                    **fullbin_data)
+    if do_downsample:
+        full_galaxy.downsample(downsample_factor)
     full_galaxy.write_to_fits(fullbin_path)
 
 

@@ -237,6 +237,18 @@ class SpectrumSet(object):
         except ValueError:
             return False
 
+    def downsample(self, nskip):
+        """
+        Downsample the spectra by taking every nskip pixels, no interpolation
+        """
+        self.waves = self.waves[::nskip]
+        self.num_samples = self.waves.shape[0]
+        self.spectra = self.spectra[:,::nskip]
+        for name in self.metaspectra:
+            self.metaspectra[name] = self.metaspectra[name][:,::nskip]
+        self.spec_region = np.asarray([self.waves.min(), self.waves.max()])
+        return
+
     def resample(self, new_waves):
         """
         Re-sample spectra to have a new wavelength sampling.
@@ -639,7 +651,7 @@ class SpectrumSet(object):
             # either interpolate or shift spectra
             if mode=='interpolate':
                 spec_func = inter.interp1d(self.waves,self.spectra[i,:].copy(),
-                                           bounds_error=False)
+                                           kind='cubic',bounds_error=False)
                 self.spectra[i,:] = spec_func(w)
             elif mode=='pixelshift':
                 self.spectra[i,:] = np.roll(self.spectra[i],ishift)

@@ -5,24 +5,16 @@ Run with s3 parameter file.
 
 import os
 import argparse
-#import shutil
-#import functools
+import time
 
 import numpy as np
-#import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.patches as patches
-import descartes
 
-import massivepy.constants as const
-import massivepy.spectrum as spec
 import massivepy.io as mpio
-import massivepy.plot_massive as mplt
 import massivepy.binning as binning
-import massivepy.templates as temps
 import utilities as utl
-from plotting.geo_utils import polar_box
 
 
 # get cmd line arguments
@@ -57,7 +49,10 @@ for paramfile_path in all_paramfile_paths:
     # Do some plotting
     ########
 
-    plot_path = os.path.join(output_dir,"{}-sX-Vtest.pdf".format(gal_name))
+    output_path_maker = lambda f,ext: os.path.join(output_dir,
+                            "{}-s3X-{}-{}.{}".format(gal_name,run_name,f,ext))
+    plot_path = output_path_maker('vtest','pdf')
+    shifts_path = output_path_maker('voffsets','txt')
 
     # get data from files
     fitdata = mpio.get_friendly_ppxf_output(main_output)
@@ -65,7 +60,8 @@ for paramfile_path in all_paramfile_paths:
     bindata, binetc = binning.read_bininfo(bininfo_path)
     fiberdata = np.genfromtxt(fiberinfo_path,names=True,skip_header=1)
     dithers = np.zeros(nbins,dtype='int')
-    dcolors = ['c','m','y']
+    dcolors = ['c','m','y','b','r','g','k']
+    nperdither = 245
 
     ### Plotting Begins! ###
 
@@ -78,14 +74,14 @@ for paramfile_path in all_paramfile_paths:
     ax.set_xlabel('radius')
     ax.set_ylabel('V')
     for i in range(nbins):
+        if not bindata['nfibers'][i]==1:
+            continue
         V = fitdata['gh']['moment'][i,0]
         Verr = fitdata['gh']['scalederr'][i,0]
         binid = fitdata['bins']['id'][i]
-        if not bindata['binid'][i]==binid:
-            print 'U BROKE ITTTT'
         r = bindata['r'][i]
         fiberid = fiberdata['fiberid'][list(fiberdata['binid']).index(binid)]
-        dither = int(fiberid)/245
+        dither = int(fiberid)/nperdither
         dithers[i] = dither
         ax.errorbar(r,V,yerr=Verr,ls='',marker=None,ecolor='0.7')
         ax.plot(r,V,ls='',marker='o',mfc=dcolors[dither],ms=7.0,alpha=0.8)
@@ -93,11 +89,13 @@ for paramfile_path in all_paramfile_paths:
                 horizontalalignment='center',verticalalignment='center')
     handles = []
     labels = []
+    ditherVs = []
     for i in range(max(dithers)+1):
         ii = dithers==i
         Vavg = np.average(fitdata['gh']['moment'][ii,0],
                           weights=1/fitdata['gh']['scalederr'][ii,0])
         ax.axhline(Vavg,c=dcolors[i])
+        ditherVs.append(Vavg)
         handles.append(patches.Patch(color=dcolors[i]))
         labels.append('D{}'.format(i+1))
     ax.legend(handles,labels,loc='lower center',bbox_to_anchor=(0.5,1),ncol=i+1)
@@ -107,3 +105,11 @@ for paramfile_path in all_paramfile_paths:
     
     pdf.close()
     
+
+    # save average Vs to a text file for machine readability
+    header = "Average radial velocity for each dither, in km/s"
+    header += "\n Assumes {} fibers per dither".format(nperdither)
+    header += "\n Calculated from the following fit results:"
+    header += "\n    {}".format(main_output)
+    header += "\n    {}".format(time.ctime(os.path.getmtime(main_output)))
+    np.savetxt(shifts_path,ditherVs,fmt='%6f',header=header)

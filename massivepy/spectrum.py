@@ -651,7 +651,7 @@ class SpectrumSet(object):
             # either interpolate or shift spectra
             if mode=='interpolate':
                 spec_func = inter.interp1d(self.waves,self.spectra[i,:].copy(),
-                                           kind='cubic',bounds_error=False)
+                                           bounds_error=False)
                 self.spectra[i,:] = spec_func(w)
             elif mode=='pixelshift':
                 self.spectra[i,:] = np.roll(self.spectra[i],ishift)

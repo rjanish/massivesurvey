@@ -48,29 +48,47 @@ for paramfile_path in all_paramfile_paths:
     # parse input parameter file
     output_dir, gal_name = mpio.parse_paramfile_path(paramfile_path)
     input_params = utl.read_dict_file(paramfile_path)
+    run_name = input_params['run_name']
+    run_type = input_params['run_type']
+    check = True
     binned_cube_path = input_params['binned_cube_path']
     templates_dir = input_params['templates_dir']
-    check = mpio.pathcheck([binned_cube_path,templates_dir],
-                           ['.fits',''],gal_name)
-    temps_to_use = input_params['use_templates']
-    if temps_to_use == 'all':
-        pass
-    elif not mpio.pathcheck([temps_to_use],['.txt'],gal_name):
+    if not mpio.pathcheck([binned_cube_path,templates_dir],
+                          ['.fits',''],gal_name):
         check = False
+    if run_type == 'full':
+        bininfo_path = 'none'
+    else:
+        bininfo_path = input_params['bin_info_path']
+        if not mpio.pathcheck([bininfo_path],['.txt'],gal_name):
+            check = False
+    if 'use_templates' in input_params:
+        temps_to_use = input_params['use_templates']
+        if not mpio.pathcheck([temps_to_use],['.txt'],gal_name):
+            check = False
+    else:
+        temps_to_use = 'all'
+    if 'compare_moments' in input_params: # only for plotting
+        compare_labels = eval(input_params['compare_labels'])
+        compare_moments = input_params['compare_moments']
+        compare_bins = input_params['compare_bins']
+        if not mpio.pathcheck([compare_moments, compare_bins],
+                              ['.fits','.txt'],gal_name):
+            check = False
+    else:
+        compare_labels, compare_moments, compare_bins = ['none','none','none']
     if not check:
         print 'Something is wrong with the input paths for {}'.format(gal_name)
         print 'Skipping to next galaxy.'
         continue
-    compare_labels = eval(input_params['compare_labels'])
-    compare_moments = input_params['compare_moments'] #only for plotting
-    compare_bins = input_params['compare_bins'] #only for plotting
-
-    run_name = input_params['run_name']
-    run_type = input_params['run_type']
-    bins_to_fit = input_params['bins_to_fit']
-    ### should probably change these to not just "eval"
-    if not bins_to_fit == 'all':
+    if 'bins_to_fit' in input_params:
         bins_to_fit = eval(input_params['bins_to_fit'])
+    else:
+        bins_to_fit = 'all'
+    if 'num_trials' in input_params:
+        num_trials = int(input_params['num_trials'])
+    else:
+        num_trials = 0
     fit_settings = {'add_deg': input_params['add_deg'],
                     'mul_deg': input_params['mul_deg'],
                     'num_moments': input_params['num_moments'],
@@ -78,7 +96,6 @@ for paramfile_path in all_paramfile_paths:
     fit_range = eval(input_params['fit_range'])
     gh_init = eval(input_params['gh_init'])
     mask = eval(input_params['mask'])
-    num_trials = int(input_params['num_trials'])
 
     # construct output file names
     output_path_maker = lambda f,ext: os.path.join(output_dir,
@@ -102,7 +119,7 @@ for paramfile_path in all_paramfile_paths:
                  'binspectra_path': binned_cube_path,
                  'run_type': run_type,
                  'templates_dir': templates_dir,
-                 'bininfo_path': input_params['bin_info_path'],
+                 'bininfo_path': bininfo_path,
                  'gal_name': gal_name,
                  'compare_labels': compare_labels,
                  'compare_moments': compare_moments,

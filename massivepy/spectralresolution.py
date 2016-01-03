@@ -101,13 +101,23 @@ def specres_for_galaxy(inst_waves, fwhm, gal_waves, redshift):
 
 def save_specres(path,samples,source_metadata):
     nfibers, nlines = samples.shape
-    header = "Columns are as follows:"
-    header += "\n fiberiter, (for each line) center, fitcenter, fwhm, height"
-    header += "\nThis file contains fits of arc frames for each fiber"
-    header += "\n interpolated from {} arc lamp lines".format(nlines)
-    header += "\n reported in instrument rest frame"
-    header += "\nSource file: {}".format(source_metadata['rawfile'])
-    header += "\n from {}".format(source_metadata['rawdate'])
+    header = ('Columns are as follows:'
+              '\n fiberiter, (for each line) center, fitcenter, fwhm, height'
+              '\nMetadata is as follows:'
+              '\n {headermeta}'
+              '\nAdditional comments...'
+              '\n    This file contains fits of arc frames for each fiber'
+              '\n    interpolated from {nlines} arc lamp lines'
+              '\n    reported in instrument rest frame'
+              ''.format)
+    for key in source_metadata:
+        if len(key) > 20:
+            raise Exception('Overly long metadata key: {}'.format(key))
+    metalist = ['{spacing}{k}: {v}'.format(spacing=(21-len(k))*' ',k=k,v=v)
+                for k,v in sorted(source_metadata.iteritems())]
+    header = header(headermeta='\n '.join(metalist),nlines=nlines)
+    #header += "\nSource file: {}".format(source_metadata['rawfile'])
+    #header += "\n from {}".format(source_metadata['rawdate'])
     savearray = np.zeros((nfibers, 1+4*nlines))
     fmt = ['%1i'] + nlines*['%-7.6g','%-7.6g','%-7.4g','%-7.4g']
     savearray[:,0] = range(nfibers)

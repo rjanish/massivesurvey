@@ -108,7 +108,16 @@ for paramfile_path in all_paramfile_paths:
     spec_res_samples = res.fit_arcset(inst_waves, arcs,
                                       const.mitchell_arc_centers,
                                       const.mitchell_nominal_spec_resolution)
-    res.save_specres(ir_path, spec_res_samples, ifuset.spectrumset.comments)
+    # package some useful metadata about the original cube
+    metadata = {'source file': ifuset.spectrumset.comments['rawfile'],
+                'source file date': ifuset.spectrumset.comments['rawdate'],
+                'waves begin': ifuset.spectrumset.waves[0],
+                'waves end': ifuset.spectrumset.waves[-1],
+                'waves logscale': ifuset.spectrumset.get_logscale(),
+                'waves N pixels': len(ifuset.spectrumset.waves),
+                'suggested downsample': (const.fiducial_wavelength_logscale
+                                         /ifuset.spectrumset.get_logscale())}
+    res.save_specres(ir_path, spec_res_samples, metadata)
     print "  saved ir to text file."
 
 for plot_info in things_to_plot:

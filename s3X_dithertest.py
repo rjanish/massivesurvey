@@ -92,6 +92,10 @@ for paramfile_path in all_paramfile_paths:
     ditherVs = []
     for i in range(max(dithers)+1):
         ii = dithers==i
+        if sum(ii)==0:
+            print 'All fibers from dither {} bad'.format(i+1)
+            ditherVs.append(np.nan)
+            continue
         Vavg = np.average(fitdata['gh']['moment'][ii,0],
                           weights=1/fitdata['gh']['scalederr'][ii,0])
         ax.axhline(Vavg,c=dcolors[i])

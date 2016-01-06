@@ -109,11 +109,13 @@ class IFUspectrum(object):
             print "Only one dither, nothing to align."
             return
         elif ndithers%2 == 0:
-            vfid = np.median(vlist[:-1])
+            vfid = np.nanmedian(vlist[:-1])
         else:
-            vfid = np.median(vlist)
+            vfid = np.nanmedian(vlist)
         for i,v in enumerate(vlist):
             if v==vfid:
+                continue
+            if np.isnan(v):
                 continue
             vshift = v - vfid
             wshift = np.sqrt((1+vshift/3.0e5)/(1-vshift/3.0e5))

@@ -193,6 +193,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fig2s,ax2s = mplt.scalarmap(figtitle=t2s,xlabel=label_r,ylabel=label_s2n)
     txtkw = {'horizontalalignment':'center','verticalalignment':'center',
              'fontsize':5}
+    goodfluxes, goods2n = [],[]
     for ifiber, (fiber_id,bin_id) in enumerate(zip(fiberids,binids)):
         r = rcoords[ifiber]
         f, s = fiberfluxcolors['x'][ifiber], fibers2ncolors['x'][ifiber]
@@ -201,6 +202,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
             ax2f.text(r,f,str(fiber_id),**txtkw)
             ax1s.text(r,s,str(fiber_id),alpha=0.3,**txtkw)
             ax2s.text(r,s,str(fiber_id),**txtkw)
+            goodfluxes.append(f)
+            goods2n.append(s)
         else:
             ax1f.text(r,f,str(fiber_id),**txtkw)
             ax1f.plot(r,f,ls='',marker='o',mec='r',mfc='none',ms=10)
@@ -210,9 +213,9 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fmin, fmax = fiberfluxcolors['vmin'], fiberfluxcolors['vmax']
     smin, smax = fibers2ncolors['vmin'], fibers2ncolors['vmax']
     ax1f.axis([rmin,rmax,fmin,fmax])
-    ax2f.axis([rmin,rmax,fmin,fmax])
+    ax2f.axis([rmin,rmax,min(goodfluxes),max(goodfluxes)])
     ax1s.axis([rmin,rmax,smin,smax])
-    ax2s.axis([rmin,rmax,smin,smax])
+    ax2s.axis([rmin,rmax,min(goods2n),max(goods2n)])
     for ax in [ax1f,ax2f,ax1s,ax2s]:
         ax.set_yscale('log')
         ax.axvline(binmeta['rbinmax'],c='g')

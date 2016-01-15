@@ -102,12 +102,15 @@ def scalarmap(figtitle='default figure title',
             kw = {}
         cb = fig.colorbar(axC_mappable,ax=axC,label=axC_label,
                           orientation='horizontal',**kw)
-        ticks = axC_mappable.norm.inverse(cb.ax.xaxis.get_majorticklocs())
-        cb.set_ticks(ticks)
-        ticklabels = ['' for t in ticks]
-        skipticks = (len(ticklabels)-1)/axC_nticks + 1
-        ticklabels[::skipticks] = ticks[::skipticks]
-        cb.set_ticklabels(ticklabels)
+        try:
+            ticks = axC_mappable.norm.inverse(cb.ax.xaxis.get_majorticklocs())
+            cb.set_ticks(ticks)
+            ticklabels = ['' for t in ticks]
+            skipticks = (len(ticklabels)-1)/axC_nticks + 1
+            ticklabels[::skipticks] = ticks[::skipticks]
+            cb.set_ticklabels(ticklabels)
+        except:
+            print "Your crappy tick stuff broke, finish your better code."
     return fig, ax
 
 def tick_magic(xmin=0,xmax=1,nmin=3,nmax=6):

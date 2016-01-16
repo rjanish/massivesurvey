@@ -678,6 +678,8 @@ class SpectrumSet(object):
                 newmask = self.metaspectra['bad_data'][i,:].copy()
                 newmask[1:] = newmask[1:] | newmask[:-1]
                 newmask[:-1] = newmask[1:] | newmask[:-1]
+                newmask[0] = newmask[0] | newmask[-1] # includes looping ends
+                newmask[-1] = newmask[0] | newmask[-1]
                 self.metaspectra['bad_data'][i,:] = newmask
         return None
 

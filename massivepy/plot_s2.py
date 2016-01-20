@@ -308,7 +308,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for ibin in range(nbins):
         norm = (specset.waves[-1] - specset.waves[0])/bindata['flux'][ibin]
         spectrum = specset.spectra[ibin,:]*norm
-        ax.plot(specset.waves,1+ibin-spectrum+spectrum[0],c='k')
+        spectrum = spectrum - np.nanmean(spectrum[0:10])
+        ax.plot(specset.waves,1+ibin-spectrum,c='k')
     # assuming all 3 full spectra are present, overplot with different colors
     # if the spectra are identical, you will see only the black one
     fullcolors = {0: '0.5', -1: 'k', -2: 'r'}

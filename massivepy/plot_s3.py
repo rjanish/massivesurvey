@@ -243,16 +243,17 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         fig, ax = mplt.scalarmap(figtitle=Vtitles[i](gal_name,V0[i]),
                                  xlabel=label_x,ylabel=label_y,
                                  axC_mappable=Vcolors['mappable'],axC_label='V')
-        for ibin in range(nbins):
+        #for ibin in range(nbins):
+        for imom,ibin in enumerate(ibins):
             if not np.isnan(bindata['rmin'][ibin]):
                 pbox = polar_box(bindata['rmin'][ibin],bindata['rmax'][ibin],
                                  bindata['thmin'][ibin],bindata['thmax'][ibin])
                 patch = functools.partial(descartes.PolygonPatch,pbox,lw=1.5)
-                ax.add_patch(patch(fc=Vcolors['c'][ibin],zorder=-1))
+                ax.add_patch(patch(fc=Vcolors['c'][imom],zorder=-1))
             else:
                 patch = functools.partial(patches.Circle,(bindata['x'][ibin],
                                         bindata['y'][ibin]),fibersize,lw=0.25)
-                ax.add_patch(patch(fc=Vcolors['c'][ibin]))
+                ax.add_patch(patch(fc=Vcolors['c'][imom]))
         ax.axis([-binetc['rbinmax'],binetc['rbinmax'],
                  -binetc['rbinmax'],binetc['rbinmax']])
         pdf.savefig(fig)

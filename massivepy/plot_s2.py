@@ -327,7 +327,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     # show where prominent emission lines go
     elines = const.emission_lines
     for eline in elines:
-        ax.axvline(elines[eline]['wave'],c='b')
+        ax.axvline(elines[eline]['wave'],c='b',alpha=0.4)
         ax.text(elines[eline]['x'],-1.8+0.3*elines[eline]['y'],
                 elines[eline]['name'],fontsize=7,weight='semibold')
     ax.set_xlabel('wavelength ({})'.format(specset.wave_unit))

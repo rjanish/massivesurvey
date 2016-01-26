@@ -297,8 +297,11 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             binned_bounds.append([rmin,rmax,abin[0][0],abin[0][1]])
     number_solitary_bins = len(grouped_ids) - len(binned_bounds)
     grouped_bounds = np.zeros((4,len(grouped_ids)))
-    grouped_bounds[:,-len(binned_bounds):] = np.array(binned_bounds).T
-    grouped_bounds[:,:-len(binned_bounds)] = np.nan
+    if len(binned_bounds)==0:
+        grouped_bounds[:,:] = np.nan
+    else:
+        grouped_bounds[:,-len(binned_bounds):] = np.array(binned_bounds).T
+        grouped_bounds[:,:-len(binned_bounds)] = np.nan
     return grouped_ids, grouped_bounds
 
 def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):

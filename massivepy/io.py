@@ -10,6 +10,8 @@ import shutil
 
 import numpy as np
 import pandas as pd
+import astropy.io.fits as fits
+
 
 import utilities as utl
 import massivepy.constants as const
@@ -439,3 +441,15 @@ def read_friendly_header(path):
             value = ':'.join([c.strip() for c in contents[1:]])
             metadata[key] = value
     return metadata
+
+def concatenate_cubes(listofpaths,newpath,clobber=False):
+    if not all([os.path.isfile(p) for p in listofpaths]):
+        print "Something is wrong with the paths for the cubes."
+        return
+    mainhdus = fits.open(listofpaths[0])
+    nhdus = len(mainhdus)
+    for p in listofpaths[1:]:
+        hdus = fits.open(p)
+        for i in range(nhdus):
+            mainhdus[i].data = np.append(mainhdus[i].data,hdus[i].data,axis=0)
+    mainhdus.writeto(newpath,clobber=clobber,output_verify='ignore')

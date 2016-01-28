@@ -104,6 +104,7 @@ class IFUspectrum(object):
         dithers to the one with the median velocity.
         See SpectrumSet.shift_subset for details.
         """
+        vlist = np.atleast_1d(vlist)
         ndithers = len(vlist)
         if ndithers == 1:
             print "Only one dither, nothing to align."

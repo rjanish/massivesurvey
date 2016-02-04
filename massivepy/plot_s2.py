@@ -65,6 +65,8 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fiber_coords[:,0] *= -1 # flip from +x = east to +x = west
     rcoords = np.sqrt(fiber_coords[:,0]**2 + fiber_coords[:,1]**2)
     squaremax = np.amax(np.abs(ifuset.coords)) + fibersize
+    goodsquaremax = np.amax(np.abs(ifuset2.coords)) + fibersize
+    goodrcoords = np.sqrt(ifuset2.coords[:,0]**2 + ifuset2.coords[:,1]**2)
     coordunit = ifuset.coords_unit
     label_x = r'$\leftarrow$east ({}) west$\rightarrow$'.format(coordunit)
     label_y = r'$\leftarrow$south ({}) north$\rightarrow$'.format(coordunit)
@@ -175,7 +177,11 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
         axs[k].plot([-binmeta['ma_x'],binmeta['ma_x']],
                     [-binmeta['ma_y'],binmeta['ma_y']],
                     linewidth=1.5,color='r')
-        axs[k].axis([-squaremax,squaremax,-squaremax,squaremax])
+        if k in ['fmap2','smap2']:
+            axs[k].axis([-goodsquaremax,goodsquaremax,
+                         -goodsquaremax,goodsquaremax])
+        else:
+            axs[k].axis([-squaremax,squaremax,-squaremax,squaremax])
         pdf.savefig(figs[k])
         plt.close(figs[k])
 
@@ -213,9 +219,10 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     fmin, fmax = fiberfluxcolors['vmin'], fiberfluxcolors['vmax']
     smin, smax = fibers2ncolors['vmin'], fibers2ncolors['vmax']
     ax1f.axis([rmin,rmax,fmin,fmax])
-    ax2f.axis([rmin,rmax,min(goodfluxes),max(goodfluxes)])
+    ax2f.axis([min(goodrcoords),max(goodrcoords),
+               min(goodfluxes),max(goodfluxes)])
     ax1s.axis([rmin,rmax,smin,smax])
-    ax2s.axis([rmin,rmax,min(goods2n),max(goods2n)])
+    ax2s.axis([min(goodrcoords),max(goodrcoords),min(goods2n),max(goods2n)])
     for ax in [ax1f,ax2f,ax1s,ax2s]:
         ax.set_yscale('log')
         ax.axvline(binmeta['rbinmax'],c='g')

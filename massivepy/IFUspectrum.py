@@ -321,6 +321,10 @@ def read_raw_datacube(cube_path, gal_info , gal_name, ir_path=None,
             rarcs[i] = np.interp(recipientinstwaves,donorinstwaves,donorarcs[i])
         data = data + (rarcs,) # pretend they were there all along!
         headers = headers + (donorheaders[4],) # and the header too
+    elif gal_name=='NGC2258':
+        print '\n==================\nCENTERING BY HAND\n==================\n'
+        data[3][:,0] += 0.008
+        data[3][:,1] += 0.0012
     try:
         # wavelengths of arc spectra are specifically included
         spectra, noise, all_waves, coords, arcs, all_inst_waves = data

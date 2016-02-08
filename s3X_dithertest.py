@@ -60,7 +60,7 @@ for paramfile_path in all_paramfile_paths:
     bindata, binetc = binning.read_bininfo(bininfo_path)
     fiberdata = np.genfromtxt(fiberinfo_path,names=True,skip_header=1)
     dithers = np.zeros(nbins,dtype='int')
-    dcolors = ['c','m','y','b','r','g','k']
+    dcolors = ['c','m','y','b','r','g','k','0.7','0.3']
     nperdither = 245
 
     ### Plotting Begins! ###

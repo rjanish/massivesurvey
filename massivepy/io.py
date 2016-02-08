@@ -119,7 +119,7 @@ def pathcheck(paths,extensions,gal_name):
             pass
     return True
 
-def get_gal_info(targets_path,gal_name):
+def get_gal_info(targets_path,gal_name,quiet=False):
     """
     Returns galaxy information from Jenny's target file.
     File name should match one of the choices in the if/elif block below.
@@ -173,20 +173,23 @@ def get_gal_info(targets_path,gal_name):
         gal_info['twompp'] = gal_position.twompp.iat[0]
         gal_info['mhalo'] = gal_position.mhalo.iat[0]
         if gal_info['pa']==-99.0:
-            print 'NSA PA not available, using 2MASS'
+            if not quiet:
+                print 'NSA PA not available, using 2MASS'
             gal_info['pa'] = gal_info['patwomass']
         if gal_info['pa'] < 0:
             gal_info['pa'] += 180
         if gal_info['ba']==-99.0:
-            print 'NSA B/A not available, using 2MASS'
+            if not quiet:
+                print 'NSA B/A not available, using 2MASS'
             gal_info['ba'] = gal_info['batwomass']
         if gal_info['re']==-99.0:
             # convert Re from 2mass to NSA using eq 2 of survey paper
             # needs distance along LOS; assume this is in Mpc
             re2mass = gal_info['retwomass']
             gal_info['re'] = const.re_conversion(re2mass,gal_info['d']*1000)
-            print ('Converted 2MASS Re ({}) to '
-                   'NSA Re({})'.format(re2mass,gal_info['re']))
+            if not quiet:
+                print ('Converted 2MASS Re ({}) to '
+                       'NSA Re({})'.format(re2mass,gal_info['re']))
         if gal_info['env'][-1]=='B':
             gal_info['bgg'] = True
             gal_info['env'] = int(gal_info['env'][:-1])

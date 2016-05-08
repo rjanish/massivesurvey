@@ -153,7 +153,8 @@ def get_gal_info(targets_path,gal_name,quiet=False):
         if gal_info['ba']==-99.0:
             print 'NSA B/A not available, using 2MASS (not converted)'
             gal_info['ba'] = gal_position.ba_2MASS.iat[0]
-    elif os.path.basename(targets_path)=='target-positions.txt':
+    elif os.path.basename(targets_path) in ['target-positions.txt',
+                                            'target-positions-1129fix.txt']:
         gal_info['ra'] = gal_position.ra.iat[0]
         gal_info['dec'] = gal_position.dec.iat[0]
         gal_info['re'] = gal_position.re_nsa.iat[0]

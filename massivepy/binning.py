@@ -352,7 +352,7 @@ def write_bininfo(path,bin_ids,grouped_fiberids,bin_fluxes,
                   bin_coords,bin_bounds,**metadata):
     dt = {'names':['binid','nfibers','flux','x','y','r','th',
                    'rmin','rmax','thmin','thmax'],
-          'formats':2*['i4']+9*['f32']}
+          'formats':2*['i4']+9*['float32']}
     fmt = 2*['%4i']+9*['%9.5f']
     bininfo = np.zeros(len(bin_ids),dtype=dt)
     bininfo['binid'] = bin_ids

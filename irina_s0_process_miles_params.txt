@@ -1,0 +1,23 @@
+### This should only need to be run once, or if the library changes. ###
+
+### Input ###
+#Need 3 items from the miles website:
+#   folder containing the raw spectra (e.g. m0001V) and nothing else
+#   index file (probably paramsMILES_v9.1.txt)
+#   value of the ir
+
+path_milesraw_spectra	../all_my_input/raw-miles/MILES_library_v9.1/
+path_milesraw_index	../all_my_input/raw-miles/paramsMILES_v9.1.txt
+library_fwhm		2.5		
+
+### Output ###
+#Specify the folder where you want the script's output to go, but note the 
+#   folder should not exist yet!
+#The items within the folder (spectra, catalog.txt, ir.txt) should not be
+#   renamed, because the module to read the template library expects these
+#   names (which are hard-coded in).
+
+path_new		../all_my_output/miles-processed/
+new_spectra_subdir	spectra
+new_index_filename	catalog.txt
+new_ir_filename		ir.txt

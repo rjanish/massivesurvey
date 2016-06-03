@@ -1,0 +1,49 @@
+### Note that this parameter file MUST have e.g. NGC1600 as the first ###
+### 7 characters of the filename when it is used in an actual run.    ###
+### (For example, rename to NGC1600_s2_params.txt)                    ###
+### All output is stored in the same directory as the parameter file. ###
+
+### Input ###
+#   raw_mitchell_cube: same as from s1
+#   target_positions: same as from s1
+#   ir_path: output from s1 containing instrument resolution
+#   bad_fibers_path: list of bad fibers, chosen by hand
+#   dither_shift_path (optional): radial velocity shift for each dither
+### Settings ###
+#   skip_rerun: 'no' will overwrite old output, 'yes' will only re-plot
+#   run_name: any string, e.g. 'test1' or 'nobadfibers', for filenames
+#   aspect_ratio: limits bin shape (towards roughly "square" bins)
+#   s2n_threshold: minimum signal to noise for each bin
+#   bin_type: 'folded' or 'unfolded'
+#   crop_min: minimum of wavelength range to fit
+#   crop_max: maximum of wavelength range to fit
+#   fullbin_radius: radius for restricted "fullgalaxy bin"
+#   dither_shift_mode (optional): 'interpolate' or 'pixelshift'
+#   downsample (optional): before saving fits file, downsample to every N pixels
+
+
+# Typically run this twice per galaxy
+
+# The first run creates many single-fiber bins, to test dithers
+#s2n_threshold		5
+#skip_rerun		yes
+#run_name		fibers
+
+# The second run creates the real binning scheme, using s3X output
+#dither_shift_path	../all_my_output/NGC0000/NGC0000-s3X-B-fibers-voffsets.txt
+#dither_shift_mode	interpolate
+#s2n_threshold		20
+#skip_rerun		yes
+#run_name		folded
+
+# The following parameters typically stay the same
+raw_mitchell_cube	/Users/iene/Box Sync/MASSIVE/Reduced-Data/NGC0000/RovallfibNGC0000_log.fits
+target_positions_path	../all_my_input/target-positions.txt
+ir_path			../all_my_output/NGC0000/NGC0000-s1-mainrun-ir.txt
+bad_fibers_path		../all_my_output/NGC0000/NGC0000_bad_fiber_list.txt
+aspect_ratio		1.5
+bin_type		folded
+crop_min		3650
+crop_max		5650
+fullbin_radius		25
+downsample		4

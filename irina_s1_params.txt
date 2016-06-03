@@ -1,0 +1,18 @@
+### Note that this parameter file MUST have e.g. NGC1600 as the first ###
+### 7 characters of the filename when it is used in an actual run.    ###
+### (For example, rename to NGC1600_s1_params.txt)                    ###
+### All output is stored in the same directory as the parameter file. ###
+
+### Input ###
+#   raw_mitchell_cube: raw datacube from Jenny
+#   target_positions: index file for all galaxy positions, etc
+### Settings ###
+#   skip_rerun: 'no' will overwrite old output, 'yes' will only re-plot
+#   run_name: any string, e.g. 'test1' or 'new_ir_calc', for filenames
+
+# Typically run this only once per galaxy, unless testing multiple cubes
+
+raw_mitchell_cube	/Users/iene/Box Sync/MASSIVE/Reduced-Data/NGC0000/RovallfibNGC0000_log.fits
+target_positions	../all_my_input/target-positions.txt
+skip_rerun		yes
+run_name		mainrun

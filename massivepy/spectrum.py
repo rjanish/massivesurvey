@@ -241,6 +241,7 @@ class SpectrumSet(object):
         """
         Downsample the spectra by taking every nskip pixels, no interpolation
         """
+        nskip = int(nskip)
         self.waves = self.waves[::nskip]
         self.num_samples = self.waves.shape[0]
         self.spectra = self.spectra[:,::nskip]
@@ -354,7 +355,7 @@ class SpectrumSet(object):
         $ \lambda_{n + 1} - \lambda{n} = wavescale $
 
         New spectra and metadata values are computed by resample.
-        
+
         Args:
         target_wavescale - float, default=None
             If given, spectra will be re-sampled using the passed
@@ -600,7 +601,7 @@ class SpectrumSet(object):
                            ir=new_ir, bad_data=self.metaspectra['bad_data'],
                            spectra_ids=self.ids, spectra_unit=self.spec_unit,
                            wavelengths=self.waves, name=self.name,
-                           wavelength_unit=self.wave_unit, 
+                           wavelength_unit=self.wave_unit,
                            comments=extened_comments)
 
     def crop(self, region_to_keep):

@@ -207,7 +207,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         if do_comparison:
             moments2 = fitdata2['gh']['moment'][:,i]
             moments_r2 = bindata2['r'][ibins2]
-            ax.plot(moments_r2,moments2,ls='',marker='s',mec='darkgreen',mew=1.0,mfc='None',ms=9.0,alpha=0.8,label=compare_labels[0])
+            ax.plot(moments_r2,moments2,ls='',marker='s',mec='red',mew=1.0,mfc='None',ms=9.0,alpha=0.8,label=compare_labels[0])
             mainlabel = compare_labels[1]
         # plot moments
         ax.plot(moments_r,moments,ls='',marker='o',mfc='c',ms=7.0,alpha=0.8,

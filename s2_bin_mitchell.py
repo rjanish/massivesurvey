@@ -101,7 +101,7 @@ for paramfile_path in all_paramfile_paths:
     fiberinfo_path = output_path_maker('fiberinfo','txt')
     plot_path = output_path_maker('binmaps','pdf')
     # save relevant info for plotting to a dict
-    plot_info = {'binspectra_path': binspectra_path, 
+    plot_info = {'binspectra_path': binspectra_path,
                  'fullbin_path': fullbin_path, 'plot_path': plot_path,
                  'bininfo_path': bininfo_path, 'fiberinfo_path': fiberinfo_path,
                  'targets_path': targets_path, 'ir_path': ir_path,

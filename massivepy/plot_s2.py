@@ -1,7 +1,7 @@
 """
 MASSIVE-specific plotting routines:
 
-This file contains the main plotting fuction for s2_bin_mitchell.
+This file contains the main plotting function for s2_bin_mitchell.
 """
 
 import functools
@@ -279,7 +279,7 @@ def plot_s2_bin_mitchell(gal_name=None,plot_path=None,raw_cube_path=None,
     for ifiber,fiber_id in enumerate(plotfibers):
         fspec = fiberspectra[ifiber]
         ax1.semilogy(fiberwaves,np.abs(fspec),c='r',alpha=0.3)
-        ax1.semilogy(fiberwaves,fspec,c='c',alpha=0.3,nonposy='mask') 
+        ax1.semilogy(fiberwaves,fspec,c='c',alpha=0.3,nonposy='mask')
         if fiber_id in goodfibers:
             ax2.semilogy(fiberwaves,np.abs(fspec),c='r',alpha=0.3)
             ax2.semilogy(fiberwaves,fspec,c='c',alpha=0.3,nonposy='mask')

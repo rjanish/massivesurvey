@@ -9,7 +9,7 @@ import massivepy.io as mpio
 import utilities as utl
 
 
-def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
+def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None,more_details=False):
     """
     Partition an annulus into angular bins that have parity across
     both axes.
@@ -23,6 +23,8 @@ def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
         The target aspect ratio of the constructed bins, defined as
         angular_size/radial_size. The bins will have an aspect ratio
         no larger than the passed value, but it may be smaller.
+    more_details - boolean
+        If True, then further divide each bin into 2 more bins.
 
     Returns: intervals
     intervals - 3D array
@@ -34,9 +36,14 @@ def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
     delta_r = outer_radius - inner_radius
     mid_r = 0.5*(outer_radius + inner_radius)
     target_bin_arclength = delta_r*aspect_ratio
-    available_arclength = 0.5*np.pi*mid_r  # one quadrant
-    num_in_quad = np.ceil(available_arclength/target_bin_arclength)
-    num_in_half = 2*num_in_quad
+    if more_details == False:
+        available_arclength = 0.5*np.pi*mid_r  # one quadrant
+        num_in_quad = np.ceil(available_arclength/target_bin_arclength)
+        num_in_half = 2*num_in_quad
+    else:
+        available_arclength = 0.25*np.pi*mid_r # one octant
+        num_in_oct = np.ceil(available_arclength/target_bin_arclength)
+        num_in_half = 4*num_in_oct
     angular_bounds_n = np.linspace(0.0, np.pi, num_in_half + 1)
         # angular boundaries on the positive side of the y axis, ordered
         # counterclockwise, including boundaries at 0 and pi
@@ -269,7 +276,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             # accept bins regardless of passing threshold
             # decision of whether to use these final bins can be postponed
             fake_interval = list(rad_interval) # make a copy
-            fake_interval[1] = 10*fake_interval[0] # guarantees quadrants
+            fake_interval[1] = 20*fake_interval[0] # guarantees quadrants
             angle_partition = angle_partition_func(fake_interval)
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             grouped_annular_ids = []
@@ -309,7 +316,7 @@ def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     Calculate the flux-weighted bin center for a single bin, given the
     coordinates of each fiber in the bin (xs,ys) and the flux for each
     fiber (fluxes). If the bin type is folded, reflect all points across
-    ma (except single fiber bins within rmin) before binning. Return as 
+    ma (except single fiber bins within rmin) before binning. Return as
     an array for convenience.
     Outputs two points for bin center: x,y (fluxweighted average of xs, ys),
     and r,th (fluxweighted average in polar coordinates)

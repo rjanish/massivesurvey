@@ -67,8 +67,8 @@ for paramfile_path in all_paramfile_paths:
     plot_info = {'rdata_path': rdata_path,
                  'binfit_path': binfit_path,
                  'plot_path': plot_path,
-                 'gal_name': gal_name}
-    things_to_plot.append(plot_info)
+                 'gal_name': gal_name} #wait for num_moments until later
+    #things_to_plot.append(plot_info)
 
     # decide whether to continue with script or skip to plotting
     # only checks for "main" fits file, not whether params have changed
@@ -86,6 +86,9 @@ for paramfile_path in all_paramfile_paths:
     # ingest required data
     bindata, binmeta = binning.read_bininfo(bininfo_path)
     binmoments = np.genfromtxt(binfit_path,names=True,skip_header=1)
+    num_moments = (len(binmoments.dtype)-1)/2
+    plot_info['num_moments'] = num_moments
+    things_to_plot.append(plot_info)
     fullfits = mpio.get_friendly_ppxf_output(fullfit_path)
 
     # erase junk bins like they never existed
@@ -96,7 +99,7 @@ for paramfile_path in all_paramfile_paths:
     # get all the choices for V0 packaged up first
     luminosity = bindata['flux']*bindata['nfibers'] # skipping fiber_area
 
-    v0_all = {'full{}'.format(binid): v for (binid,v) 
+    v0_all = {'full{}'.format(binid): v for (binid,v)
               in zip(fullfits['bins']['id'],fullfits['gh']['moment'][:,0])}
     v_fullbin_index = np.where(v_choice==fullfits['bins']['id'])[0][0]
     v0_all['fiducial'] = fullfits['gh']['moment'][v_fullbin_index,0]
@@ -143,11 +146,12 @@ for paramfile_path in all_paramfile_paths:
 
 
     # get the correlations and bootstrap error bars for h3/V
-    voversigma = (binmoments['V']-v0_all['fiducial'])/binmoments['sigma']
-    h3boots = post.bootstrap(voversigma,binmoments['h3'])
-    sigma0 = np.average(binmoments['sigma'])
-    sigmaoversigma = (binmoments['sigma']-sigma0)/sigma0
-    h4boots = post.bootstrap(sigmaoversigma,binmoments['h4'])
+    if num_moments == 6:
+        voversigma = (binmoments['V']-v0_all['fiducial'])/binmoments['sigma']
+        h3boots = post.bootstrap(voversigma,binmoments['h3'])
+        sigma0 = np.average(binmoments['sigma'])
+        sigmaoversigma = (binmoments['sigma']-sigma0)/sigma0
+        h4boots = post.bootstrap(sigmaoversigma,binmoments['h4'])
 
 
     # obtain some useful single-number metadata
@@ -168,36 +172,41 @@ for paramfile_path in all_paramfile_paths:
                 'gal re': binmeta['gal re'],
                 'gal ba': binmeta['gal ba'],
                 'is slow': int(lam_re<slowfast_cutoff),
-                'slow/fast cutoff': slowfast_cutoff,
-                'h3 slope': h3boots['slope'],
-                'h3 slope err': h3boots['slope_err'],
-                'h3 intercept': h3boots['intercept'],
-                'h3 intercept err': h3boots['intercept_err'],
-                'h4 slope': h4boots['slope'],
-                'h4 slope err': h4boots['slope_err'],
-                'h4 intercept': h4boots['intercept'],
-                'h4 intercept err': h4boots['intercept_err'],
-                'h3 average': np.average(binmoments['h3']),
-                'h3 err': np.std(binmoments['h3']),
-                'h4 average': np.average(binmoments['h4']),
-                'h4 err': np.std(binmoments['h4']),
-                'h5 average': np.average(binmoments['h5']),
-                'h5 err': np.std(binmoments['h5']),
-                'h6 average': np.average(binmoments['h6']),
-                'h6 err': np.std(binmoments['h6'])}
+                'slow/fast cutoff': slowfast_cutoff}
+    if num_moments == 6:
+        add_metadata = {'h3 slope': h3boots['slope'],
+                        'h3 slope err': h3boots['slope_err'],
+                        'h3 intercept': h3boots['intercept'],
+                        'h3 intercept err': h3boots['intercept_err'],
+                        'h4 slope': h4boots['slope'],
+                        'h4 slope err': h4boots['slope_err'],
+                        'h4 intercept': h4boots['intercept'],
+                        'h4 intercept err': h4boots['intercept_err'],
+                        'h3 average': np.average(binmoments['h3']),
+                        'h3 err': np.std(binmoments['h3']),
+                        'h4 average': np.average(binmoments['h4']),
+                        'h4 err': np.std(binmoments['h4']),
+                        'h5 average': np.average(binmoments['h5']),
+                        'h5 err': np.std(binmoments['h5']),
+                        'h6 average': np.average(binmoments['h6']),
+                        'h6 err': np.std(binmoments['h6'])}
+        metadata.update(add_metadata)
     metadata.update({'v0_{}'.format(k):v for k,v in v0_all.iteritems()})
 
     # save the radial profiles
     comments = [('Radial profiles have both local ("loc") and '
                  'cumulative/enclosed ("en") versions'),
                 ('Lambda profiles are also calculated with min and '
-                 'max V0 to verify that no major differences'),
-                ('Included in metadata are (unweighted) averages '
-                 'and standard deviations of h3-h6'),
-                ('H3 and h4 slopes and intercepts are from bootstrapped '
-                 'linear fits of h3/V and h4/sigma correlations'),
-                ('Sigma anisotropy is the maximum relative deviation '
-                 'of sigma within an annulus')]
+                 'max V0 to verify that no major differences')]
+    if num_moments == 6:
+        add_comments = [('Included in metadata are (unweighted) averages '
+                         'and standard deviations of h3-h6'),
+                        ('H3 and h4 slopes and intercepts are from '
+                         'bootstrapped linear fits of h3/V and h4/sigma '
+                         'correlations')]
+        comments.extend(add_comments)
+    comments.append(('Sigma anisotropy is the maximum relative deviation '
+                     'of sigma within an annulus'))
     mpio.save_textfile(rdata_path,rdata,metadata,comments)
 
 

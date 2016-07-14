@@ -9,7 +9,7 @@ import massivepy.io as mpio
 import utilities as utl
 
 
-def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None,outer_bins=4):
+def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None,force_bins=4):
     """
     Partition an annulus into angular bins that have parity across
     both axes.
@@ -23,8 +23,8 @@ def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None,outer_
         The target aspect ratio of the constructed bins, defined as
         angular_size/radial_size. The bins will have an aspect ratio
         no larger than the passed value, but it may be smaller.
-    outer_bins - int
-        The number of bins the outermost annulus will be divided into.
+    force_bins - int
+        Force the annulus to be divided into a fixed number of base bins, which, if needed, will be divided to have parity.
 
     Returns: intervals
     intervals - 3D array
@@ -36,9 +36,9 @@ def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None,outer_
     delta_r = outer_radius - inner_radius
     mid_r = 0.5*(outer_radius + inner_radius)
     target_bin_arclength = delta_r*aspect_ratio
-    available_arclength = (2.0/outer_bins)*np.pi*mid_r  # one quadrant
+    available_arclength = (2.0/force_bins)*np.pi*mid_r  # per bin
     num_in_div = np.ceil(available_arclength/target_bin_arclength)
-    num_in_half = (outer_bins/2)*num_in_div
+    num_in_half = (force_bins/2)*num_in_div
     angular_bounds_n = np.linspace(0.0, np.pi, num_in_half + 1)
         # angular boundaries on the positive side of the y axis, ordered
         # counterclockwise, including boundaries at 0 and pi
@@ -272,7 +272,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             # decision of whether to use these final bins can be postponed
             fake_interval = list(rad_interval) # make a copy
             fake_interval[1] = 20*fake_interval[0] # guarantees quadrants/octants
-            angle_partition = angle_partition_func(fake_interval,outer_bins=12)
+            angle_partition = angle_partition_func(fake_interval,force_bins=12)
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             grouped_annular_ids = []
             for ang_intervals in angle_partition:

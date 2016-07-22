@@ -87,7 +87,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
                             linear_scale=None, indexing_func=None,
                             combine_func=None, score_func=None,
                             threshold=None, step_size=None,
-                            angle_partition_func=None):
+                            angle_partition_func=None, outer_bins=4):
     """
     Bin spacial data radially, according to a threshold score.
 
@@ -157,6 +157,8 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             intervals: output[j] = [[a0, a1], [a2, a3], ...]
           - The bin associated with output[j] is the union of all
             angular intervals in output[j]
+    outer_bins - integer
+        The number of bins the outermost annulus will be divided into. The default is 4 (i.e. 90 degrees bins).
 
     Returns: grouped_ids, radial_bounds, angular_bounds
     grouped_ids - iterable
@@ -272,7 +274,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             # decision of whether to use these final bins can be postponed
             fake_interval = list(rad_interval) # make a copy
             fake_interval[1] = 20*fake_interval[0] # guarantees quadrants/octants
-            angle_partition = angle_partition_func(fake_interval,force_bins=12)
+            angle_partition = angle_partition_func(fake_interval,force_bins=outer_bins)
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             grouped_annular_ids = []
             for ang_intervals in angle_partition:

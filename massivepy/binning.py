@@ -347,6 +347,13 @@ def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     # get r, theta (theta defined like pa, with 0 at north towards east)
     rs = np.sqrt(xs**2 + ys**2)
     ths = -np.arctan2(xs,ys)
+    # fix weird southmost bin folding bug
+    #check if bin has both positive and negative theta values
+    neg = np.where(ths < -np.pi/2)[0]
+    pos = np.where(ths > np.pi/2)[0]
+    if (pos.size != 0) & (neg.size != 0):
+        #fix negative values
+        ths[neg] = ths[neg] + 2*np.pi
     # compute polar bin centers
     r_bin = np.sum(rs*fluxes)/total_flux
     th_bin = np.rad2deg(np.sum(ths*fluxes)/total_flux)

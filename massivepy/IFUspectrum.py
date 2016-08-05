@@ -7,6 +7,7 @@ import re
 import os
 import functools
 import time
+from sys import version_info
 
 import numpy as np
 import shapely.geometry as geo
@@ -308,10 +309,14 @@ def read_raw_datacube(cube_path, gal_info , gal_name, ir_path=None,
     comments['rawfile'] = os.path.basename(cube_path)
     # read and parse ifu file
     data, headers = utl.fits_quickread(cube_path)
-    if gal_name=='NGC3842':  # hard code an ugly exception for 3842
+    if gal_name=='NGC3842':  # ugly exception for 3842 -- interactive
+        py3 = version_info[0] > 2
+        if not py3:
+            response = raw_input("Please enter the location of the NGC4874 data cube:\n")
+        else:
+            response = input("Please enter the location of the NGC4874 data cube:\n ")
         print '\n==================\nUSING DONATED ARCS\n==================\n'
-        arcdonor = ('/Users/melanieveale/Box Sync/MASSIVE/Reduced-Data'
-                    '/NGC4874/RnovfibNGC4874ALL_log.fits')
+        arcdonor = (response)
         donordata, donorheaders = utl.fits_quickread(arcdonor)
         donorarcs = np.vstack(3*[donordata[4][:246,:]]) # from 2 dithers to 3
         donorinstwaves = donordata[2][0]*(1 + donorheaders[2]['z'])

@@ -30,6 +30,9 @@ The kinematics pipeline is divided into 4 scripts/steps. "s1", "s2", "s3", "s4" 
 
 Each script has an associated parameter file, which contains the required input files and settings. Since some scripts are run multiple times, there are blocks of parameters in each file with different parameters for each run. (All but one block is commented out to run the script.)
 
+Prerequisites:
+-run s0 to convert MILES library of spectra into a more useful format for processing
+
 The typical order of the pipeline is as follows:
 -run s1 (mainrun)
 -run s2 (fibers), iterating until bad_fiber_list.txt contains all fibers to remove
@@ -39,7 +42,7 @@ The typical order of the pipeline is as follows:
 -run s2 (folded) using results of s3X to align dithers before binning
 -run s2X (on all s2 runs) if desired to inspect the shifted spectra up close
 -run s3 (A-folded) to get better fullgalaxy kinematics, but do not redo template lists
--run s3 (B-folded) to get final kinematics on all bins
+-run s3 (B-folded) to get final kinematics on all bins (also include comparison run if desired/needed)
 -run s4 (folded)
 
 Some output files from the earlier stages (e.g. s2-fibers-binspectra.fits) may be deleted to save space.

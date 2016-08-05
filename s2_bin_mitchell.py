@@ -88,6 +88,10 @@ for paramfile_path in all_paramfile_paths:
     run_name = input_params['run_name']
     aspect_ratio = input_params['aspect_ratio']
     s2n_threshold = input_params['s2n_threshold']
+    if 'outer_bins' in input_params:
+        outer_bins = input_params['outer_bins']
+    else:
+        outer_bins = 4
     bin_type = input_params['bin_type']
     crop_region = [input_params['crop_min'], input_params['crop_max']]
     fullbin_radius = input_params['fullbin_radius']
@@ -101,7 +105,7 @@ for paramfile_path in all_paramfile_paths:
     fiberinfo_path = output_path_maker('fiberinfo','txt')
     plot_path = output_path_maker('binmaps','pdf')
     # save relevant info for plotting to a dict
-    plot_info = {'binspectra_path': binspectra_path, 
+    plot_info = {'binspectra_path': binspectra_path,
                  'fullbin_path': fullbin_path, 'plot_path': plot_path,
                  'bininfo_path': bininfo_path, 'fiberinfo_path': fiberinfo_path,
                  'targets_path': targets_path, 'ir_path': ir_path,
@@ -151,7 +155,7 @@ for paramfile_path in all_paramfile_paths:
     else:
         raise Exception('Bin type must be folded or unfolded, try again.')
     binning_func = functools.partial(binning.polar_threshold_binning,
-                                     angle_partition_func=apf)
+                                     angle_partition_func=apf, outer_bins=outer_bins)
     binned = ifuset.s2n_fluxweighted_binning(get_bins=binning_func,
                                              threshold=s2n_threshold)
     grouped_ids, bin_bounds = binned

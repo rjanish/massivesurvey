@@ -100,7 +100,7 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
         ax.tick_params(labeltop='on',top='on')
         pdf.savefig(fig)
         plt.close(fig)
-    
+
     # plot the fit spectrum
     fig = plt.figure(figsize=(6, nbins+3))
     fig.suptitle('{} Full galaxy spectra by bin number'.format(gal_name))
@@ -142,7 +142,7 @@ def plot_s3_fullfit(gal_name=None,plot_path=None,templates_dir=None,
     ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)
     plt.close(fig)
-    
+
     pdf.close()
     return
 
@@ -207,8 +207,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         if do_comparison:
             moments2 = fitdata2['gh']['moment'][:,i]
             moments_r2 = bindata2['r'][ibins2]
-            ax.plot(moments_r2,moments2,ls='',marker='s',mfc='g',ms=5.0,
-                    alpha=0.8,label=compare_labels[0])
+            ax.plot(moments_r2,moments2,ls='',marker='s',mec='red',mew=1.0,mfc='None',ms=9.0,alpha=0.8,label=compare_labels[0])
             mainlabel = compare_labels[1]
         # plot moments
         ax.plot(moments_r,moments,ls='',marker='o',mfc='c',ms=7.0,alpha=0.8,
@@ -225,8 +224,8 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         ax.set_xlabel('radius')
         ax.set_ylabel(moment_names[i])
         pdf.savefig(fig)
-        plt.close(fig)            
-    
+        plt.close(fig)
+
     # 2D kinematic maps at last, wheee
     fibersize=const.mitchell_fiber_radius.value
 
@@ -257,7 +256,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
         ax.axis([-binetc['rbinmax'],binetc['rbinmax'],
                  -binetc['rbinmax'],binetc['rbinmax']])
         pdf.savefig(fig)
-        plt.close(fig)        
+        plt.close(fig)
 
     # do all the moments
     momentcmaps = ['Blues','Purples'] + (nmoments-2)*['bwr']
@@ -325,7 +324,7 @@ def plot_s3_binfit(gal_name=None,plot_path=None,binspectra_path=None,
     ax.tick_params(labeltop='on',top='on')
     pdf.savefig(fig)
     plt.close(fig)
-    
+
 
     # template plots
     catalogfile = os.path.join(templates_dir,'catalog.txt')

@@ -9,7 +9,7 @@ import massivepy.io as mpio
 import utilities as utl
 
 
-def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
+def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None,force_bins=4):
     """
     Partition an annulus into angular bins that have parity across
     both axes.
@@ -23,6 +23,8 @@ def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
         The target aspect ratio of the constructed bins, defined as
         angular_size/radial_size. The bins will have an aspect ratio
         no larger than the passed value, but it may be smaller.
+    force_bins - int
+        Force the annulus to be divided into a fixed number of base bins, which, if needed, will be divided to have parity.
 
     Returns: intervals
     intervals - 3D array
@@ -34,9 +36,9 @@ def partition_quadparity(rad_interval, major_axis=None, aspect_ratio=None):
     delta_r = outer_radius - inner_radius
     mid_r = 0.5*(outer_radius + inner_radius)
     target_bin_arclength = delta_r*aspect_ratio
-    available_arclength = 0.5*np.pi*mid_r  # one quadrant
-    num_in_quad = np.ceil(available_arclength/target_bin_arclength)
-    num_in_half = 2*num_in_quad
+    available_arclength = (2.0/force_bins)*np.pi*mid_r  # per bin
+    num_in_div = np.ceil(available_arclength/target_bin_arclength)
+    num_in_half = (force_bins/2)*num_in_div
     angular_bounds_n = np.linspace(0.0, np.pi, num_in_half + 1)
         # angular boundaries on the positive side of the y axis, ordered
         # counterclockwise, including boundaries at 0 and pi
@@ -85,7 +87,7 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
                             linear_scale=None, indexing_func=None,
                             combine_func=None, score_func=None,
                             threshold=None, step_size=None,
-                            angle_partition_func=None):
+                            angle_partition_func=None, outer_bins=4):
     """
     Bin spacial data radially, according to a threshold score.
 
@@ -155,6 +157,8 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             intervals: output[j] = [[a0, a1], [a2, a3], ...]
           - The bin associated with output[j] is the union of all
             angular intervals in output[j]
+    outer_bins - integer
+        The number of bins the outermost annulus will be divided into. The default is 4 (i.e. 90 degrees bins).
 
     Returns: grouped_ids, radial_bounds, angular_bounds
     grouped_ids - iterable
@@ -269,8 +273,8 @@ def polar_threshold_binning(collection=None, coords=None, ids=None,
             # accept bins regardless of passing threshold
             # decision of whether to use these final bins can be postponed
             fake_interval = list(rad_interval) # make a copy
-            fake_interval[1] = 10*fake_interval[0] # guarantees quadrants
-            angle_partition = angle_partition_func(fake_interval)
+            fake_interval[1] = 20*fake_interval[0] # guarantees quadrants/octants
+            angle_partition = angle_partition_func(fake_interval,force_bins=outer_bins)
             in_annulus = utl.in_linear_interval(radii, rad_interval)
             grouped_annular_ids = []
             for ang_intervals in angle_partition:
@@ -309,7 +313,7 @@ def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     Calculate the flux-weighted bin center for a single bin, given the
     coordinates of each fiber in the bin (xs,ys) and the flux for each
     fiber (fluxes). If the bin type is folded, reflect all points across
-    ma (except single fiber bins within rmin) before binning. Return as 
+    ma (except single fiber bins within rmin) before binning. Return as
     an array for convenience.
     Outputs two points for bin center: x,y (fluxweighted average of xs, ys),
     and r,th (fluxweighted average in polar coordinates)
@@ -343,6 +347,13 @@ def calc_bin_center(xs,ys,fluxes,bintype,pa=None,rmin=None):
     # get r, theta (theta defined like pa, with 0 at north towards east)
     rs = np.sqrt(xs**2 + ys**2)
     ths = -np.arctan2(xs,ys)
+    # fix weird southmost bin folding bug
+    #check if bin has both positive and negative theta values
+    neg = np.where(ths < -np.pi/2)[0]
+    pos = np.where(ths > np.pi/2)[0]
+    if (pos.size != 0) & (neg.size != 0):
+        #fix negative values
+        ths[neg] = ths[neg] + 2*np.pi
     # compute polar bin centers
     r_bin = np.sum(rs*fluxes)/total_flux
     th_bin = np.rad2deg(np.sum(ths*fluxes)/total_flux)
